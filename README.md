@@ -29,4 +29,4 @@ Project Structure
 /backend            # Shared backend & Fair-Share Ledger logic
 Status
 
-Work in progress — built for [hackathon/PS name].
+Work in progress — built for [SIH2026/26089].
