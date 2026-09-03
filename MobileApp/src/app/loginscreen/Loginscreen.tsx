@@ -15,13 +15,18 @@ import {
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import AppLogo from '../../components/AppLogo';
 import colors from '../../constants/colors';
 
+import type { RootStackParamList } from '../navigation/AppNavigator';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
+
 const { width, height } = Dimensions.get('window');
 
-const LoginScreen: React.FC = () => {
+const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,6 +34,7 @@ const LoginScreen: React.FC = () => {
   /*
    * Animation values
    */
+
   const logoScale = useRef(new Animated.Value(1)).current;
 
   const logoX = useRef(new Animated.Value(0)).current;
@@ -98,8 +104,17 @@ const LoginScreen: React.FC = () => {
     ]).start();
   }, []);
 
+  /*
+   * LOGIN
+   *
+   * TEMPORARY:
+   * For now, login directly opens the User Dashboard.
+   *
+   * LATER:
+   * Replace this with the FastAPI login request.
+   */
   const handleLogin = () => {
-    if (!email || !password) {
+    if (!email.trim() || !password) {
       return;
     }
 
@@ -108,12 +123,67 @@ const LoginScreen: React.FC = () => {
       password,
     });
 
-    // Later:
-    // API call → FastAPI backend
+    /*
+     * TEMPORARY USER LOGIN
+     *
+     * We are using the email before @ as the user's name
+     * until the FastAPI backend returns the actual user data.
+     *
+     * Example:
+     * akhilesh@gmail.com
+     *        ↓
+     * name = "akhilesh"
+     */
+    const userName = email.split('@')[0];
+
+    navigation.replace('UserDashboard', {
+      user: {
+        name: userName,
+        email: email,
+      },
+    });
+
+    /*
+     * ----------------------------------------------------
+     * FASTAPI INTEGRATION - ADD LATER
+     * ----------------------------------------------------
+     *
+     * const response = await fetch(
+     *   'YOUR_FASTAPI_URL/api/auth/login',
+     *   {
+     *     method: 'POST',
+     *     headers: {
+     *       'Content-Type': 'application/json',
+     *     },
+     *     body: JSON.stringify({
+     *       email,
+     *       password,
+     *     }),
+     *   }
+     * );
+     *
+     * const data = await response.json();
+     *
+     * if (data.role === 'user') {
+     *   navigation.replace('UserDashboard', {
+     *     user: data.user,
+     *   });
+     * }
+     *
+     * if (data.role === 'worker') {
+     *   navigation.replace('WorkerDashboard');
+     * }
+     *
+     * ----------------------------------------------------
+     */
   };
 
   const handleRegister = () => {
     console.log('Navigate to registration');
+
+    /*
+     * Registration screen will be connected later.
+     */
   };
 
   return (
@@ -264,11 +334,11 @@ const LoginScreen: React.FC = () => {
             <Pressable
               style={[
                 styles.loginButton,
-                (!email || !password) &&
+                (!email.trim() || !password) &&
                   styles.loginButtonDisabled,
               ]}
               onPress={handleLogin}
-              disabled={!email || !password}
+              disabled={!email.trim() || !password}
             >
               <Text style={styles.loginButtonText}>
                 Log in
@@ -292,13 +362,17 @@ const LoginScreen: React.FC = () => {
             {/* Bottom Message */}
 
             <View style={styles.bottomContainer}>
-              {/* <Text style={styles.bottomText}>
+              {/*
+
+              <Text style={styles.bottomText}>
                 Connecting households with
               </Text>
 
               <Text style={styles.bottomText}>
                 trusted cooperative workers
-              </Text> */}
+              </Text>
+
+              */}
             </View>
           </Animated.View>
         </ScrollView>
