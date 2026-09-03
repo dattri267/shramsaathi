@@ -12,6 +12,7 @@ const {
   updateProfile
 } = require('../controllers/customer.controller');
 
+// Customer profile
 router.get(
   '/customer/profile',
   requireAuth,
@@ -21,6 +22,28 @@ router.get(
 
 router.patch(
   '/customer/profile',
+  requireAuth,
+  resolveRoleProfile,
+  updateProfile
+);
+
+// Backward-compatible routes from main
+router.get(
+  '/profile',
+  requireAuth,
+  resolveRoleProfile,
+  getProfile
+);
+
+router.put(
+  '/profile',
+  requireAuth,
+  resolveRoleProfile,
+  updateProfile
+);
+
+router.patch(
+  '/profile',
   requireAuth,
   resolveRoleProfile,
   updateProfile

@@ -12,7 +12,9 @@ async function getProfile(req, res, next) {
       req.user.id
     );
 
-    res.json({ profile });
+    res.json({
+      profile
+    });
   } catch (err) {
     next(err);
   }
@@ -74,7 +76,9 @@ async function getJobs(req, res, next) {
       req.user.workerProfileId
     );
 
-    res.json({ jobs });
+    res.json({
+      jobs
+    });
   } catch (err) {
     next(err);
   }

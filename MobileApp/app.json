@@ -28,6 +28,19 @@
     },
 
     "plugins": [
+       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "ShramSaathi uses your location to find and provide services at your address."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ShramSaathi needs access to your photos so you can add a profile picture.",
+          "cameraPermission": "ShramSaathi needs camera access so you can take a profile picture."
+        }
+      ],
       [
         "expo-splash-screen",
         {
