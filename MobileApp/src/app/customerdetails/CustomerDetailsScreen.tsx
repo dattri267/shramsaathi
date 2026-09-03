@@ -10,7 +10,9 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Modal,
   Alert,
+  ActivityIndicator,
   Image,
 } from 'react-native';
 
@@ -41,6 +43,9 @@ export default function CustomerDetailsScreen({
 
   const [profilePhoto, setProfilePhoto] =
     useState<string | null>(null);
+  const [photoModalVisible, setPhotoModalVisible] =
+  useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
 
   const [house, setHouse] = useState('');
   const [locality, setLocality] = useState('');
@@ -119,6 +124,7 @@ export default function CustomerDetailsScreen({
   };
 
 const handleUseCurrentLocation = async () => {
+  setLocationLoading(true);
   try {
     // Request location permission
     const { status } =
@@ -131,12 +137,6 @@ const handleUseCurrentLocation = async () => {
       );
       return;
     }
-
-    // Show loading message
-    Alert.alert(
-      'Getting Location',
-      'Please wait while we fetch your current address.'
-    );
 
     // Get current GPS position
     const location =
@@ -212,24 +212,7 @@ setPincode(
 };
 
 const handleAddPhoto = () => {
-  Alert.alert(
-    profilePhoto ? 'Change Profile Photo' : 'Add Profile Photo',
-    'Choose an option',
-    [
-      {
-        text: 'Take Photo',
-        onPress: handleTakePhoto,
-      },
-      {
-        text: 'Choose from Device',
-        onPress: handleChoosePhoto,
-      },
-      {
-        text: 'Cancel',
-        style: 'cancel',
-      },
-    ]
-  );
+  setPhotoModalVisible(true);
 };
 const handleTakePhoto = async () => {
   try {
@@ -253,8 +236,9 @@ const handleTakePhoto = async () => {
       });
 
     if (!result.canceled) {
-      setProfilePhoto(result.assets[0].uri);
-    }
+  setProfilePhoto(result.assets[0].uri);
+  setPhotoModalVisible(false);
+}
   } catch (error) {
     console.log('Camera Error:', error);
 
@@ -287,9 +271,10 @@ const handleChoosePhoto = async () => {
         quality: 0.8,
       });
 
-    if (!result.canceled) {
-      setProfilePhoto(result.assets[0].uri);
-    }
+if (!result.canceled) {
+  setProfilePhoto(result.assets[0].uri);
+  setPhotoModalVisible(false);
+}
   } catch (error) {
     console.log('Gallery Error:', error);
 
@@ -480,46 +465,51 @@ const handleChoosePhoto = async () => {
 
           {/* CURRENT LOCATION */}
 
-          <Pressable
-            style={styles.locationButton}
-            onPress={
-              handleUseCurrentLocation
-            }
-          >
-            <View
-              style={styles.locationIcon}
-            >
-              <Ionicons
-                name="location-outline"
-                size={21}
-                color="#2563EB"
-              />
-            </View>
+        <Pressable
+  style={[
+    styles.locationButton,
+    locationLoading && styles.locationButtonDisabled,
+  ]}
+  onPress={handleUseCurrentLocation}
+  disabled={locationLoading}
+>
+  <View style={styles.locationIcon}>
+    {locationLoading ? (
+      <ActivityIndicator
+        size="small"
+        color="#2563EB"
+      />
+    ) : (
+      <Ionicons
+        name="location-outline"
+        size={21}
+        color="#2563EB"
+      />
+    )}
+  </View>
 
-            <View
-              style={
-                styles.locationTextContainer
-              }
-            >
-              <Text
-                style={styles.locationTitle}
-              >
-                Use Current Location
-              </Text>
+  <View style={styles.locationTextContainer}>
+    <Text style={styles.locationTitle}>
+      {locationLoading
+        ? 'Fetching Location...'
+        : 'Use Current Location'}
+    </Text>
 
-              <Text
-                style={styles.locationSubtitle}
-              >
-                Automatically detect your address
-              </Text>
-            </View>
+    <Text style={styles.locationSubtitle}>
+      {locationLoading
+        ? 'Please wait while we detect your address'
+        : 'Automatically detect your address'}
+    </Text>
+  </View>
 
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color="#9CA3AF"
-            />
-          </Pressable>
+  {!locationLoading && (
+    <Ionicons
+      name="chevron-forward"
+      size={20}
+      color="#9CA3AF"
+    />
+  )}
+</Pressable>
 
           {/* HOUSE / FLAT */}
 
@@ -736,11 +726,234 @@ const handleChoosePhoto = async () => {
           from your profile.
         </Text>
       </ScrollView>
+      <Modal
+  visible={photoModalVisible}
+  transparent
+  animationType="slide"
+  onRequestClose={() => setPhotoModalVisible(false)}
+>
+  <View style={styles.modalOverlay}>
+    <View style={styles.photoBottomSheet}>
+
+      {/* Handle */}
+      <View style={styles.sheetHandle} />
+
+      {/* Header */}
+      <View style={styles.sheetHeader}>
+        <View style={styles.sheetHeaderText}>
+          <Text style={styles.sheetTitle}>
+            {profilePhoto
+              ? 'Change Profile Photo'
+              : 'Add Profile Photo'}
+          </Text>
+
+          <Text style={styles.sheetSubtitle}>
+            Choose how you want to add your photo
+          </Text>
+        </View>
+
+        <Pressable
+          style={styles.sheetCloseButton}
+          onPress={() => setPhotoModalVisible(false)}
+        >
+          <Ionicons
+            name="close"
+            size={21}
+            color="#6B7280"
+          />
+        </Pressable>
+      </View>
+
+      {/* Take Photo */}
+      <Pressable
+        style={styles.photoOption}
+        onPress={handleTakePhoto}
+      >
+        <View style={styles.photoOptionIcon}>
+          <Ionicons
+            name="camera-outline"
+            size={25}
+            color="#2563EB"
+          />
+        </View>
+
+        <View style={styles.photoOptionText}>
+          <Text style={styles.photoOptionTitle}>
+            Take Photo
+          </Text>
+
+          <Text style={styles.photoOptionSubtitle}>
+            Use your camera to take a new photo
+          </Text>
+        </View>
+
+        <Ionicons
+          name="chevron-forward"
+          size={20}
+          color="#9CA3AF"
+        />
+      </Pressable>
+
+      {/* Choose From Device */}
+      <Pressable
+        style={styles.photoOption}
+        onPress={handleChoosePhoto}
+      >
+        <View style={styles.photoOptionIcon}>
+          <Ionicons
+            name="images-outline"
+            size={25}
+            color="#2563EB"
+          />
+        </View>
+
+        <View style={styles.photoOptionText}>
+          <Text style={styles.photoOptionTitle}>
+            Choose from Device
+          </Text>
+
+          <Text style={styles.photoOptionSubtitle}>
+            Select a photo from your gallery
+          </Text>
+        </View>
+
+        <Ionicons
+          name="chevron-forward"
+          size={20}
+          color="#9CA3AF"
+        />
+      </Pressable>
+
+      {/* Cancel */}
+      <Pressable
+        style={styles.sheetCancelButton}
+        onPress={() => setPhotoModalVisible(false)}
+      >
+        <Text style={styles.sheetCancelText}>
+          Cancel
+        </Text>
+      </Pressable>
+
+    </View>
+  </View>
+</Modal>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  modalOverlay: {
+  flex: 1,
+  backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  justifyContent: 'flex-end',
+},
+
+photoBottomSheet: {
+  backgroundColor: '#FFFFFF',
+  borderTopLeftRadius: 25,
+  borderTopRightRadius: 25,
+  paddingHorizontal: 20,
+  paddingTop: 10,
+  paddingBottom: 28,
+},
+
+sheetHandle: {
+  width: 42,
+  height: 4,
+  borderRadius: 10,
+  backgroundColor: '#D1D5DB',
+  alignSelf: 'center',
+  marginBottom: 18,
+},
+
+sheetHeader: {
+  flexDirection: 'row',
+  alignItems: 'flex-start',
+  justifyContent: 'space-between',
+  marginBottom: 20,
+},
+
+sheetHeaderText: {
+  flex: 1,
+  paddingRight: 12,
+},
+
+sheetTitle: {
+  fontSize: 18,
+  fontWeight: '700',
+  color: '#111827',
+},
+
+sheetSubtitle: {
+  fontSize: 12,
+  color: '#6B7280',
+  marginTop: 4,
+},
+
+sheetCloseButton: {
+  width: 34,
+  height: 34,
+  borderRadius: 17,
+  backgroundColor: '#F3F4F6',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+locationButtonDisabled: {
+  opacity: 0.7,
+},
+
+photoOption: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  padding: 13,
+  borderWidth: 1,
+  borderColor: '#E5E7EB',
+  borderRadius: 14,
+  marginBottom: 10,
+  backgroundColor: '#FFFFFF',
+},
+
+photoOptionIcon: {
+  width: 46,
+  height: 46,
+  borderRadius: 12,
+  backgroundColor: '#EFF6FF',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+
+photoOptionText: {
+  flex: 1,
+  marginLeft: 12,
+},
+
+photoOptionTitle: {
+  fontSize: 14,
+  fontWeight: '600',
+  color: '#111827',
+},
+
+photoOptionSubtitle: {
+  fontSize: 11,
+  color: '#9CA3AF',
+  marginTop: 3,
+},
+
+sheetCancelButton: {
+  height: 48,
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: '#E5E7EB',
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginTop: 6,
+},
+
+sheetCancelText: {
+  fontSize: 14,
+  fontWeight: '600',
+  color: '#4B5563',
+},
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
