@@ -1,9 +1,7 @@
 generator client {
-  provider        = "prisma-client"
-  output          = "../generated/prisma"
+  provider        = "prisma-client-js"
   previewFeatures = ["partialIndexes"]
 }
-
 datasource db {
   provider = "postgresql"
   schemas  = ["auth", "public"]
