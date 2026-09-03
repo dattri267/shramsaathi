@@ -1,14 +1,19 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import {
+  createNativeStackNavigator,
+} from '@react-navigation/native-stack';
 
 import LoginScreen from '../loginscreen/Loginscreen';
+import RegisterScreen from '../registerscreen/RegisterScreen';
 import UserDashboard from '../userdashboard/UserDashboard';
 
 import { View, Text, StyleSheet } from 'react-native';
 
 export type RootStackParamList = {
   Login: undefined;
+
+  Register: undefined;
 
   UserDashboard: {
     user?: {
@@ -43,11 +48,17 @@ export default function AppNavigator() {
         initialRouteName="Login"
         screenOptions={{
           headerShown: false,
+          animation: 'slide_from_right',
         }}
       >
         <Stack.Screen
           name="Login"
           component={LoginScreen}
+        />
+
+        <Stack.Screen
+          name="Register"
+          component={RegisterScreen}
         />
 
         <Stack.Screen

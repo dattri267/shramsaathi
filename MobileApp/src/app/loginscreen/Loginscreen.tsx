@@ -178,13 +178,9 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
      */
   };
 
-  const handleRegister = () => {
-    console.log('Navigate to registration');
-
-    /*
-     * Registration screen will be connected later.
-     */
-  };
+const handleRegister = () => {
+  navigation.navigate('Register');
+};
 
   return (
     <SafeAreaView style={styles.safeArea}>
