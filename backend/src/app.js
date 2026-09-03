@@ -2,6 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const emergencyRoutes = require('./routes/emergency.routes');
 const bookingRoutes = require('./routes/booking.routes');
+const pricingRoutes = require('./routes/pricing.routes');
+const paymentRoutes = require('./routes/payment.routes');
+
 
 const app = express();
 
@@ -14,6 +17,9 @@ app.get('/health', (req, res) => {
 
 app.use('/api', bookingRoutes);
 app.use('/api', emergencyRoutes);
+app.use('/api', pricingRoutes);
+app.use('/api', paymentRoutes);
+
 
 app.use((err, req, res, next) => {
   console.error(err);
