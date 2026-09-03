@@ -66,7 +66,7 @@ async function login(req, res, next) {
             where: { id: sbData.user.id }
           });
 
-          // If profile doesn't exist yet, auto-create a default customer profile
+          // If profile doesn't exist yet, auto-create a default profile
           if (!profile) {
             profile = await prisma.profiles.create({
               data: {
@@ -155,6 +155,12 @@ async function signup(req, res, next) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
+    // Check if user already exists in database
+    const existingDbUser = await prisma.users.findFirst({ where: { email } });
+    if (existingDbUser) {
+      return res.status(400).json({ error: 'User with this email already exists. Please log in.' });
+    }
+
     if (SUPABASE_URL) {
       const sbResponse = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
         method: 'POST',
@@ -178,46 +184,59 @@ async function signup(req, res, next) {
         return res.status(400).json({ error: sbData.msg || sbData.error_description || 'Signup failed' });
       }
 
-      const userId = sbData.id || (sbData.user && sbData.user.id);
+      let userId = sbData.id || (sbData.user && sbData.user.id);
 
       if (userId) {
-        // Auto confirm email for dev convenience
-        await prisma.users.update({
-          where: { id: userId },
-          data: {
-            email_confirmed_at: new Date(),
-            ...(phoneNumber ? { phone: phoneNumber } : {})
-          }
-        }).catch(() => {});
+        // Confirm email & update phone in database
+        let userInDb = await prisma.users.findUnique({ where: { id: userId } });
+        
+        if (!userInDb) {
+          // Fallback search by email if Supabase returned a different ID
+          userInDb = await prisma.users.findFirst({ where: { email } });
+          if (userInDb) userId = userInDb.id;
+        }
 
-        // Create profile
-        const profile = await prisma.profiles.upsert({
-          where: { id: userId },
-          update: {
-            ...(phoneNumber ? { phone: phoneNumber } : {}),
-            ...(full_name ? { full_name } : {})
-          },
-          create: {
-            id: userId,
-            role: role === 'worker' ? 'worker' : 'customer',
-            full_name: full_name || email.split('@')[0],
-            phone: phoneNumber || null
-          }
-        });
+        if (userInDb) {
+          await prisma.users.update({
+            where: { id: userId },
+            data: {
+              email_confirmed_at: new Date(),
+              ...(phoneNumber ? { phone: phoneNumber } : {})
+            }
+          }).catch(() => {});
+        }
 
-        // Create role profile
-        if (role === 'customer') {
-          await prisma.customer_profiles.upsert({
-            where: { user_id: userId },
-            update: {},
-            create: { user_id: userId }
+        // Create profile only if user exists in users table
+        let profile = null;
+        if (userInDb) {
+          profile = await prisma.profiles.upsert({
+            where: { id: userId },
+            update: {
+              ...(phoneNumber ? { phone: phoneNumber } : {}),
+              ...(full_name ? { full_name } : {})
+            },
+            create: {
+              id: userId,
+              role: role === 'worker' ? 'worker' : 'customer',
+              full_name: full_name || email.split('@')[0],
+              phone: phoneNumber || null
+            }
           });
-        } else if (role === 'worker') {
-          await prisma.worker_profiles.upsert({
-            where: { user_id: userId },
-            update: {},
-            create: { user_id: userId }
-          });
+
+          // Create role profile
+          if (role === 'customer') {
+            await prisma.customer_profiles.upsert({
+              where: { user_id: userId },
+              update: {},
+              create: { user_id: userId }
+            });
+          } else if (role === 'worker') {
+            await prisma.worker_profiles.upsert({
+              where: { user_id: userId },
+              update: {},
+              create: { user_id: userId }
+            });
+          }
         }
 
         // Generate instant token for immediate profile setup navigation
