@@ -136,12 +136,13 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
      */
     const userName = email.split('@')[0];
 
-    navigation.replace('UserDashboard', {
-      user: {
-        name: userName,
-        email: email,
-      },
-    });
+    // navigation.replace('UserDashboard', {
+    //   user: {
+    //     name: userName,
+    //     email: email,
+    //   },
+    // });
+    navigation.replace('WorkerDashboard');
 
     /*
      * ----------------------------------------------------
