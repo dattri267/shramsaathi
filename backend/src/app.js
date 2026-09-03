@@ -6,6 +6,10 @@ const pricingRoutes = require('./routes/pricing.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const authRoutes = require('./routes/auth.routes');
 const customerRoutes = require('./routes/customer.routes');
+const workerRoutes = require('./routes/worker.routes');
+const ratingRoutes = require('./routes/rating.routes');
+const disputeRoutes = require('./routes/dispute.routes');
+const welfareRoutes = require('./routes/welfare.routes');
 
 
 const app = express();
@@ -21,6 +25,16 @@ app.use('/auth', authRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/customer', customerRoutes);
 app.use('/api/customer', customerRoutes);
+app.use('/worker', workerRoutes);
+app.use('/api/worker', workerRoutes);
+app.use('/skills', workerRoutes);
+app.use('/api/skills', workerRoutes);
+app.use('/ratings', ratingRoutes);
+app.use('/api/ratings', ratingRoutes);
+app.use('/disputes', disputeRoutes);
+app.use('/api/disputes', disputeRoutes);
+app.use('/welfare', welfareRoutes);
+app.use('/api/welfare', welfareRoutes);
 app.use('/api', bookingRoutes);
 app.use('/api', emergencyRoutes);
 app.use('/api', pricingRoutes);

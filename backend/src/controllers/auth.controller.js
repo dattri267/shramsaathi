@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const prisma = require('../config/db');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -66,7 +67,7 @@ async function login(req, res, next) {
             where: { id: sbData.user.id }
           });
 
-          // If profile doesn't exist yet, auto-create a default profile
+          // If profile doesn't exist yet, auto-create default profile
           if (!profile) {
             profile = await prisma.profiles.create({
               data: {
@@ -88,15 +89,6 @@ async function login(req, res, next) {
             user: sbData.user,
             profile
           });
-        }
-        
-        // If Supabase failed with explicit error
-        if (sbData.error_description || sbData.msg || sbData.error) {
-          if (!sbData.error_description?.includes('Invalid login credentials')) {
-            return res.status(400).json({ 
-              error: sbData.error_description || sbData.msg || sbData.error 
-            });
-          }
         }
       } catch (sbErr) {
         console.warn('Supabase auth attempt failed, falling back to database check:', sbErr.message);
@@ -150,115 +142,134 @@ async function signup(req, res, next) {
   try {
     const { email, password, phone, mobile_number, full_name, role = 'customer' } = req.body;
     const phoneNumber = phone || mobile_number;
+    const userRole = role === 'worker' ? 'worker' : 'customer';
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // Check if user already exists in database
+    // 1. Check if user with this email already exists
     const existingDbUser = await prisma.users.findFirst({ where: { email } });
     if (existingDbUser) {
       return res.status(400).json({ error: 'User with this email already exists. Please log in.' });
     }
 
-    if (SUPABASE_URL) {
-      const sbResponse = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          data: {
-            phone: phoneNumber,
-            role: role === 'worker' ? 'worker' : 'customer'
-          }
-        })
+    // 2. Check if phone number is already registered
+    if (phoneNumber) {
+      const existingPhone = await prisma.profiles.findFirst({
+        where: { phone: phoneNumber }
       });
-
-      const sbData = await sbResponse.json();
-
-      if (!sbResponse.ok) {
-        return res.status(400).json({ error: sbData.msg || sbData.error_description || 'Signup failed' });
+      if (existingPhone) {
+        return res.status(400).json({ error: 'Mobile number is already registered to another account.' });
       }
-
-      let userId = sbData.id || (sbData.user && sbData.user.id);
-
-      if (userId) {
-        // Confirm email & update phone in database
-        let userInDb = await prisma.users.findUnique({ where: { id: userId } });
-        
-        if (!userInDb) {
-          // Fallback search by email if Supabase returned a different ID
-          userInDb = await prisma.users.findFirst({ where: { email } });
-          if (userInDb) userId = userInDb.id;
-        }
-
-        if (userInDb) {
-          await prisma.users.update({
-            where: { id: userId },
-            data: {
-              email_confirmed_at: new Date(),
-              ...(phoneNumber ? { phone: phoneNumber } : {})
-            }
-          }).catch(() => {});
-        }
-
-        // Create profile only if user exists in users table
-        let profile = null;
-        if (userInDb) {
-          profile = await prisma.profiles.upsert({
-            where: { id: userId },
-            update: {
-              ...(phoneNumber ? { phone: phoneNumber } : {}),
-              ...(full_name ? { full_name } : {})
-            },
-            create: {
-              id: userId,
-              role: role === 'worker' ? 'worker' : 'customer',
-              full_name: full_name || email.split('@')[0],
-              phone: phoneNumber || null
-            }
-          });
-
-          // Create role profile
-          if (role === 'customer') {
-            await prisma.customer_profiles.upsert({
-              where: { user_id: userId },
-              update: {},
-              create: { user_id: userId }
-            });
-          } else if (role === 'worker') {
-            await prisma.worker_profiles.upsert({
-              where: { user_id: userId },
-              update: {},
-              create: { user_id: userId }
-            });
-          }
-        }
-
-        // Generate instant token for immediate profile setup navigation
-        const token = sbData.access_token || jwt.sign(
-          { sub: userId, email },
-          process.env.JWT_SECRET || 'secret',
-          { expiresIn: '7d' }
-        );
-
-        return res.status(201).json({
-          message: 'User registered successfully',
-          access_token: token,
-          token,
-          user: sbData.user || { id: userId, email },
-          profile
-        });
-      }
-
-      return res.status(201).json({ message: 'Signup request submitted', data: sbData });
     }
 
-    return res.status(400).json({ error: 'Supabase URL not configured' });
+    let userId = null;
+    let sbData = null;
+
+    // 3. Try Supabase Auth API
+    if (SUPABASE_URL) {
+      try {
+        const sbResponse = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY
+          },
+          body: JSON.stringify({
+            email,
+            password,
+            data: {
+              phone: phoneNumber,
+              role: userRole
+            }
+          })
+        });
+
+        sbData = await sbResponse.json();
+
+        if (sbResponse.ok) {
+          userId = sbData.id || (sbData.user && sbData.user.id);
+        } else {
+          console.warn('Supabase signup returned notice/limit:', sbData.msg || sbData.error_description || sbData.error);
+        }
+      } catch (err) {
+        console.warn('Supabase fetch error, using local fallback:', err.message);
+      }
+    }
+
+    // 4. Fallback: Direct Database Creation if Supabase rate limited or omitted
+    if (!userId) {
+      const generatedId = crypto.randomUUID();
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const createdUser = await prisma.users.create({
+        data: {
+          id: generatedId,
+          email,
+          encrypted_password: hashedPassword,
+          email_confirmed_at: new Date(),
+          phone: phoneNumber || null,
+          role: 'authenticated'
+        }
+      });
+      userId = createdUser.id;
+    } else {
+      // Auto confirm email for dev convenience
+      await prisma.users.update({
+        where: { id: userId },
+        data: {
+          email_confirmed_at: new Date(),
+          ...(phoneNumber ? { phone: phoneNumber } : {})
+        }
+      }).catch(() => {});
+    }
+
+    // 5. Create Profile Record
+    const profile = await prisma.profiles.upsert({
+      where: { id: userId },
+      update: {
+        ...(phoneNumber ? { phone: phoneNumber } : {}),
+        ...(full_name ? { full_name } : {})
+      },
+      create: {
+        id: userId,
+        role: userRole,
+        full_name: full_name || email.split('@')[0],
+        phone: phoneNumber || null
+      }
+    });
+
+    // 6. Create Role Specific Profile
+    if (userRole === 'customer') {
+      await prisma.customer_profiles.upsert({
+        where: { user_id: userId },
+        update: {},
+        create: { user_id: userId }
+      });
+    } else if (userRole === 'worker') {
+      await prisma.worker_profiles.upsert({
+        where: { user_id: userId },
+        update: {},
+        create: { user_id: userId }
+      });
+    }
+
+    // 7. Generate JWT Token
+    const token = jwt.sign(
+      { sub: userId, email },
+      process.env.JWT_SECRET || 'secret',
+      { expiresIn: '7d' }
+    );
+
+    return res.status(201).json({
+      message: 'User registered successfully',
+      access_token: token,
+      token,
+      user: { id: userId, email },
+      profile
+    });
+
   } catch (error) {
     next(error);
   }
