@@ -9,6 +9,7 @@ import {
 
 import LoginScreen from '../loginscreen/Loginscreen';
 import RegisterScreen from '../registerscreen/RegisterScreen';
+import CustomerDetailsScreen from '../customerdetails/CustomerDetailsScreen';
 import UserDashboard from '../userdashboard/UserDashboard';
 import WorkerDashboard from '../worker/WorkerDashboard';
 
@@ -16,6 +17,11 @@ export type RootStackParamList = {
   Login: undefined;
 
   Register: undefined;
+
+  CustomerDetails: {
+    email?: string;
+    mobile?: string;
+  };
 
   UserDashboard:
     | {
@@ -53,21 +59,31 @@ export default function AppNavigator() {
           animation: 'slide_from_right',
         }}
       >
+        {/* Login */}
         <Stack.Screen
           name="Login"
           component={LoginScreen}
         />
 
+        {/* Registration */}
         <Stack.Screen
           name="Register"
           component={RegisterScreen}
         />
 
+        {/* Customer Personal Details */}
+        <Stack.Screen
+          name="CustomerDetails"
+          component={CustomerDetailsScreen}
+        />
+
+        {/* Customer Dashboard */}
         <Stack.Screen
           name="UserDashboard"
           component={UserDashboard}
         />
 
+        {/* Worker Dashboard */}
         <Stack.Screen
           name="WorkerDashboard"
           component={WorkerDashboard}

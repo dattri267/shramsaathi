@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  Alert,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,7 +23,9 @@ type Props = NativeStackScreenProps<
   'Register'
 >;
 
-export default function RegisterScreen({ navigation }: Props)  {
+export default function RegisterScreen({
+  navigation,
+}: Props) {
   const [role, setRole] = useState<Role>('customer');
 
   const [email, setEmail] = useState('');
@@ -35,23 +38,37 @@ export default function RegisterScreen({ navigation }: Props)  {
 
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
-  const handleRegister = () => {
-    if (!email || !mobile || !password || !rePassword) {
-      return;
-    }
+const handleRegister = () => {
+  if (
+    !email.trim() ||
+    !mobile.trim() ||
+    !password ||
+    !rePassword
+  ) {
+    Alert.alert(
+      'Incomplete Details',
+      'Please fill in all required fields.'
+    );
+    return;
+  }
 
-    if (password !== rePassword) {
-      return;
-    }
+  if (password !== rePassword) {
+    Alert.alert(
+      'Password Mismatch',
+      'Passwords do not match.'
+    );
+    return;
+  }
 
-    console.log('Registering as:', role);
-    console.log({
-      email,
-      mobile,
-      password,
+  if (role === 'customer') {
+    navigation.navigate('CustomerDetails', {
+      email: email.trim(),
+      mobile: mobile.trim(),
     });
-  };
-
+  } else {
+    navigation.navigate('WorkerDashboard');
+  }
+};
   const inputStyle = (inputName: string) => [
     styles.inputContainer,
     focusedInput === inputName && styles.inputContainerFocused,
