@@ -2,34 +2,35 @@ const express = require('express');
 const router = express.Router();
 
 const {
+  createEmergencyMatch,
+  acceptEmergencyMatch,
+  rejectEmergencyMatch
+} = require('../controllers/emergency.controller');
+
+const {
   requireAuth,
   resolveRoleProfile
 } = require('../middleware/auth');
 
-const {
-  createMatchAttempt,
-  acceptEmergency,
-  rejectEmergency
-} = require('../controllers/emergency.controller');
-
 router.post(
-  '/emergency/match-attempt',
+  '/emergency/match',
   requireAuth,
-  createMatchAttempt
+  resolveRoleProfile,
+  createEmergencyMatch
 );
 
 router.patch(
-  '/emergency/match-attempt/:id/accept',
+  '/emergency/match/:id/accept',
   requireAuth,
   resolveRoleProfile,
-  acceptEmergency
+  acceptEmergencyMatch
 );
 
 router.patch(
-  '/emergency/match-attempt/:id/reject',
+  '/emergency/match/:id/reject',
   requireAuth,
   resolveRoleProfile,
-  rejectEmergency
+  rejectEmergencyMatch
 );
 
 module.exports = router;

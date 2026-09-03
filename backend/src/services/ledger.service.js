@@ -14,9 +14,13 @@ async function createFairShareLedger(payment) {
   );
 
   if (
-    workerPercent + welfarePercent + platformPercent !== 100
+    workerPercent +
+      welfarePercent +
+      platformPercent !== 100
   ) {
-    throw new Error('Ledger percentages must total 100');
+    throw new Error(
+      'Ledger percentages must total 100'
+    );
   }
 
   const amount = Number(payment.amount);
@@ -33,43 +37,57 @@ async function createFairShareLedger(payment) {
     (amount * platformPercent / 100).toFixed(2)
   );
 
-  return prisma.$transaction([
-    prisma.fair_share_ledger.create({
-      data: {
-        booking_id: payment.booking_id,
-        payment_id: payment.id,
-        party: 'worker',
-        amount: workerAmount,
-        percentage: workerPercent,
-        status: 'settled',
-        settled_at: new Date()
-      }
-    }),
+  return prisma.$transaction(async (tx) => {
 
-    prisma.fair_share_ledger.create({
-      data: {
-        booking_id: payment.booking_id,
-        payment_id: payment.id,
-        party: 'welfare_fund',
-        amount: welfareAmount,
-        percentage: welfarePercent,
-        status: 'settled',
-        settled_at: new Date()
-      }
-    }),
+    const existing =
+      await tx.fair_share_ledger.findMany({
+        where: {
+          booking_id: payment.booking_id
+        }
+      });
 
-    prisma.fair_share_ledger.create({
-      data: {
-        booking_id: payment.booking_id,
-        payment_id: payment.id,
-        party: 'platform_ops',
-        amount: platformAmount,
-        percentage: platformPercent,
-        status: 'settled',
-        settled_at: new Date()
-      }
-    })
-  ]);
+    if (existing.length > 0) {
+      return existing;
+    }
+
+    return Promise.all([
+      tx.fair_share_ledger.create({
+        data: {
+          booking_id: payment.booking_id,
+          payment_id: payment.id,
+          party: 'worker',
+          amount: workerAmount,
+          percentage: workerPercent,
+          status: 'settled',
+          settled_at: new Date()
+        }
+      }),
+
+      tx.fair_share_ledger.create({
+        data: {
+          booking_id: payment.booking_id,
+          payment_id: payment.id,
+          party: 'welfare_fund',
+          amount: welfareAmount,
+          percentage: welfarePercent,
+          status: 'settled',
+          settled_at: new Date()
+        }
+      }),
+
+      tx.fair_share_ledger.create({
+        data: {
+          booking_id: payment.booking_id,
+          payment_id: payment.id,
+          party: 'platform_ops',
+          amount: platformAmount,
+          percentage: platformPercent,
+          status: 'settled',
+          settled_at: new Date()
+        }
+      })
+    ]);
+  });
 }
 
 module.exports = {

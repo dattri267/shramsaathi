@@ -1,13 +1,52 @@
 const express = require('express');
+
 const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
+
 const {
-  getCustomerProfile,
-  updateCustomerProfile
+  requireAuth,
+  resolveRoleProfile
+} = require('../middleware/auth');
+
+const {
+  getProfile,
+  updateProfile
 } = require('../controllers/customer.controller');
 
-router.get('/profile', requireAuth, getCustomerProfile);
-router.put('/profile', requireAuth, updateCustomerProfile);
-router.patch('/profile', requireAuth, updateCustomerProfile);
+// Customer profile
+router.get(
+  '/customer/profile',
+  requireAuth,
+  resolveRoleProfile,
+  getProfile
+);
+
+router.patch(
+  '/customer/profile',
+  requireAuth,
+  resolveRoleProfile,
+  updateProfile
+);
+
+// Backward-compatible routes from main
+router.get(
+  '/profile',
+  requireAuth,
+  resolveRoleProfile,
+  getProfile
+);
+
+router.put(
+  '/profile',
+  requireAuth,
+  resolveRoleProfile,
+  updateProfile
+);
+
+router.patch(
+  '/profile',
+  requireAuth,
+  resolveRoleProfile,
+  updateProfile
+);
 
 module.exports = router;

@@ -1,34 +1,45 @@
 const express = require('express');
+
 const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
+
 const {
-  getSkills,
-  getWorkerProfile,
-  updateWorkerProfile,
-  toggleAvailability,
-  uploadDocument,
-  getDocuments,
-  deleteDocument,
-  getPendingVerifications,
-  verifyWorker
+  requireAuth,
+  resolveRoleProfile
+} = require('../middleware/auth');
+
+const {
+  getProfile,
+  updateProfile,
+  updateAvailability,
+  getJobs
 } = require('../controllers/worker.controller');
 
-// Public catalog route
-router.get('/skills', getSkills);
+router.get(
+  '/worker/profile',
+  requireAuth,
+  resolveRoleProfile,
+  getProfile
+);
 
-// Protected worker profile routes
-router.get('/profile', requireAuth, getWorkerProfile);
-router.put('/profile', requireAuth, updateWorkerProfile);
-router.patch('/profile', requireAuth, updateWorkerProfile);
-router.patch('/availability', requireAuth, toggleAvailability);
+router.patch(
+  '/worker/profile',
+  requireAuth,
+  resolveRoleProfile,
+  updateProfile
+);
 
-// Worker KYC & Document management routes
-router.post('/documents/upload', requireAuth, uploadDocument);
-router.get('/documents', requireAuth, getDocuments);
-router.delete('/documents/:id', requireAuth, deleteDocument);
+router.patch(
+  '/worker/availability',
+  requireAuth,
+  resolveRoleProfile,
+  updateAvailability
+);
 
-// Admin verification routes
-router.get('/admin/verifications', requireAuth, getPendingVerifications);
-router.patch('/admin/verify-worker/:id', requireAuth, verifyWorker);
+router.get(
+  '/worker/jobs',
+  requireAuth,
+  resolveRoleProfile,
+  getJobs
+);
 
 module.exports = router;
