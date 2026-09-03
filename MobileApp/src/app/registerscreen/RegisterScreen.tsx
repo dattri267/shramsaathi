@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/AppNavigator';
 import {
   Animated,
   KeyboardAvoidingView,
@@ -15,8 +17,12 @@ import { Ionicons } from '@expo/vector-icons';
 import colors from '../../constants/colors';
 
 type Role = 'customer' | 'worker';
+type Props = NativeStackScreenProps<
+  RootStackParamList,
+  'Register'
+>;
 
-export default function RegisterScreen() {
+export default function RegisterScreen({ navigation }: Props)  {
   const [role, setRole] = useState<Role>('customer');
 
   const [email, setEmail] = useState('');
@@ -64,7 +70,10 @@ export default function RegisterScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <Pressable style={styles.backButton}>
+            <Pressable
+  style={styles.backButton}
+  onPress={() => navigation.goBack()}
+>
               <Ionicons
                 name="arrow-back"
                 size={23}
@@ -371,9 +380,9 @@ export default function RegisterScreen() {
               Already have an account?
             </Text>
 
-            <Pressable>
-              <Text style={styles.loginLink}>Login</Text>
-            </Pressable>
+<Pressable onPress={() => navigation.navigate('Login')}>
+  <Text style={styles.loginLink}>Login</Text>
+</Pressable>
           </View>
 
           {/* Bottom Message */}
