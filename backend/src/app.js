@@ -5,6 +5,7 @@ const bookingRoutes = require('./routes/booking.routes');
 const pricingRoutes = require('./routes/pricing.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const authRoutes = require('./routes/auth.routes');
+const customerRoutes = require('./routes/customer.routes');
 
 
 const app = express();
@@ -18,6 +19,8 @@ app.get('/health', (req, res) => {
 
 app.use('/auth', authRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/customer', customerRoutes);
+app.use('/api/customer', customerRoutes);
 app.use('/api', bookingRoutes);
 app.use('/api', emergencyRoutes);
 app.use('/api', pricingRoutes);

@@ -92,7 +92,6 @@ async function login(req, res, next) {
         
         // If Supabase failed with explicit error
         if (sbData.error_description || sbData.msg || sbData.error) {
-          // If password doesn't match or other error, fallback or return error
           if (!sbData.error_description?.includes('Invalid login credentials')) {
             return res.status(400).json({ 
               error: sbData.error_description || sbData.msg || sbData.error 
@@ -144,12 +143,13 @@ async function login(req, res, next) {
 }
 
 /**
- * POST /auth/signup
- * Body: { email, password, full_name, role }
+ * POST /auth/signup or /auth/register
+ * Body: { email, password, phone / mobile_number, role, full_name }
  */
 async function signup(req, res, next) {
   try {
-    const { email, password, full_name, role = 'customer' } = req.body;
+    const { email, password, phone, mobile_number, full_name, role = 'customer' } = req.body;
+    const phoneNumber = phone || mobile_number;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -162,7 +162,14 @@ async function signup(req, res, next) {
           'Content-Type': 'application/json',
           'apikey': SUPABASE_ANON_KEY
         },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({
+          email,
+          password,
+          data: {
+            phone: phoneNumber,
+            role: role === 'worker' ? 'worker' : 'customer'
+          }
+        })
       });
 
       const sbData = await sbResponse.json();
@@ -177,17 +184,24 @@ async function signup(req, res, next) {
         // Auto confirm email for dev convenience
         await prisma.users.update({
           where: { id: userId },
-          data: { email_confirmed_at: new Date() }
+          data: {
+            email_confirmed_at: new Date(),
+            ...(phoneNumber ? { phone: phoneNumber } : {})
+          }
         }).catch(() => {});
 
         // Create profile
         const profile = await prisma.profiles.upsert({
           where: { id: userId },
-          update: {},
+          update: {
+            ...(phoneNumber ? { phone: phoneNumber } : {}),
+            ...(full_name ? { full_name } : {})
+          },
           create: {
             id: userId,
             role: role === 'worker' ? 'worker' : 'customer',
-            full_name: full_name || email.split('@')[0]
+            full_name: full_name || email.split('@')[0],
+            phone: phoneNumber || null
           }
         });
 
@@ -206,9 +220,18 @@ async function signup(req, res, next) {
           });
         }
 
+        // Generate instant token for immediate profile setup navigation
+        const token = sbData.access_token || jwt.sign(
+          { sub: userId, email },
+          process.env.JWT_SECRET || 'secret',
+          { expiresIn: '7d' }
+        );
+
         return res.status(201).json({
           message: 'User registered successfully',
-          user: sbData.user || sbData,
+          access_token: token,
+          token,
+          user: sbData.user || { id: userId, email },
           profile
         });
       }
