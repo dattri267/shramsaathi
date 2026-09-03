@@ -2434,7 +2434,7 @@ const styles = StyleSheet.create({
   completeButton: {
     height: 54,
     borderRadius: 13,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#000000',
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',

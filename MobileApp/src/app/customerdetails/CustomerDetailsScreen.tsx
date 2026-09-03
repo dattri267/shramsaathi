@@ -208,6 +208,8 @@ setPincode(
       'Location Error',
       'Unable to fetch your current address. Please check your GPS and try again, or enter the address manually.'
     );
+  } finally {
+    setLocationLoading(false);
   }
 };
 
