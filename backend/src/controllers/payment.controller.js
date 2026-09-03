@@ -1,5 +1,7 @@
 const prisma = require('../config/db');
-
+const {
+  createFairShareLedger
+} = require('../services/ledger.service');
 async function createPayment(req, res) {
   try {
     const { bookingId } = req.body;
@@ -109,21 +111,24 @@ async function completeMockPayment(req, res) {
     }
 
     const updatedPayment = await prisma.payments.update({
-      where: {
-        id: paymentId
-      },
-      data: {
-        status: 'paid',
-        provider: 'mock',
-        provider_payment_id: `MOCK_${Date.now()}`,
-        paid_at: new Date()
-      }
-    });
+  where: { id: paymentId },
+  data: {
+    status: 'paid',
+    provider: 'mock',
+    provider_payment_id: `MOCK_${Date.now()}`,
+    paid_at: new Date()
+  }
+});
+
+const ledger = await createFairShareLedger(
+  updatedPayment
+);
 
     res.json({
-      message: 'Payment successful',
-      payment: updatedPayment
-    });
+  message: 'Payment successful',
+  payment: updatedPayment,
+  ledger
+});
 
   } catch (err) {
     console.error(err);

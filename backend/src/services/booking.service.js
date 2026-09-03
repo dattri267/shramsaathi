@@ -1,10 +1,15 @@
 const prisma = require('../config/db');
+const { calculatePrice } = require('./pricing.service');
 
 function error(message, statusCode = 400) {
   const err = new Error(message);
   err.statusCode = statusCode;
   return err;
 }
+
+// =========================
+// CREATE BOOKING
+// =========================
 
 async function createBooking(customerId, data) {
   const {
@@ -14,7 +19,12 @@ async function createBooking(customerId, data) {
     booking_type,
     estimated_amount,
     latitude,
-    longitude
+    longitude,
+    scheduled_start_at,
+    standardPrice,
+    demandRatio,
+    floorPrice,
+    ceilingPrice
   } = data;
 
   if (!service_address) {
@@ -25,7 +35,42 @@ async function createBooking(customerId, data) {
     throw error('latitude and longitude are required');
   }
 
-  const result = await prisma.$queryRaw`
+  if (!skill_id) {
+  throw error('skill_id is required');
+  }
+
+  if (!scheduled_start_at) {
+  throw error('scheduled_start_at is required');
+  }
+
+  const scheduledDate = new Date(scheduled_start_at);
+
+  if (Number.isNaN(scheduledDate.getTime())) {
+  throw error('Invalid scheduled_start_at');
+  }
+
+  let finalEstimatedAmount = estimated_amount ?? null;
+
+  // Apply floor-ceiling pricing
+  if (
+    standardPrice !== undefined &&
+    floorPrice !== undefined &&
+    ceilingPrice !== undefined
+  ) {
+    const pricing = calculatePrice({
+      standardPrice: Number(standardPrice),
+      demandRatio:
+        demandRatio === undefined
+          ? 1
+          : Number(demandRatio),
+      floorPrice: Number(floorPrice),
+      ceilingPrice: Number(ceilingPrice)
+    });
+
+    finalEstimatedAmount = pricing.finalPrice;
+  }
+
+  const booking = await prisma.$queryRaw`
     INSERT INTO bookings (
       customer_id,
       skill_id,
@@ -33,6 +78,7 @@ async function createBooking(customerId, data) {
       status,
       service_address,
       service_location,
+      scheduled_start_at,
       customer_notes,
       estimated_amount
     )
@@ -46,25 +92,52 @@ async function createBooking(customerId, data) {
         ST_MakePoint(${longitude}, ${latitude}),
         4326
       )::geography,
+      ${scheduledDate},
+
       ${customer_notes || null},
-      ${estimated_amount || null}
+      ${finalEstimatedAmount}
     )
-    RETURNING *
+    RETURNING
+      id,
+      customer_id,
+      worker_id,
+      skill_id,
+      booking_type,
+      status,
+      service_address,
+      scheduled_start_at,
+      customer_notes,
+      estimated_amount,
+      final_amount,
+      created_at,
+      updated_at
   `;
 
-  return result[0];
+  return booking[0];
 }
+
+// =========================
+// GET CUSTOMER BOOKINGS
+// =========================
 
 async function getCustomerBookings(customerId) {
   return prisma.bookings.findMany({
     where: {
       customer_id: customerId
     },
+    include: {
+      skills: true,
+      worker_profiles: true
+    },
     orderBy: {
       created_at: 'desc'
     }
   });
 }
+
+// =========================
+// GET SINGLE BOOKING
+// =========================
 
 async function getBooking(id, user) {
   const booking = await prisma.bookings.findUnique({
@@ -92,13 +165,21 @@ async function getBooking(id, user) {
   return booking;
 }
 
+// =========================
+// CANCEL BOOKING
+// =========================
+
 async function cancelBooking(id, user) {
   const booking = await getBooking(id, user);
 
   if (
-    !['requested', 'worker_assigned', 'accepted'].includes(booking.status)
+    !['requested', 'worker_assigned', 'accepted'].includes(
+      booking.status
+    )
   ) {
-    throw error('Booking cannot be cancelled in its current state');
+    throw error(
+      'Booking cannot be cancelled in its current state'
+    );
   }
 
   return prisma.bookings.update({
@@ -109,17 +190,28 @@ async function cancelBooking(id, user) {
   });
 }
 
+// =========================
+// GET WORKER BOOKINGS
+// =========================
+
 async function getWorkerBookings() {
   return prisma.bookings.findMany({
     where: {
       status: 'requested',
       booking_type: 'normal'
     },
+    include: {
+      skills: true
+    },
     orderBy: {
       created_at: 'asc'
     }
   });
 }
+
+// =========================
+// ACCEPT BOOKING
+// =========================
 
 async function acceptBooking(id, workerId) {
   const booking = await prisma.bookings.findUnique({
@@ -143,6 +235,10 @@ async function acceptBooking(id, workerId) {
   });
 }
 
+// =========================
+// START BOOKING
+// =========================
+
 async function startBooking(id, workerId) {
   const booking = await prisma.bookings.findUnique({
     where: { id }
@@ -153,11 +249,16 @@ async function startBooking(id, workerId) {
   }
 
   if (booking.worker_id !== workerId) {
-    throw error('You are not assigned to this booking', 403);
+    throw error(
+      'You are not assigned to this booking',
+      403
+    );
   }
 
   if (booking.status !== 'accepted') {
-    throw error('Booking must be accepted before starting');
+    throw error(
+      'Booking must be accepted before starting'
+    );
   }
 
   return prisma.bookings.update({
@@ -169,6 +270,10 @@ async function startBooking(id, workerId) {
   });
 }
 
+// =========================
+// COMPLETE BOOKING
+// =========================
+
 async function completeBooking(id, workerId) {
   const booking = await prisma.bookings.findUnique({
     where: { id }
@@ -179,7 +284,10 @@ async function completeBooking(id, workerId) {
   }
 
   if (booking.worker_id !== workerId) {
-    throw error('You are not assigned to this booking', 403);
+    throw error(
+      'You are not assigned to this booking',
+      403
+    );
   }
 
   if (booking.status !== 'in_progress') {
@@ -190,10 +298,17 @@ async function completeBooking(id, workerId) {
     where: { id },
     data: {
       status: 'completed',
-      completed_at: new Date()
+      completed_at: new Date(),
+
+      // For MVP, final price = estimated price
+      final_amount: booking.estimated_amount
     }
   });
 }
+
+// =========================
+// EXPORT ALL FUNCTIONS
+// =========================
 
 module.exports = {
   createBooking,

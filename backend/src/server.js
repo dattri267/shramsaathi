@@ -2,6 +2,8 @@
 require('dotenv').config();
 
 const app = require('./app');
+
+const { connectRedis } = require('./config/redis');
 const {
   startEmergencyPoller
 } = require('./services/emergency.poller');
@@ -12,3 +14,8 @@ app.listen(PORT, () => {
 });
 
 startEmergencyPoller();
+
+//Connect to Redis
+connectRedis().catch((err) => {
+  console.error('Redis connection failed:', err.message);
+});
