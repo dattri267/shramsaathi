@@ -1,40 +1,53 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import {
+  NavigationContainer,
+} from '@react-navigation/native';
+
+import {
+  createNativeStackNavigator,
+} from '@react-navigation/native-stack';
 
 import LoginScreen from '../loginscreen/Loginscreen';
+import RegisterScreen from '../registerscreen/RegisterScreen';
+import CustomerDetailsScreen from '../customerdetails/CustomerDetailsScreen';
 import UserDashboard from '../userdashboard/UserDashboard';
-
-import { View, Text, StyleSheet } from 'react-native';
+import WorkerDashboard from '../worker/WorkerDashboard';
 
 export type RootStackParamList = {
   Login: undefined;
 
-  UserDashboard: {
-    user?: {
-      id?: string;
-      name?: string;
-      email?: string;
-      phone?: string;
-    };
-  } | undefined;
+  Register: undefined;
 
-  WorkerDashboard: undefined;
+  CustomerDetails: {
+    email?: string;
+    mobile?: string;
+  };
+
+  UserDashboard:
+    | {
+        user?: {
+          id?: string;
+          name?: string;
+          email?: string;
+          phone?: string;
+        };
+      }
+    | undefined;
+
+  WorkerDashboard:
+    | {
+        worker?: {
+          id?: string;
+          name?: string;
+          email?: string;
+          phone?: string;
+        };
+      }
+    | undefined;
 };
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
-
-function WorkerPlaceholder() {
-  return (
-    <View style={styles.workerContainer}>
-      <Text style={styles.workerTitle}>Worker Dashboard</Text>
-
-      <Text style={styles.workerText}>
-        Worker dashboard will be added here.
-      </Text>
-    </View>
-  );
-}
+const Stack =
+  createNativeStackNavigator<RootStackParamList>();
 
 export default function AppNavigator() {
   return (
@@ -43,44 +56,39 @@ export default function AppNavigator() {
         initialRouteName="Login"
         screenOptions={{
           headerShown: false,
+          animation: 'slide_from_right',
         }}
       >
+        {/* Login */}
         <Stack.Screen
           name="Login"
           component={LoginScreen}
         />
 
+        {/* Registration */}
+        <Stack.Screen
+          name="Register"
+          component={RegisterScreen}
+        />
+
+        {/* Customer Personal Details */}
+        <Stack.Screen
+          name="CustomerDetails"
+          component={CustomerDetailsScreen}
+        />
+
+        {/* Customer Dashboard */}
         <Stack.Screen
           name="UserDashboard"
           component={UserDashboard}
         />
 
+        {/* Worker Dashboard */}
         <Stack.Screen
           name="WorkerDashboard"
-          component={WorkerPlaceholder}
+          component={WorkerDashboard}
         />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  workerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-
-  workerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 10,
-  },
-
-  workerText: {
-    fontSize: 16,
-    color: '#777',
-    textAlign: 'center',
-  },
-});
