@@ -59,7 +59,31 @@ const handleRegister = () => {
     );
     return;
   }
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+if (!emailRegex.test(email.trim())) {
+  Alert.alert(
+    'Invalid Email',
+    'Please enter a valid email address.'
+  );
+  return;
+}
+if (password.length < 8) {
+  Alert.alert(
+    'Weak Password',
+    'Password must be at least 8 characters long.'
+  );
+  return;
+}
+const mobileRegex = /^[6-9]\d{9}$/;
+
+if (!mobileRegex.test(mobile.trim())) {
+  Alert.alert(
+    'Invalid Mobile Number',
+    'Please enter a valid 10-digit mobile number.'
+  );
+  return;
+}
   if (role === 'customer') {
     navigation.navigate('CustomerDetails', {
       email: email.trim(),
