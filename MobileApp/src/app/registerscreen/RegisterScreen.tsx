@@ -66,7 +66,10 @@ const handleRegister = () => {
       mobile: mobile.trim(),
     });
   } else {
-    navigation.navigate('WorkerDashboard');
+    navigation.navigate('WorkerDetails', {
+  email: email.trim(),
+  mobile: mobile.trim(),
+});
   }
 };
   const inputStyle = (inputName: string) => [

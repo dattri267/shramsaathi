@@ -7,6 +7,7 @@ import {
   createNativeStackNavigator,
 } from '@react-navigation/native-stack';
 
+import WorkerDetailsScreen from '../workerdetails/workerdetailsscreen';
 import LoginScreen from '../loginscreen/Loginscreen';
 import RegisterScreen from '../registerscreen/RegisterScreen';
 import CustomerDetailsScreen from '../customerdetails/CustomerDetailsScreen';
@@ -17,7 +18,10 @@ export type RootStackParamList = {
   Login: undefined;
 
   Register: undefined;
-
+WorkerDetails: {
+  email?: string;
+  mobile?: string;
+};
   CustomerDetails: {
     email?: string;
     mobile?: string;
@@ -64,7 +68,10 @@ export default function AppNavigator() {
           name="Login"
           component={LoginScreen}
         />
-
+<Stack.Screen
+  name="WorkerDetails"
+  component={WorkerDetailsScreen}
+/>
         {/* Registration */}
         <Stack.Screen
           name="Register"
