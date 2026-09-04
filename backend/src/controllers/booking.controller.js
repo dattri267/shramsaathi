@@ -185,6 +185,32 @@ async function acceptBooking(
 }
 
 
+async function rejectBooking(
+  req,
+  res,
+  next
+) {
+  try {
+    if (req.user.role !== 'worker') {
+      return res.status(403).json({
+        error: 'Only workers can reject bookings'
+      });
+    }
+
+    await bookingService.rejectBooking(
+      req.params.id,
+      req.user.workerProfileId
+    );
+
+    return res.json({
+      message: 'Booking rejected'
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+
 async function startBooking(
   req,
   res,
@@ -264,6 +290,7 @@ module.exports = {
   cancelBooking,
   getWorkerBookings,
   acceptBooking,
+  rejectBooking,
   startBooking,
   completeBooking
 };

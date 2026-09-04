@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import {
   Alert,
@@ -8,6 +8,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  Image,
   View,
   Linking,
 } from 'react-native';
@@ -22,6 +23,16 @@ import type {
 import type {
   RootStackParamList,
 } from '../navigation/AppNavigator';
+
+import {
+  logout,
+  getWorkerProfile,
+  getWorkerBookings,
+  acceptBooking,
+  startBooking,
+  completeBooking,
+  rejectBooking,
+} from '../../api';
 
 
 type Props = NativeStackScreenProps<
@@ -72,114 +83,6 @@ type Booking = {
 
 
 /* =========================================================
-   MOCK BOOKINGS
-========================================================= */
-
-/*
-   These are temporary local bookings.
-
-   Later these will come from FastAPI.
-
-   Expected backend structure can be something like:
-
-   {
-     id: "B001",
-     customerName: "Rahul Sharma",
-     customerPhone: "9876543210",
-     service: "Electrician",
-     serviceDescription: "Fan installation",
-     date: "12 Sep 2026",
-     time: "10:00 AM",
-     address: "Sector 62, Noida",
-     amount: 800,
-     commission: 80,
-     workerEarning: 720,
-     status: "pending"
-   }
-
-*/
-
-const INITIAL_BOOKINGS: Booking[] = [
-
-  {
-    id: 'B001',
-
-    customerName: 'Rahul Sharma',
-    customerPhone: '9876543210',
-
-    service: 'Electrician',
-    serviceDescription: 'Fan installation',
-
-    date: '12 Sep 2026',
-    time: '10:00 AM',
-
-    address: 'Sector 62, Noida',
-    latitude: 28.6208,
-    longitude: 77.3639,
-
-    amount: 800,
-
-    commission: 80,
-
-    workerEarning: 720,
-
-    status: 'pending',
-  },
-
-  {
-    id: 'B002',
-
-    customerName: 'Priya Verma',
-    customerPhone: '9812345678',
-
-    service: 'Plumber',
-    serviceDescription: 'Bathroom pipe repair',
-
-    date: '13 Sep 2026',
-    time: '02:00 PM',
-
-    address: 'Sector 61, Noida',
-    latitude: 28.6259,
-    longitude: 77.3725,
-
-    amount: 650,
-
-    commission: 65,
-
-    workerEarning: 585,
-
-    status: 'accepted',
-  },
-
-  {
-    id: 'B003',
-
-    customerName: 'Amit Kumar',
-    customerPhone: '9898989898',
-
-    service: 'Electrician',
-    serviceDescription: 'Switch and socket repair',
-
-    date: '14 Sep 2026',
-    time: '05:00 PM',
-
-    address: 'Sector 18, Noida',
-    latitude: 28.5708,
-    longitude: 77.3260,
-
-    amount: 500,
-
-    commission: 50,
-
-    workerEarning: 450,
-
-    status: 'payment_pending',
-  },
-
-];
-
-
-/* =========================================================
    WORKER INFORMATION
 ========================================================= */
 
@@ -205,7 +108,10 @@ export default function WorkerDashboard({
   ======================================================= */
 
   const [bookings, setBookings] =
-    useState<Booking[]>(INITIAL_BOOKINGS);
+    useState<Booking[]>([]);
+
+  const [loadingBookings, setLoadingBookings] =
+    useState(false);
 
   const [activeTab, setActiveTab] =
     useState<'home' | 'requests' | 'earnings' | 'profile'>(
@@ -224,13 +130,107 @@ export default function WorkerDashboard({
      DEFAULT_WORKER so the UI still works in Expo Go.
   */
   const workerFromRoute = route.params?.worker;
-  const WORKER = {
-    ...DEFAULT_WORKER,
-    name: workerFromRoute?.name || DEFAULT_WORKER.name,
-    email: workerFromRoute?.email || '',
-    phone: workerFromRoute?.phone || '',
+  const [workerProfile, setWorkerProfile] = useState<any>(null);
+
+  const WORKER = useMemo(() => {
+    const backend = workerProfile?.worker_profile || {};
+    const primarySkill =
+      backend?.skills?.find((skill: any) => skill.is_primary) ||
+      backend?.skills?.[0];
+
+    return {
+      ...DEFAULT_WORKER,
+      name: workerProfile?.full_name || workerFromRoute?.name || DEFAULT_WORKER.name,
+      email: workerProfile?.email || workerFromRoute?.email || '',
+      phone: workerProfile?.phone || workerFromRoute?.phone || '',
+      skill: primarySkill?.name || DEFAULT_WORKER.skill,
+      rating: backend?.average_rating ?? DEFAULT_WORKER.rating,
+      completedJobs: backend?.completed_jobs ?? DEFAULT_WORKER.completedJobs,
+      avatarUrl: workerProfile?.avatar_url || null,
+      bio: backend?.bio || '',
+      yearsExperience: primarySkill?.years_experience ?? backend?.years_experience ?? null,
+      serviceRadiusKm: backend?.service_radius_km ?? null,
+      serviceAddress: backend?.service_address || {},
+      workingDays: backend?.working_days || [],
+      workingHours: backend?.working_hours || [],
+      documents: backend?.worker_documents || [],
+    };
+  }, [workerProfile, workerFromRoute]);
+
+
+  const formatBackendWorkerBooking = (item: any): Booking => {
+    const scheduled = item?.scheduled_start_at ? new Date(item.scheduled_start_at) : null;
+    const estimated = item?.price?.estimated_amount ?? item?.estimated_amount ?? 0;
+    const finalAmount = item?.price?.final_amount ?? item?.final_amount;
+    const amount = Number(finalAmount ?? estimated ?? 0);
+    const paymentStatus = item?.payment?.status;
+
+    let status: BookingStatus = 'pending';
+    switch (item?.status) {
+      case 'accepted':
+      case 'worker_assigned':
+        status = 'accepted';
+        break;
+      case 'in_progress':
+        status = 'started';
+        break;
+      case 'completed':
+        status = paymentStatus === 'paid' ? 'paid' : 'payment_pending';
+        break;
+      case 'cancelled':
+        status = 'rejected';
+        break;
+      default:
+        status = 'pending';
+    }
+
+    return {
+      id: String(item.id),
+      customerName: item?.customer?.name || 'Customer',
+      customerPhone: item?.customer?.phone || '',
+      service: item?.service?.name || 'Service',
+      serviceDescription: item?.customer_notes || 'Service request',
+      date: scheduled
+        ? scheduled.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        : 'Not scheduled',
+      time: scheduled
+        ? scheduled.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        : 'Not scheduled',
+      address: item?.service_address || 'Service address unavailable',
+      latitude: typeof item?.location?.latitude === 'number' ? item.location.latitude : undefined,
+      longitude: typeof item?.location?.longitude === 'number' ? item.location.longitude : undefined,
+      amount,
+      commission: amount * 0.10,
+      workerEarning: amount * 0.80,
+      status,
+    };
   };
 
+  const loadWorkerDashboard = async () => {
+    try {
+      setLoadingBookings(true);
+      const [profileResponse, bookingResponse] = await Promise.all([
+        getWorkerProfile(),
+        getWorkerBookings(),
+      ]);
+
+      setWorkerProfile(profileResponse?.profile || null);
+      const rawBookings = bookingResponse?.bookings || bookingResponse?.jobs || [];
+      setBookings(rawBookings.map(formatBackendWorkerBooking));
+    } catch (error) {
+      console.error('Failed to load worker dashboard:', error);
+      Alert.alert(
+        'Unable to load dashboard',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
+  useEffect(() => {
+    loadWorkerDashboard();
+  }, []);
 
   /* =======================================================
      LOCATION + CALL ACTIONS
@@ -361,45 +361,23 @@ export default function WorkerDashboard({
      ACCEPT BOOKING
   ======================================================= */
 
-  const handleAcceptBooking = (
-    booking: Booking
-  ) => {
-
+  const handleAcceptBooking = (booking: Booking) => {
     Alert.alert(
       'Accept Booking',
       `Accept ${booking.service} request from ${booking.customerName}?`,
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Accept',
-          onPress: () => {
-
-            /*
-              BACKEND LATER:
-
-              PATCH /api/bookings/{booking_id}/accept
-
-              body:
-
-              {
-                worker_id: worker.id
-              }
-
-            */
-
-            updateBookingStatus(
-              booking.id,
-              'accepted'
-            );
-
-            Alert.alert(
-              'Booking Accepted',
-              'The customer has been notified that you accepted the job.'
-            );
+          onPress: async () => {
+            try {
+              await acceptBooking(booking.id);
+              await loadWorkerDashboard();
+              setDetailsVisible(false);
+              Alert.alert('Booking Accepted', 'The customer has been notified that you accepted the job.');
+            } catch (error) {
+              Alert.alert('Unable to accept', error instanceof Error ? error.message : 'Please try again.');
+            }
           },
         },
       ]
@@ -411,37 +389,25 @@ export default function WorkerDashboard({
      REJECT BOOKING
   ======================================================= */
 
-  const handleRejectBooking = (
-    booking: Booking
-  ) => {
-
+  const handleRejectBooking = (booking: Booking) => {
     Alert.alert(
       'Reject Booking',
       'Are you sure you want to reject this request?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Reject',
           style: 'destructive',
-
-          onPress: () => {
-
-            /*
-              BACKEND LATER:
-
-              PATCH /api/bookings/{booking_id}/reject
-            */
-
-            updateBookingStatus(
-              booking.id,
-              'rejected'
-            );
-
-            setDetailsVisible(false);
+          onPress: async () => {
+            try {
+              await rejectBooking(booking.id);
+              setBookings(current => current.filter(item => item.id !== booking.id));
+              setSelectedBooking(null);
+              setDetailsVisible(false);
+              Alert.alert('Request Rejected', 'The request has been removed from your incoming requests.');
+            } catch (error) {
+              Alert.alert('Unable to reject', error instanceof Error ? error.message : 'Please try again.');
+            }
           },
         },
       ]
@@ -453,38 +419,23 @@ export default function WorkerDashboard({
      START JOB
   ======================================================= */
 
-  const handleStartJob = (
-    booking: Booking
-  ) => {
-
+  const handleStartJob = (booking: Booking) => {
     Alert.alert(
       'Start Job',
       'Are you ready to start this service?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Start Job',
-          onPress: () => {
-
-            /*
-              BACKEND LATER:
-
-              PATCH /api/bookings/{booking_id}/start
-            */
-
-            updateBookingStatus(
-              booking.id,
-              'started'
-            );
-
-            Alert.alert(
-              'Job Started',
-              'The job has been marked as started.'
-            );
+          onPress: async () => {
+            try {
+              await startBooking(booking.id);
+              await loadWorkerDashboard();
+              setDetailsVisible(false);
+              Alert.alert('Job Started', 'The job has been marked as started.');
+            } catch (error) {
+              Alert.alert('Unable to start job', error instanceof Error ? error.message : 'Please try again.');
+            }
           },
         },
       ]
@@ -496,56 +447,23 @@ export default function WorkerDashboard({
      COMPLETE JOB
   ======================================================= */
 
-  const handleCompleteJob = (
-    booking: Booking
-  ) => {
-
+  const handleCompleteJob = (booking: Booking) => {
     Alert.alert(
       'Complete Job',
       'Confirm that you have completed this service?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Complete',
-          onPress: () => {
-
-            /*
-              IMPORTANT PAYMENT FLOW
-
-              Worker does NOT receive money immediately.
-
-              Backend changes booking to:
-
-              payment_pending
-
-              Customer will then receive:
-
-              "Your service is completed.
-               Please complete payment."
-
-              After Razorpay payment succeeds:
-
-              payment_pending
-                    ↓
-                  paid
-
-              Only then worker earning becomes available.
-
-            */
-
-            updateBookingStatus(
-              booking.id,
-              'payment_pending'
-            );
-
-            Alert.alert(
-              'Work Completed',
-              'The customer has been notified to complete the payment.'
-            );
+          onPress: async () => {
+            try {
+              await completeBooking(booking.id, booking.amount);
+              await loadWorkerDashboard();
+              setDetailsVisible(false);
+              Alert.alert('Work Completed', 'The customer has been notified to complete the payment.');
+            } catch (error) {
+              Alert.alert('Unable to complete job', error instanceof Error ? error.message : 'Please try again.');
+            }
           },
         },
       ]
@@ -585,16 +503,8 @@ export default function WorkerDashboard({
           text: 'Logout',
           style: 'destructive',
 
-          onPress: () => {
-
-            /*
-              BACKEND LATER:
-
-              await AsyncStorage.removeItem('token');
-
-              navigation.replace('Login');
-            */
-
+          onPress: async () => {
+            await logout();
             navigation.replace('Login');
           },
         },
@@ -1700,6 +1610,75 @@ export default function WorkerDashboard({
      PROFILE
   ======================================================= */
 
+  const workerBackend = workerProfile?.worker_profile || {};
+
+  const workerAddressText = useMemo(() => {
+    const address = workerBackend?.service_address || {};
+    return [
+      address.house,
+      address.locality,
+      address.city,
+      address.state,
+      address.pincode,
+    ].filter(Boolean).join(', ') || 'Service location not available';
+  }, [workerBackend]);
+
+  const formatWorkingHours = (hours: any) => {
+    if (!Array.isArray(hours) || hours.length === 0) {
+      return 'Preferred hours not set';
+    }
+    return hours.join(', ');
+  };
+
+  const formatWorkingDays = (days: any) => {
+    if (!Array.isArray(days) || days.length === 0) {
+      return 'Working days not set';
+    }
+    return days.join(', ');
+  };
+
+  const showProfessionalProfile = () => {
+    const skills = Array.isArray(workerBackend?.skills)
+      ? workerBackend.skills
+      : [];
+    const skillText = skills.length
+      ? skills.map((skill: any) =>
+          `${skill.name}${skill.years_experience != null ? ` (${skill.years_experience} yrs)` : ''}${skill.is_primary ? ' • Primary' : ''}`
+        ).join('\n')
+      : 'No skills available';
+
+    Alert.alert(
+      'Professional Profile',
+      `Skills:\n${skillText}\n\nExperience: ${WORKER.yearsExperience != null ? `${WORKER.yearsExperience} years` : 'Not provided'}\n\nDescription:\n${WORKER.bio || 'No description provided.'}`
+    );
+  };
+
+  const showServiceArea = () => {
+    Alert.alert(
+      'Service Area',
+      `Work location:\n${workerAddressText}\n\nService radius: ${WORKER.serviceRadiusKm != null ? `${WORKER.serviceRadiusKm} km` : 'Not set'}\n\nCoordinates: ${workerBackend?.location?.latitude != null && workerBackend?.location?.longitude != null ? `${workerBackend.location.latitude}, ${workerBackend.location.longitude}` : 'Not available'}`
+    );
+  };
+
+  const showAvailability = () => {
+    Alert.alert(
+      'Availability',
+      `Working days:\n${formatWorkingDays(WORKER.workingDays)}\n\nPreferred hours:\n${formatWorkingHours(WORKER.workingHours)}`
+    );
+  };
+
+  const showVerification = () => {
+    const documents = Array.isArray(WORKER.documents) ? WORKER.documents : [];
+    const documentText = documents.length
+      ? documents.map((doc: any) => `• ${doc.title || doc.file_type || 'Document'}`).join('\n')
+      : 'No verification documents found';
+
+    Alert.alert(
+      'Verification',
+      `${documents.length} document${documents.length === 1 ? '' : 's'} on file.\n\n${documentText}`
+    );
+  };
+
   const renderProfile = () => {
 
     return (
@@ -1728,13 +1707,18 @@ export default function WorkerDashboard({
         <View style={styles.profileCard}>
 
           <View style={styles.profileAvatar}>
-
-            <Ionicons
-              name="person"
-              size={38}
-              color="#2563EB"
-            />
-
+            {WORKER.avatarUrl ? (
+              <Image
+                source={{ uri: WORKER.avatarUrl }}
+                style={styles.profileAvatarImage}
+              />
+            ) : (
+              <Ionicons
+                name="person"
+                size={38}
+                color="#2563EB"
+              />
+            )}
           </View>
 
           <Text style={styles.profileName}>
@@ -1776,12 +1760,7 @@ export default function WorkerDashboard({
 
           <Pressable
             style={styles.profileOption}
-            onPress={() =>
-              Alert.alert(
-                'Worker Profile',
-                'Your professional details will be editable here.'
-              )
-            }
+            onPress={showProfessionalProfile}
           >
 
             <View style={styles.profileOptionIcon}>
@@ -1800,8 +1779,8 @@ export default function WorkerDashboard({
                 Professional Profile
               </Text>
 
-              <Text style={styles.profileOptionSubtitle}>
-                Skills, experience and description
+              <Text style={styles.profileOptionSubtitle} numberOfLines={2}>
+                {WORKER.skill} • {WORKER.yearsExperience != null ? `${WORKER.yearsExperience} years experience` : 'Experience not set'}
               </Text>
 
             </View>
@@ -1817,12 +1796,7 @@ export default function WorkerDashboard({
 
           <Pressable
             style={styles.profileOption}
-            onPress={() =>
-              Alert.alert(
-                'Service Area',
-                'Your service radius and work location will be managed here.'
-              )
-            }
+            onPress={showServiceArea}
           >
 
             <View style={styles.profileOptionIcon}>
@@ -1841,8 +1815,8 @@ export default function WorkerDashboard({
                 Service Area
               </Text>
 
-              <Text style={styles.profileOptionSubtitle}>
-                Location and service radius
+              <Text style={styles.profileOptionSubtitle} numberOfLines={2}>
+                {workerAddressText} • {WORKER.serviceRadiusKm != null ? `${WORKER.serviceRadiusKm} km radius` : 'Radius not set'}
               </Text>
 
             </View>
@@ -1858,12 +1832,7 @@ export default function WorkerDashboard({
 
           <Pressable
             style={styles.profileOption}
-            onPress={() =>
-              Alert.alert(
-                'Availability',
-                'Working days and hours will be managed here.'
-              )
-            }
+            onPress={showAvailability}
           >
 
             <View style={styles.profileOptionIcon}>
@@ -1882,8 +1851,8 @@ export default function WorkerDashboard({
                 Availability
               </Text>
 
-              <Text style={styles.profileOptionSubtitle}>
-                Working days and preferred hours
+              <Text style={styles.profileOptionSubtitle} numberOfLines={2}>
+                {WORKER.workingDays?.length ? `${WORKER.workingDays.join(', ')}` : 'Working days not set'}
               </Text>
 
             </View>
@@ -1899,12 +1868,7 @@ export default function WorkerDashboard({
 
           <Pressable
             style={styles.profileOption}
-            onPress={() =>
-              Alert.alert(
-                'Verification',
-                'Your verification documents will be managed here.'
-              )
-            }
+            onPress={showVerification}
           >
 
             <View style={styles.profileOptionIcon}>
@@ -1923,8 +1887,8 @@ export default function WorkerDashboard({
                 Verification
               </Text>
 
-              <Text style={styles.profileOptionSubtitle}>
-                Identity and work verification
+              <Text style={styles.profileOptionSubtitle} numberOfLines={2}>
+                {WORKER.documents?.length || 0} verification document{(WORKER.documents?.length || 0) === 1 ? '' : 's'} on file
               </Text>
 
             </View>
@@ -3552,6 +3516,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 22,
     marginBottom: 14,
+  },
+
+  profileAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 60,
   },
 
   profileAvatar: {

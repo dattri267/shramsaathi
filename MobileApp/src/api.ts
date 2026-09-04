@@ -17,7 +17,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 |
 */
 
-export const API_BASE_URL = 'http://10.64.72.168:8000';
+export const API_BASE_URL = 'http://10.206.209.172:8000';
 
 const TOKEN_KEY = '@shramsaathi_auth_token';
 
@@ -270,6 +270,20 @@ export async function updateCustomerProfile(data: {
   phone?: string;
   avatar_url?: string | null;
 
+  // Backend expects the structured customer address under `address`.
+  address?: {
+    house?: string;
+    locality?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    landmark?: string;
+    formatted_address?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+  };
+
+  // Kept for backwards compatibility with older callers.
   address_details?: {
     house?: string;
     locality?: string;
@@ -394,6 +408,86 @@ export async function updateWorkerProfile(data: {
  * avatar
  */
 
+/**
+ * Upload customer profile photo.
+ *
+ * Backend: POST /api/profile/avatar
+ * Multipart field: avatar
+ */
+export async function uploadCustomerAvatar(
+  uri: string,
+  fileName: string = 'customer-profile.jpg',
+  mimeType: string = 'image/jpeg'
+) {
+  const token = await getToken();
+
+  if (!token) {
+    throw new Error('Authentication token is missing. Please log in again.');
+  }
+
+  let response: Response;
+
+  try {
+    /*
+     * Expo SDK 57:
+     * Convert the local URI into a real Expo File object.
+     * This avoids the unsupported React Native FormDataPart
+     * { uri, name, type } implementation.
+     */
+    const file = new File(uri);
+
+    console.log('========== CUSTOMER AVATAR UPLOAD ==========');
+    console.log('URL:', `${API_BASE_URL}/api/profile/avatar`);
+    console.log('URI:', uri);
+    console.log('FILE NAME:', file.name);
+    console.log('FILE TYPE:', file.type);
+    console.log('FILE EXISTS:', file.exists);
+    console.log('TOKEN EXISTS:', !!token);
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    response = await expoFetch(
+      `${API_BASE_URL}/api/profile/avatar`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        /*
+         * Do not manually set Content-Type.
+         * Expo generates the multipart boundary.
+         */
+        body: formData,
+      }
+    );
+  } catch (error) {
+    throw new Error(
+      error instanceof Error
+        ? `Profile photo upload network error: ${error.message}`
+        : `Profile photo upload network error: ${String(error)}`
+    );
+  }
+
+  let data: any = null;
+
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error ||
+      data?.message ||
+      `Profile photo upload failed with status ${response.status}`
+    );
+  }
+
+  return data;
+}
+
 export async function uploadWorkerAvatar(
   uri: string,
   fileName: string = 'profile.jpg',
@@ -401,31 +495,37 @@ export async function uploadWorkerAvatar(
 ) {
   const token = await getToken();
 
-  const formData = new FormData();
-
-  formData.append(
-    'avatar',
-    {
-      uri,
-      name: fileName,
-      type: mimeType,
-    } as any
-  );
-
   let response: Response;
 
   try {
+    /*
+     * Expo SDK 57:
+     * Convert the local URI into a real Expo File object.
+     * This is the same upload approach already used successfully
+     * by the worker document upload below.
+     */
+    const file = new File(uri);
+
     console.log('========== AVATAR UPLOAD ==========');
     console.log(
       'URL:',
       `${API_BASE_URL}/api/profile/avatar`
     );
     console.log('URI:', uri);
-    console.log('FILE NAME:', fileName);
-    console.log('MIME TYPE:', mimeType);
+    console.log('FILE NAME:', file.name);
+    console.log('FILE TYPE:', file.type);
+    console.log('FILE EXISTS:', file.exists);
     console.log('TOKEN EXISTS:', !!token);
 
-    response = await fetch(
+    const formData = new FormData();
+
+    /*
+     * Use the Expo File object as the multipart part.
+     * Do not use { uri, name, type } here.
+     */
+    formData.append('avatar', file);
+
+    response = await expoFetch(
       `${API_BASE_URL}/api/profile/avatar`,
       {
         method: 'POST',
@@ -434,6 +534,10 @@ export async function uploadWorkerAvatar(
           Authorization: `Bearer ${token}`,
         },
 
+        /*
+         * Do not manually set Content-Type.
+         * Expo generates the multipart boundary.
+         */
         body: formData,
       }
     );

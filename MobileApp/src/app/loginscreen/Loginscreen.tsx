@@ -127,21 +127,29 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
       console.log("Login successful:", response);
 
-      const role = response.profile?.role;
+const role = response.profile?.role;
 
-      if (role === "customer") {
-        navigation.replace("CustomerDetails", {
-          email: response.user?.email || email.trim(),
-          mobile: response.profile?.phone || "",
-        });
-      } else if (role === "worker") {
-        navigation.replace("WorkerDetails", {
-          email: response.user?.email || email.trim(),
-          mobile: response.profile?.phone || "",
-        });
-      } else {
-        throw new Error("Invalid user role returned by server.");
-      }
+if (role === "customer") {
+  navigation.replace("UserDashboard", {
+    user: {
+      id: response.user.id,
+      name: response.profile.full_name || "User",
+      email: response.user.email || email.trim(),
+      phone: response.profile.phone || "",
+    },
+  });
+} else if (role === "worker") {
+  navigation.replace("WorkerDashboard", {
+    worker: {
+      id: response.user.id,
+      name: response.profile.full_name || "Worker",
+      email: response.user.email || email.trim(),
+      phone: response.profile.phone || "",
+    },
+  });
+} else {
+  throw new Error("Invalid user role returned by server.");
+}
     } catch (error: any) {
       console.log("Login error:", error);
 

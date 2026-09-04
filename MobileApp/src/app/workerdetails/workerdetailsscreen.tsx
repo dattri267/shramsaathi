@@ -510,12 +510,13 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
         );
 
         avatarUrl =
-          avatarResult?.public_url ||
-          avatarResult?.url ||
-          avatarResult?.avatar_url ||
-          avatarResult?.profile?.avatar_url ||
-          avatarResult?.data?.public_url ||
-          null;
+  avatarResult?.avatar?.avatar_url ||
+  avatarResult?.public_url ||
+  avatarResult?.url ||
+  avatarResult?.avatar_url ||
+  avatarResult?.profile?.avatar_url ||
+  avatarResult?.data?.public_url ||
+  null;
 
         if (!avatarUrl) {
           throw new Error(

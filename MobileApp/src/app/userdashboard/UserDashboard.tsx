@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import * as Location from "expo-location";
 
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -10,6 +12,7 @@ import {
   Text,
   TextInput,
   View,
+  Image,
 } from "react-native";
 
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,6 +26,14 @@ import {
 import {
   RootStackParamList,
 } from "../navigation/AppNavigator";
+
+import {
+  logout,
+  getCustomerBookings,
+  getCustomerProfile,
+  updateCustomerProfile,
+  createBooking as createBackendBooking,
+} from "../../api";
 
 
 /* =========================================================
@@ -48,12 +59,15 @@ type User = {
   name: string;
   email: string;
   phone: string;
+  avatarUrl?: string | null;
 };
 
 type Address = {
   id: string;
   title: string;
   address: string;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 type Booking = {
@@ -128,29 +142,6 @@ const SERVICES: Service[] = [
 
 
 /* =========================================================
-   BACKEND
-========================================================= */
-
-/*
-|--------------------------------------------------------------------------
-| FASTAPI BASE URL
-|--------------------------------------------------------------------------
-|
-| Replace this later with your actual backend URL.
-|
-| Example:
-|
-| const API_BASE_URL = "http://192.168.1.5:8000";
-|
-| Do NOT use localhost when testing through Expo Go on
-| a physical phone.
-|
-*/
-
-const API_BASE_URL = "YOUR_FASTAPI_URL";
-
-
-/* =========================================================
    USER DASHBOARD
 ========================================================= */
 
@@ -179,11 +170,12 @@ export default function UserDashboard({
      }
   */
 
-  const [user] = useState<User>({
+  const [user, setUser] = useState<User>({
     id: route.params?.user?.id || "",
     name: route.params?.user?.name || "User",
     email: route.params?.user?.email || "",
     phone: route.params?.user?.phone || "",
+    avatarUrl: null,
   });
 
 
@@ -214,28 +206,66 @@ export default function UserDashboard({
     useState<string | null>(null);
 
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [customerProfile, setCustomerProfile] = useState<any>(null);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
 
   const [bookingSuccess, setBookingSuccess] =
     useState(false);
+
+  // Add/update service address
+  const [addressModalVisible, setAddressModalVisible] = useState(false);
+  const [addressSaving, setAddressSaving] = useState(false);
+  const [addressLocationLoading, setAddressLocationLoading] = useState(false);
+  const [addressHouse, setAddressHouse] = useState("");
+  const [addressLocality, setAddressLocality] = useState("");
+  const [addressCity, setAddressCity] = useState("");
+  const [addressState, setAddressState] = useState("");
+  const [addressPincode, setAddressPincode] = useState("");
+  const [addressLandmark, setAddressLandmark] = useState("");
+  const [addressLatitude, setAddressLatitude] = useState<number | null>(null);
+  const [addressLongitude, setAddressLongitude] = useState<number | null>(null);
 
 
   /* =======================================================
      BOOKING DATA
   ======================================================= */
 
-  // Temporary frontend addresses. These will come from FastAPI later.
-  const addresses: Address[] = [
-    {
-      id: "home",
-      title: "Home",
-      address: "Saved home address",
-    },
-    {
-      id: "pg",
-      title: "PG / Current Location",
-      address: "Saved current service location",
-    },
-  ];
+  const addresses: Address[] = useMemo(() => {
+    const profile = customerProfile || {};
+    const details = profile.address || profile.address_details || {};
+    const formatted =
+      details.formatted_address ||
+      [
+        details.house,
+        details.locality,
+        details.city,
+        details.state,
+        details.pincode,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+    if (formatted || profile.default_address) {
+      return [
+        {
+          id: "default",
+          title: "Home",
+          address: formatted || profile.default_address,
+          latitude:
+            profile?.location?.latitude ??
+            details?.latitude ??
+            null,
+          longitude:
+            profile?.location?.longitude ??
+            details?.longitude ??
+            null,
+        },
+      ];
+    }
+
+    return [];
+  }, [customerProfile]);
 
   const timeSlots = [
     "09:00 AM - 11:00 AM",
@@ -273,6 +303,99 @@ export default function UserDashboard({
     return dates;
   }, []);
 
+  const serviceIconForSlug = (slug?: string): keyof typeof Ionicons.glyphMap => {
+    switch (slug) {
+      case "electrician": return "flash-outline";
+      case "plumber": return "water-outline";
+      case "carpenter": return "hammer-outline";
+      case "painter": return "color-palette-outline";
+      case "domestic-helper": return "home-outline";
+      case "caregiver": return "heart-outline";
+      case "technician": return "construct-outline";
+      default: return "construct-outline";
+    }
+  };
+
+  const formatBackendBooking = (item: any): Booking => {
+    const scheduled = item?.scheduled_start_at ? new Date(item.scheduled_start_at) : null;
+    const serviceId = item?.service?.slug || item?.service?.id || "";
+    const serviceName = item?.service?.name || "Service";
+    const addressText = item?.service_address || "Service address";
+
+    let status: Booking["status"] = "Pending";
+    switch (item?.status) {
+      case "accepted":
+      case "worker_assigned":
+      case "in_progress":
+        status = "Confirmed";
+        break;
+      case "completed":
+        status = "Completed";
+        break;
+      case "cancelled":
+        status = "Cancelled";
+        break;
+      default:
+        status = "Pending";
+    }
+
+    return {
+      id: String(item.id),
+      serviceId,
+      serviceName,
+      serviceIcon: serviceIconForSlug(item?.service?.slug),
+      address: { id: "backend", title: "Service Address", address: addressText },
+      date: scheduled ? scheduled.toISOString().split("T")[0] : "",
+      time: scheduled
+        ? scheduled.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+        : "Not scheduled",
+      status,
+      createdAt: item?.created_at || new Date().toISOString(),
+    };
+  };
+
+  const loadDashboardData = async () => {
+    try {
+      setLoadingBookings(true);
+      const [profileResponse, bookingResponse] = await Promise.all([
+        getCustomerProfile(),
+        getCustomerBookings(),
+      ]);
+
+      const rawProfile = profileResponse?.profile || {};
+      // Backend returns customer-specific data under customer_profile.
+      // Normalize it here so the rest of the dashboard can use one shape.
+      const profile = {
+        ...rawProfile,
+        ...(rawProfile?.customer_profile || {}),
+      };
+
+      setCustomerProfile(profile);
+      setUser(current => ({
+        ...current,
+        id: profile?.id || rawProfile?.id || current.id,
+        name: rawProfile?.full_name || current.name,
+        email: rawProfile?.email || current.email,
+        phone: rawProfile?.phone || current.phone,
+        avatarUrl: rawProfile?.avatar_url || current.avatarUrl || null,
+      }));
+
+      setBookings((bookingResponse?.bookings || []).map(formatBackendBooking));
+    } catch (error) {
+      console.error("Failed to load customer dashboard:", error);
+      Alert.alert(
+        "Unable to load dashboard",
+        error instanceof Error ? error.message : "Please try again."
+      );
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
   /* =======================================================
      SEARCH
   ======================================================= */
@@ -300,6 +423,194 @@ export default function UserDashboard({
 
     setSelectedService(service);
 
+  };
+
+
+  /* =======================================================
+     ADD / UPDATE ADDRESS
+  ======================================================= */
+
+  const openAddressModal = () => {
+    const profile = customerProfile || {};
+    const details = profile?.address || profile?.address_details || {};
+
+    setAddressHouse(details?.house || "");
+    setAddressLocality(details?.locality || "");
+    setAddressCity(details?.city || "");
+    setAddressState(details?.state || "");
+    setAddressPincode(details?.pincode || "");
+    setAddressLandmark(details?.landmark || "");
+    setAddressLatitude(
+      profile?.location?.latitude ??
+      details?.latitude ??
+      null
+    );
+    setAddressLongitude(
+      profile?.location?.longitude ??
+      details?.longitude ??
+      null
+    );
+    setAddressModalVisible(true);
+  };
+
+  const handleAddressCurrentLocation = async () => {
+    setAddressLocationLoading(true);
+
+    try {
+      const { status } =
+        await Location.requestForegroundPermissionsAsync();
+
+      if (status !== "granted") {
+        Alert.alert(
+          "Location Permission Required",
+          "Please allow location access so ShramSaathi can save the service address coordinates."
+        );
+        return;
+      }
+
+      const location =
+        await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+
+      const { latitude, longitude } = location.coords;
+
+      setAddressLatitude(latitude);
+      setAddressLongitude(longitude);
+
+      const results = await Location.reverseGeocodeAsync({
+        latitude,
+        longitude,
+      });
+
+      if (results.length > 0) {
+        const current = results[0];
+
+        setAddressHouse(
+          current.streetNumber ||
+          current.name ||
+          ""
+        );
+        setAddressLocality(
+          current.district ||
+          current.subregion ||
+          ""
+        );
+        setAddressCity(
+          current.city ||
+          current.subregion ||
+          ""
+        );
+        setAddressState(current.region || "");
+        setAddressPincode(current.postalCode || "");
+      }
+
+      Alert.alert(
+        "Location Found",
+        "Address fields have been filled from your current location. Please verify them and save."
+      );
+    } catch (error) {
+      console.error("Address location error:", error);
+      Alert.alert(
+        "Location Error",
+        "Unable to fetch your current location. You can enter the address manually, but a valid location is required for booking."
+      );
+    } finally {
+      setAddressLocationLoading(false);
+    }
+  };
+
+  const handleSaveAddress = async () => {
+    if (
+      !addressHouse.trim() ||
+      !addressLocality.trim() ||
+      !addressCity.trim() ||
+      !addressState.trim() ||
+      !addressPincode.trim()
+    ) {
+      Alert.alert(
+        "Incomplete Address",
+        "Please fill in house, locality, city, state and PIN code."
+      );
+      return;
+    }
+
+    if (!/^\d{6}$/.test(addressPincode.trim())) {
+      Alert.alert(
+        "Invalid PIN Code",
+        "Please enter a valid 6-digit PIN code."
+      );
+      return;
+    }
+
+    if (
+      addressLatitude === null ||
+      addressLongitude === null
+    ) {
+      Alert.alert(
+        "Location Required",
+        "Please use Current Location before saving this service address so the worker can be matched to the correct location."
+      );
+      return;
+    }
+
+    const formattedAddress = [
+      addressHouse.trim(),
+      addressLocality.trim(),
+      addressCity.trim(),
+      addressState.trim(),
+      addressPincode.trim(),
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    try {
+      setAddressSaving(true);
+
+      await updateCustomerProfile({
+        address: {
+          house: addressHouse.trim(),
+          locality: addressLocality.trim(),
+          city: addressCity.trim(),
+          state: addressState.trim(),
+          pincode: addressPincode.trim(),
+          landmark: addressLandmark.trim(),
+          formatted_address: formattedAddress,
+          latitude: addressLatitude,
+          longitude: addressLongitude,
+        },
+        latitude: addressLatitude,
+        longitude: addressLongitude,
+      });
+
+      await loadDashboardData();
+
+      setAddressModalVisible(false);
+
+      // Automatically select the newly saved address in the booking flow.
+      setSelectedAddress({
+        id: "default",
+        title: "Home",
+        address: formattedAddress,
+        latitude: addressLatitude,
+        longitude: addressLongitude,
+      });
+
+      Alert.alert(
+        "Address Saved",
+        "Your service address has been saved successfully."
+      );
+    } catch (error) {
+      console.error("Failed to save address:", error);
+      Alert.alert(
+        "Unable to Save Address",
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while saving the address."
+      );
+    } finally {
+      setAddressSaving(false);
+    }
   };
 
 
@@ -360,48 +671,92 @@ export default function UserDashboard({
   };
 
   const confirmBooking = async () => {
-    if (
-      !selectedService ||
-      !selectedAddress ||
-      !selectedDate ||
-      !selectedTime
-    ) {
+    if (!selectedService || !selectedAddress || !selectedDate || !selectedTime) {
       return;
     }
 
-    const newBooking: Booking = {
-      id: `BK-${Date.now()}`,
-      serviceId: selectedService.id,
-      serviceName: selectedService.name,
-      serviceIcon: selectedService.icon,
-      address: selectedAddress,
-      date: selectedDate,
-      time: selectedTime,
-      status: "Confirmed",
-      createdAt: new Date().toISOString(),
-    };
+    const addressDetails = customerProfile?.address || customerProfile?.address_details || {};
+    const latitude = Number(
+      selectedAddress?.latitude ??
+      customerProfile?.location?.latitude ??
+      addressDetails.latitude
+    );
+    const longitude = Number(
+      selectedAddress?.longitude ??
+      customerProfile?.location?.longitude ??
+      addressDetails.longitude
+    );
 
-    /*
-     * ========================================================
-     * FUTURE FASTAPI INTEGRATION
-     * ========================================================
-     *
-     * POST `${API_BASE_URL}/api/bookings`
-     *
-     * {
-     *   user_id: user.id,
-     *   service_id: selectedService.id,
-     *   address_id: selectedAddress.id,
-     *   date: selectedDate,
-     *   time: selectedTime
-     * }
-     *
-     * The backend should return the real booking ID/status.
-     */
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      Alert.alert("Location required", "Please add a valid service location in your customer profile first.");
+      return;
+    }
 
-    setBookings(prev => [newBooking, ...prev]);
-    setBookingSuccess(true);
-    setBookingStep(4);
+    // Do not rely on `new Date("YYYY-MM-DD 09:00 AM")`.
+    // Hermes/Android can reject that non-ISO date format even though it
+    // works in some desktop browsers. Build the local Date explicitly.
+    const dateParts = selectedDate.split("-").map(Number);
+    const timeMatch = selectedTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+
+    if (dateParts.length !== 3 || dateParts.some(part => !Number.isFinite(part)) || !timeMatch) {
+      Alert.alert("Invalid schedule", "Please select a valid date and time.");
+      return;
+    }
+
+    const [, hourText, minuteText, meridiem] = timeMatch;
+    let hours = Number(hourText);
+    const minutes = Number(minuteText);
+
+    if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) {
+      Alert.alert("Invalid schedule", "Please select a valid date and time.");
+      return;
+    }
+
+    if (meridiem.toUpperCase() === "AM") {
+      if (hours === 12) hours = 0;
+    } else {
+      if (hours !== 12) hours += 12;
+    }
+
+    const scheduledStart = new Date(
+      dateParts[0],
+      dateParts[1] - 1,
+      dateParts[2],
+      hours,
+      minutes,
+      0,
+      0
+    );
+
+    if (Number.isNaN(scheduledStart.getTime())) {
+      Alert.alert("Invalid schedule", "Please select a valid date and time.");
+      return;
+    }
+
+    try {
+      setBookingSubmitting(true);
+
+      await createBackendBooking({
+        skill_slug: selectedService.id,
+        booking_type: "normal",
+        service_address: selectedAddress.address,
+        latitude,
+        longitude,
+        scheduled_start_at: scheduledStart.toISOString(),
+      });
+
+      await loadDashboardData();
+      setBookingSuccess(true);
+      setBookingStep(4);
+    } catch (error) {
+      console.error("Failed to create booking:", error);
+      Alert.alert(
+        "Booking failed",
+        error instanceof Error ? error.message : "Unable to create booking."
+      );
+    } finally {
+      setBookingSubmitting(false);
+    }
   };
 
   /* =======================================================
@@ -424,20 +779,9 @@ export default function UserDashboard({
           text: "Logout",
           style: "destructive",
 
-          onPress: () => {
-
-            /*
-               Later:
-
-               await AsyncStorage.removeItem("token");
-
-               Then:
-
-               navigation.replace("Login");
-            */
-
+          onPress: async () => {
+            await logout();
             navigation.replace("Login");
-
           },
         },
 
@@ -528,12 +872,20 @@ export default function UserDashboard({
 
           <Pressable
             style={styles.locationContainer}
-            onPress={() =>
+            onPress={() => {
+              if (addresses.length === 0) {
+                Alert.alert(
+                  "Service Location",
+                  "No saved service address is available yet."
+                );
+                return;
+              }
+
               Alert.alert(
                 "Service Location",
-                "Your saved addresses will appear here."
-              )
-            }
+                addresses.map(item => `${item.title}: ${item.address}`).join("\n\n")
+              );
+            }}
           >
 
             <View style={styles.locationIcon}>
@@ -553,8 +905,8 @@ export default function UserDashboard({
                 Service location
               </Text>
 
-              <Text style={styles.locationValue}>
-                Select your location
+              <Text style={styles.locationValue} numberOfLines={1}>
+                {addresses[0]?.address || "Select your location"}
               </Text>
 
             </View>
@@ -1023,12 +1375,7 @@ export default function UserDashboard({
 
                       <Pressable
                         style={styles.addAddressButton}
-                        onPress={() =>
-                          Alert.alert(
-                            "Add Address",
-                            "Address management will be connected to your profile and FastAPI backend."
-                          )
-                        }
+                        onPress={openAddressModal}
                       >
                         <Ionicons
                           name="add-circle-outline"
@@ -1377,6 +1724,202 @@ export default function UserDashboard({
         </Modal>
 
         {/* =================================================
+            ADD / UPDATE ADDRESS MODAL
+        ================================================= */}
+
+        <Modal
+          visible={addressModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => {
+            if (!addressSaving) {
+              setAddressModalVisible(false);
+            }
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.addressModalContainer}>
+              <View style={styles.modalHandle} />
+
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
+                  Add Service Address
+                </Text>
+
+                <Pressable
+                  onPress={() => {
+                    if (!addressSaving) {
+                      setAddressModalVisible(false);
+                    }
+                  }}
+                  disabled={addressSaving}
+                >
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color="#222222"
+                  />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 20 }}
+              >
+                <Text style={styles.addressModalHint}>
+                  This address will be used for service booking and worker matching.
+                </Text>
+
+                <Pressable
+                  style={[
+                    styles.addressLocationButton,
+                    addressLocationLoading &&
+                      styles.addressLocationButtonDisabled,
+                  ]}
+                  onPress={handleAddressCurrentLocation}
+                  disabled={addressLocationLoading || addressSaving}
+                >
+                  {addressLocationLoading ? (
+                    <ActivityIndicator
+                      size="small"
+                      color="#7047E8"
+                    />
+                  ) : (
+                    <Ionicons
+                      name="location-outline"
+                      size={20}
+                      color="#7047E8"
+                    />
+                  )}
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.addressLocationTitle}>
+                      {addressLocationLoading
+                        ? "Fetching location..."
+                        : "Use Current Location"}
+                    </Text>
+                    <Text style={styles.addressLocationSubtitle}>
+                      Automatically fill address and coordinates
+                    </Text>
+                  </View>
+                </Pressable>
+
+                {[
+                  {
+                    label: "House / Flat / Building",
+                    value: addressHouse,
+                    setter: setAddressHouse,
+                    placeholder: "House no., flat no., building",
+                    icon: "home-outline" as keyof typeof Ionicons.glyphMap,
+                  },
+                  {
+                    label: "Street / Locality",
+                    value: addressLocality,
+                    setter: setAddressLocality,
+                    placeholder: "Street, colony, locality",
+                    icon: "navigate-outline" as keyof typeof Ionicons.glyphMap,
+                  },
+                  {
+                    label: "City",
+                    value: addressCity,
+                    setter: setAddressCity,
+                    placeholder: "Enter city",
+                    icon: "business-outline" as keyof typeof Ionicons.glyphMap,
+                  },
+                  {
+                    label: "State",
+                    value: addressState,
+                    setter: setAddressState,
+                    placeholder: "Enter state",
+                    icon: "map-outline" as keyof typeof Ionicons.glyphMap,
+                  },
+                  {
+                    label: "PIN Code",
+                    value: addressPincode,
+                    setter: setAddressPincode,
+                    placeholder: "6-digit PIN code",
+                    icon: "keypad-outline" as keyof typeof Ionicons.glyphMap,
+                  },
+                  {
+                    label: "Landmark (optional)",
+                    value: addressLandmark,
+                    setter: setAddressLandmark,
+                    placeholder: "Nearby landmark",
+                    icon: "flag-outline" as keyof typeof Ionicons.glyphMap,
+                  },
+                ].map(field => (
+                  <View
+                    key={field.label}
+                    style={styles.addressInputGroup}
+                  >
+                    <Text style={styles.addressInputLabel}>
+                      {field.label}
+                    </Text>
+
+                    <View style={styles.addressInputContainer}>
+                      <Ionicons
+                        name={field.icon}
+                        size={19}
+                        color="#9CA3AF"
+                      />
+
+                      <TextInput
+                        style={styles.addressInput}
+                        value={field.value}
+                        onChangeText={field.setter}
+                        placeholder={field.placeholder}
+                        placeholderTextColor="#9CA3AF"
+                        keyboardType={
+                          field.label === "PIN Code"
+                            ? "number-pad"
+                            : "default"
+                        }
+                        maxLength={
+                          field.label === "PIN Code"
+                            ? 6
+                            : undefined
+                        }
+                        autoCapitalize="words"
+                      />
+                    </View>
+                  </View>
+                ))}
+
+                <Pressable
+                  style={[
+                    styles.addressSaveButton,
+                    addressSaving &&
+                      styles.addressSaveButtonDisabled,
+                  ]}
+                  onPress={handleSaveAddress}
+                  disabled={addressSaving}
+                >
+                  {addressSaving ? (
+                    <ActivityIndicator
+                      size="small"
+                      color="#FFFFFF"
+                    />
+                  ) : (
+                    <>
+                      <Text style={styles.addressSaveButtonText}>
+                        Save Address
+                      </Text>
+                      <Ionicons
+                        name="checkmark"
+                        size={20}
+                        color="#FFFFFF"
+                      />
+                    </>
+                  )}
+                </Pressable>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+
+        {/* =================================================
             PROFILE MODAL
         ================================================= */}
 
@@ -1425,13 +1968,18 @@ export default function UserDashboard({
               {/* AVATAR */}
 
               <View style={styles.avatar}>
-
-                <Ionicons
-                  name="person"
-                  size={43}
-                  color="#7047E8"
-                />
-
+                {user.avatarUrl ? (
+                  <Image
+                    source={{ uri: user.avatarUrl }}
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <Ionicons
+                    name="person"
+                    size={43}
+                    color="#7047E8"
+                  />
+                )}
               </View>
 
 
@@ -1488,12 +2036,20 @@ export default function UserDashboard({
 
               <Pressable
                 style={styles.profileOption}
-                onPress={() =>
+                onPress={() => {
+                  if (addresses.length === 0) {
+                    Alert.alert(
+                      "Addresses",
+                      "No saved address is available in your profile."
+                    );
+                    return;
+                  }
+
                   Alert.alert(
-                    "Addresses",
-                    "Saved addresses will be connected to the backend here."
-                  )
-                }
+                    "Saved Addresses",
+                    addresses.map(item => `${item.title}:\n${item.address}`).join("\n\n")
+                  );
+                }}
               >
 
                 <View style={styles.optionIcon}>
@@ -1513,8 +2069,8 @@ export default function UserDashboard({
                     Manage Addresses
                   </Text>
 
-                  <Text style={styles.optionSubtitle}>
-                    Add or edit your service locations
+                  <Text style={styles.optionSubtitle} numberOfLines={2}>
+                    {addresses[0]?.address || "No saved service address"}
                   </Text>
 
                 </View>
@@ -2125,6 +2681,101 @@ const styles = StyleSheet.create({
 
   /* BOOKING MODAL */
 
+  addressModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 25,
+    maxHeight: "92%",
+  },
+
+  addressModalHint: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#777777",
+    marginBottom: 16,
+  },
+
+  addressLocationButton: {
+    minHeight: 64,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+    backgroundColor: "#F8F7FA",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    marginBottom: 18,
+    gap: 12,
+  },
+
+  addressLocationButtonDisabled: {
+    opacity: 0.65,
+  },
+
+  addressLocationTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#222222",
+  },
+
+  addressLocationSubtitle: {
+    fontSize: 12,
+    color: "#777777",
+    marginTop: 3,
+  },
+
+  addressInputGroup: {
+    marginBottom: 14,
+  },
+
+  addressInputLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#222222",
+    marginBottom: 7,
+  },
+
+  addressInputContainer: {
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#DDDDDD",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+  },
+
+  addressInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 13,
+    color: "#222222",
+  },
+
+  addressSaveButton: {
+    height: 54,
+    borderRadius: 15,
+    backgroundColor: "#7047E8",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+    gap: 8,
+  },
+
+  addressSaveButtonDisabled: {
+    opacity: 0.65,
+  },
+
+  addressSaveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
   bookingModal: {
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 26,
@@ -2691,6 +3342,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "center",
     marginBottom: 12,
+  },
+
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 60,
   },
 
   profileName: {

@@ -13,6 +13,7 @@ const {
   cancelBooking,
   getWorkerBookings,
   acceptBooking,
+  rejectBooking,
   startBooking,
   completeBooking
 } = require('../controllers/booking.controller');
@@ -59,6 +60,13 @@ router.patch(
   requireAuth,
   resolveRoleProfile,
   acceptBooking
+);
+
+router.patch(
+  '/worker/booking/:id/reject',
+  requireAuth,
+  resolveRoleProfile,
+  rejectBooking
 );
 
 router.patch(

@@ -727,93 +727,91 @@ async function cancelBooking(
  * Worker sees:
  * - their assigned jobs
  * - requested jobs matching their skills
+ * - but not requests this worker has previously rejected
  */
 async function getWorkerBookings(
   workerId
 ) {
-  const workerSkills =
-    await prisma.worker_skills.findMany({
-      where: {
-        worker_id:
-          workerId
-      },
-
-      select: {
-        skill_id:
-          true
-      }
-    });
-
-
-  const skillIds =
-    workerSkills.map(
-      (item) =>
-        item.skill_id
-    );
-
-
   const bookings =
-    await prisma.bookings.findMany({
-      where: {
-        OR: [
-          {
-            worker_id:
-              workerId
-          },
-
-          {
-            status:
-              'requested',
-
-            worker_id:
-              null,
-
-            booking_type:
-              'normal',
-
-            ...(skillIds.length > 0
-              ? {
-                  skill_id: {
-                    in:
-                      skillIds
-                  }
-                }
-              : {
-                  skill_id: {
-                    in: []
-                  }
-                })
-          }
-        ]
-      },
-
-      orderBy: {
-        created_at:
-          'asc'
-      }
-    });
-
+    await prisma.$queryRaw`
+      SELECT b.id
+      FROM bookings b
+      WHERE
+        b.worker_id = ${workerId}::uuid
+        OR (
+          b.status = 'requested'::booking_status
+          AND b.worker_id IS NULL
+          AND b.booking_type = 'normal'::booking_type
+          AND EXISTS (
+            SELECT 1
+            FROM worker_skills ws
+            WHERE ws.worker_id = ${workerId}::uuid
+              AND ws.skill_id = b.skill_id
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM worker_booking_rejections r
+            WHERE r.worker_id = ${workerId}::uuid
+              AND r.booking_id = b.id
+          )
+        )
+      ORDER BY b.created_at ASC
+    `;
 
   const result = [];
 
-
-  for (
-    const booking of bookings
-  ) {
-    const formatted =
-      await formatBooking(
-        booking.id
-      );
-
+  for (const booking of bookings) {
+    const formatted = await formatBooking(booking.id);
     if (formatted) {
-      result.push(
-        formatted
-      );
+      result.push(formatted);
     }
   }
 
-
   return result;
+}
+
+
+/**
+ * REJECT BOOKING
+ *
+ * Rejection is worker-specific. The customer booking remains requested
+ * and can still be accepted by another qualified worker.
+ */
+async function rejectBooking(
+  id,
+  workerId
+) {
+  const booking = await prisma.bookings.findUnique({
+    where: { id }
+  });
+
+  if (!booking) {
+    throw error('Booking not found', 404);
+  }
+
+  if (booking.status !== 'requested' || booking.worker_id !== null) {
+    throw error('Booking is no longer available');
+  }
+
+  const qualified = await prisma.$queryRaw`
+    SELECT 1
+    FROM worker_skills
+    WHERE worker_id = ${workerId}::uuid
+      AND skill_id = ${booking.skill_id}::uuid
+    LIMIT 1
+  `;
+
+  if (qualified.length === 0) {
+    throw error('You are not qualified for this service', 403);
+  }
+
+  await prisma.$executeRaw`
+    INSERT INTO worker_booking_rejections (booking_id, worker_id)
+    VALUES (${id}::uuid, ${workerId}::uuid)
+    ON CONFLICT (booking_id, worker_id) DO NOTHING
+  `;
+
+  return true;
 }
 
 
@@ -1060,6 +1058,8 @@ module.exports = {
   cancelBooking,
 
   getWorkerBookings,
+
+  rejectBooking,
 
   acceptBooking,
 
