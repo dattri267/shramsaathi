@@ -1,16 +1,39 @@
 const prisma = require('../config/db');
 const {
-  calculatePrice
+    calculatePrice
 } = require('./pricing.service');
 
 
 function error(
-  message,
-  statusCode = 400
+    message,
+    statusCode = 400
 ) {
-  const err = new Error(message);
-  err.statusCode = statusCode;
-  return err;
+    const err = new Error(message);
+    err.statusCode = statusCode;
+    return err;
+}
+
+
+/*
+ * MVP service pricing.
+ * Each booking slot in the mobile app is 2 hours, so these are
+ * the customer-facing estimated prices for one selected slot.
+ * Keep these values in one place until a dedicated service-pricing
+ * table is introduced.
+ */
+const SERVICE_PRICING = {
+    electrician: { standardPrice: 800, floorPrice: 600, ceilingPrice: 1200 },
+    plumber: { standardPrice: 650, floorPrice: 500, ceilingPrice: 1000 },
+    carpenter: { standardPrice: 900, floorPrice: 700, ceilingPrice: 1400 },
+    painter: { standardPrice: 1000, floorPrice: 800, ceilingPrice: 1600 },
+    'domestic-helper': { standardPrice: 600, floorPrice: 500, ceilingPrice: 900 },
+    caregiver: { standardPrice: 800, floorPrice: 650, ceilingPrice: 1200 },
+    technician: { standardPrice: 850, floorPrice: 650, ceilingPrice: 1300 }
+};
+
+function getServicePricing(slug) {
+    if (!slug) return null;
+    return SERVICE_PRICING[String(slug).trim().toLowerCase()] || null;
 }
 
 
@@ -19,10 +42,10 @@ function error(
  * the Expo app to consume.
  */
 async function formatBooking(
-  bookingId
+    bookingId
 ) {
-  const rows =
-    await prisma.$queryRaw`
+    const rows =
+        await prisma.$queryRaw`
       SELECT
         b.id,
 
@@ -74,6 +97,14 @@ async function formatBooking(
         p.phone AS customer_phone,
         p.avatar_url AS customer_avatar,
 
+        wp.user_id AS worker_user_id,
+        wp_profile.full_name AS worker_name,
+        wp_profile.phone AS worker_phone,
+        wp_profile.avatar_url AS worker_avatar,
+        wp.average_rating AS worker_rating,
+        wp.completed_jobs AS worker_completed_jobs,
+        wp.hourly_rate AS worker_hourly_rate,
+
         pay.id AS payment_id,
         pay.amount AS payment_amount,
         pay.currency AS payment_currency,
@@ -90,6 +121,12 @@ async function formatBooking(
       LEFT JOIN profiles p
         ON p.id = cp.user_id
 
+      LEFT JOIN worker_profiles wp
+        ON wp.id = b.worker_id
+
+      LEFT JOIN profiles wp_profile
+        ON wp_profile.id = wp.user_id
+
       LEFT JOIN payments pay
         ON pay.booking_id = b.id
 
@@ -100,142 +137,238 @@ async function formatBooking(
     `;
 
 
-  if (rows.length === 0) {
-    return null;
-  }
+    if (rows.length === 0) {
+        return null;
+    }
 
 
-  const row = rows[0];
+    const row = rows[0];
 
 
-  return {
-    id: row.id,
+    return {
+        id: row.id,
 
-    service: row.skill_db_id
-      ? {
-          id:
-            row.skill_db_id,
+        service: row.skill_db_id
+            ? {
+                id:
+                    row.skill_db_id,
 
-          name:
-            row.skill_name,
+                name:
+                    row.skill_name,
 
-          slug:
-            row.skill_slug
-        }
-      : null,
+                slug:
+                    row.skill_slug
+            }
+            : null,
 
-    customer: row.customer_user_id
-      ? {
-          id:
-            row.customer_user_id,
+        customer: row.customer_user_id
+            ? {
+                id:
+                    row.customer_user_id,
 
-          name:
-            row.customer_name,
+                name:
+                    row.customer_name,
 
-          phone:
-            row.customer_phone,
+                phone:
+                    row.customer_phone,
 
-          avatar_url:
-            row.customer_avatar
-        }
-      : null,
+                avatar_url:
+                    row.customer_avatar
+            }
+            : null,
 
-    worker_id:
-      row.worker_id,
+        worker: row.worker_user_id
+            ? {
+                id: row.worker_user_id,
+                name: row.worker_name || 'Assigned professional',
+                phone: row.worker_phone,
+                avatar_url: row.worker_avatar,
+                rating: row.worker_rating !== null
+                    ? Number(row.worker_rating)
+                    : null,
+                completed_jobs: row.worker_completed_jobs !== null
+                    ? Number(row.worker_completed_jobs)
+                    : 0,
+                hourly_rate: row.worker_hourly_rate !== null
+                    ? Number(row.worker_hourly_rate)
+                    : null
+            }
+            : null,
 
-    service_address:
-      row.service_address,
+        worker_id:
+            row.worker_id,
 
-    location: {
-      latitude:
-        row.latitude !== null
-          ? Number(row.latitude)
-          : null,
+        service_address:
+            row.service_address,
 
-      longitude:
-        row.longitude !== null
-          ? Number(row.longitude)
-          : null
-    },
+        location: {
+            latitude:
+                row.latitude !== null
+                    ? Number(row.latitude)
+                    : null,
 
-    scheduled_start_at:
-      row.scheduled_start_at,
-
-    started_at:
-      row.started_at,
-
-    completed_at:
-      row.completed_at,
-
-    customer_notes:
-      row.customer_notes,
-
-    price: {
-      estimated_amount:
-        row.estimated_amount !== null
-          ? Number(
-              row.estimated_amount
-            )
-          : null,
-
-      final_amount:
-        row.final_amount !== null
-          ? Number(
-              row.final_amount
-            )
-          : null,
-
-      currency: 'INR'
-    },
-
-    status:
-      row.status,
-
-    booking_type:
-      row.booking_type,
-
-    payment: row.payment_id
-      ? {
-          id:
-            row.payment_id,
-
-          amount:
-            Number(
-              row.payment_amount
-            ),
-
-          currency:
-            row.payment_currency,
-
-          status:
-            row.payment_status
-        }
-      : {
-          id: null,
-
-          amount:
-            row.estimated_amount !== null
-              ? Number(
-                  row.estimated_amount
-                )
-              : null,
-
-          currency:
-            'INR',
-
-          status:
-            'pending'
+            longitude:
+                row.longitude !== null
+                    ? Number(row.longitude)
+                    : null
         },
 
-    emergency_accept_deadline:
-      row.emergency_accept_deadline,
+        scheduled_start_at:
+            row.scheduled_start_at,
 
-    created_at:
-      row.created_at,
+        started_at:
+            row.started_at,
 
-    updated_at:
-      row.updated_at
-  };
+        completed_at:
+            row.completed_at,
+
+        customer_notes:
+            row.customer_notes,
+
+        price: {
+            estimated_amount:
+                row.estimated_amount !== null
+                    ? Number(
+                        row.estimated_amount
+                    )
+                    : null,
+
+            final_amount:
+                row.final_amount !== null
+                    ? Number(
+                        row.final_amount
+                    )
+                    : null,
+
+            currency: 'INR',
+
+            worker_share_percent:
+                Number(
+                    process.env.WORKER_SHARE_PERCENT || 80
+                ),
+
+            welfare_share_percent:
+                Number(
+                    process.env.WELFARE_SHARE_PERCENT || 10
+                ),
+
+            platform_share_percent:
+                Number(
+                    process.env.PLATFORM_SHARE_PERCENT || 10
+                ),
+
+            worker_amount: (() => {
+                const amount =
+                    row.final_amount !== null
+                        ? Number(row.final_amount)
+                        : row.estimated_amount !== null
+                            ? Number(row.estimated_amount)
+                            : null;
+
+                return amount === null
+                    ? null
+                    : Number(
+                        (
+                            amount *
+                            Number(
+                                process.env.WORKER_SHARE_PERCENT || 80
+                            ) /
+                            100
+                        ).toFixed(2)
+                    );
+            })(),
+
+            welfare_amount: (() => {
+                const amount =
+                    row.final_amount !== null
+                        ? Number(row.final_amount)
+                        : row.estimated_amount !== null
+                            ? Number(row.estimated_amount)
+                            : null;
+
+                return amount === null
+                    ? null
+                    : Number(
+                        (
+                            amount *
+                            Number(
+                                process.env.WELFARE_SHARE_PERCENT || 10
+                            ) /
+                            100
+                        ).toFixed(2)
+                    );
+            })(),
+
+            platform_amount: (() => {
+                const amount =
+                    row.final_amount !== null
+                        ? Number(row.final_amount)
+                        : row.estimated_amount !== null
+                            ? Number(row.estimated_amount)
+                            : null;
+
+                return amount === null
+                    ? null
+                    : Number(
+                        (
+                            amount *
+                            Number(
+                                process.env.PLATFORM_SHARE_PERCENT || 10
+                            ) /
+                            100
+                        ).toFixed(2)
+                    );
+            })()
+        },
+
+        status:
+            row.status,
+
+        booking_type:
+            row.booking_type,
+
+        payment: row.payment_id
+            ? {
+                id:
+                    row.payment_id,
+
+                amount:
+                    Number(
+                        row.payment_amount
+                    ),
+
+                currency:
+                    row.payment_currency,
+
+                status:
+                    row.payment_status
+            }
+            : {
+                id: null,
+
+                amount:
+                    row.estimated_amount !== null
+                        ? Number(
+                            row.estimated_amount
+                        )
+                        : null,
+
+                currency:
+                    'INR',
+
+                status:
+                    'pending'
+            },
+
+        emergency_accept_deadline:
+            row.emergency_accept_deadline,
+
+        created_at:
+            row.created_at,
+
+        updated_at:
+            row.updated_at
+    };
 }
 
 
@@ -247,40 +380,43 @@ async function formatBooking(
  * name
  */
 async function resolveSkillId(value) {
-  if (!value) {
-    return null;
-  }
+    if (!value) {
+        return null;
+    }
 
-  const input = String(value).trim();
+    const input = String(value).trim();
 
-  // UUID lookup
-  const uuidRegex =
-    /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+    // Check UUID format in JavaScript first.
+    // This prevents PostgreSQL from ever trying
+    // to cast values like "painter" to UUID.
+    const uuidRegex =
+        /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
 
-  if (uuidRegex.test(input)) {
-    const uuidRows = await prisma.$queryRaw`
-      SELECT id
-      FROM skills
-      WHERE id = ${input}::uuid
-      LIMIT 1
+    // UUID lookup
+    if (uuidRegex.test(input)) {
+        const uuidRows = await prisma.$queryRaw`
+            SELECT id
+            FROM skills
+            WHERE id = ${input}::uuid
+            LIMIT 1
+        `;
+
+        if (uuidRows[0]?.id) {
+            return uuidRows[0].id;
+        }
+    }
+
+    // Slug or name lookup
+    const rows = await prisma.$queryRaw`
+        SELECT id
+        FROM skills
+        WHERE
+            LOWER(slug) = LOWER(${input})
+            OR LOWER(name) = LOWER(${input})
+        LIMIT 1
     `;
 
-    if (uuidRows[0]?.id) {
-      return uuidRows[0].id;
-    }
-  }
-
-  // Slug or name lookup
-  const rows = await prisma.$queryRaw`
-    SELECT id
-    FROM skills
-    WHERE
-      LOWER(slug) = LOWER(${input})
-      OR LOWER(name) = LOWER(${input})
-    LIMIT 1
-  `;
-
-  return rows[0]?.id || null;
+    return rows[0]?.id || null;
 }
 
 
@@ -288,191 +424,229 @@ async function resolveSkillId(value) {
  * CREATE BOOKING
  */
 async function createBooking(
-  customerId,
-  data
+    customerId,
+    data
 ) {
-  const {
-    skill_id,
-    skill_slug,
-    service,
-    service_address,
+    const {
+        skill_id,
+        skill_slug,
+        service,
+        service_address,
 
-    customer_notes,
+        customer_notes,
 
-    booking_type,
+        booking_type,
 
-    estimated_amount,
+        estimated_amount,
 
-    latitude,
-    longitude,
+        latitude,
+        longitude,
 
-    scheduled_start_at,
+        scheduled_start_at,
 
-    standardPrice,
-    demandRatio,
-    floorPrice,
-    ceilingPrice
-  } = data;
-
-
-  if (!service_address) {
-    throw error(
-      'service_address is required'
-    );
-  }
+        standardPrice,
+        demandRatio,
+        floorPrice,
+        ceilingPrice
+    } = data;
 
 
-  if (
-    latitude === undefined ||
-    longitude === undefined
-  ) {
-    throw error(
-      'latitude and longitude are required'
-    );
-  }
+    if (!service_address) {
+        throw error(
+            'service_address is required'
+        );
+    }
 
 
-  const lat =
-    Number(latitude);
-
-  const lng =
-    Number(longitude);
-
-
-  if (
-    !Number.isFinite(lat) ||
-    !Number.isFinite(lng)
-  ) {
-    throw error(
-      'latitude and longitude must be valid numbers'
-    );
-  }
+    if (
+        latitude === undefined ||
+        longitude === undefined
+    ) {
+        throw error(
+            'latitude and longitude are required'
+        );
+    }
 
 
-  if (
-    lat < -90 ||
-    lat > 90
-  ) {
-    throw error(
-      'latitude must be between -90 and 90'
-    );
-  }
+    const lat =
+        Number(latitude);
+
+    const lng =
+        Number(longitude);
 
 
-  if (
-    lng < -180 ||
-    lng > 180
-  ) {
-    throw error(
-      'longitude must be between -180 and 180'
-    );
-  }
+    if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng)
+    ) {
+        throw error(
+            'latitude and longitude must be valid numbers'
+        );
+    }
 
 
-  /*
-   * Accept:
-   *
-   * skill_id
-   * skill_slug
-   * service
-   */
-  const skillInput =
-    skill_id ||
-    skill_slug ||
-    service;
+    if (
+        lat < -90 ||
+        lat > 90
+    ) {
+        throw error(
+            'latitude must be between -90 and 90'
+        );
+    }
 
 
-  if (!skillInput) {
-    throw error(
-      'skill_id or skill_slug is required'
-    );
-  }
+    if (
+        lng < -180 ||
+        lng > 180
+    ) {
+        throw error(
+            'longitude must be between -180 and 180'
+        );
+    }
 
 
-  const resolvedSkillId =
-    await resolveSkillId(
-      skillInput
-    );
+    /*
+     * Accept:
+     *
+     * skill_id
+     * skill_slug
+     * service
+     */
+    const skillInput =
+        skill_id ||
+        skill_slug ||
+        service;
 
 
-  if (!resolvedSkillId) {
-    throw error(
-      `Skill not found: ${skillInput}`,
-      404
-    );
-  }
+    if (!skillInput) {
+        throw error(
+            'skill_id or skill_slug is required'
+        );
+    }
 
 
-  if (!scheduled_start_at) {
-    throw error(
-      'scheduled_start_at is required'
-    );
-  }
+    const resolvedSkillId =
+        await resolveSkillId(
+            skillInput
+        );
 
 
-  const scheduledDate =
-    new Date(
-      scheduled_start_at
-    );
+    if (!resolvedSkillId) {
+        throw error(
+            `Skill not found: ${skillInput}`,
+            404
+        );
+    }
 
 
-  if (
-    Number.isNaN(
-      scheduledDate.getTime()
-    )
-  ) {
-    throw error(
-      'Invalid scheduled_start_at'
-    );
-  }
+    if (!scheduled_start_at) {
+        throw error(
+            'scheduled_start_at is required'
+        );
+    }
 
 
-  let finalEstimatedAmount =
-    estimated_amount ??
-    null;
+    const scheduledDate =
+        new Date(
+            scheduled_start_at
+        );
 
 
-  /*
-   * Existing floor/ceiling pricing system.
-   */
-  if (
-    standardPrice !== undefined &&
-    floorPrice !== undefined &&
-    ceilingPrice !== undefined
-  ) {
-    const pricing =
-      calculatePrice({
-        standardPrice:
-          Number(
-            standardPrice
-          ),
-
-        demandRatio:
-          demandRatio === undefined
-            ? 1
-            : Number(
-                demandRatio
-              ),
-
-        floorPrice:
-          Number(
-            floorPrice
-          ),
-
-        ceilingPrice:
-          Number(
-            ceilingPrice
-          )
-      });
+    if (
+        Number.isNaN(
+            scheduledDate.getTime()
+        )
+    ) {
+        throw error(
+            'Invalid scheduled_start_at'
+        );
+    }
 
 
-    finalEstimatedAmount =
-      pricing.finalPrice;
-  }
+    let finalEstimatedAmount =
+        estimated_amount ??
+        null;
 
 
-  const booking =
+    /*
+     * Existing floor/ceiling pricing system.
+     * If the mobile client does not provide pricing inputs, use the
+     * server-side MVP service price so the amount is never silently
+     * stored as NULL.
+     */
+    if (
+        standardPrice !== undefined &&
+        floorPrice !== undefined &&
+        ceilingPrice !== undefined
+    ) {
+        const pricing =
+            calculatePrice({
+                standardPrice: Number(standardPrice),
+                demandRatio:
+                    demandRatio === undefined
+                        ? 1
+                        : Number(demandRatio),
+                floorPrice:
+                    Number(floorPrice),
+                ceilingPrice:
+                    Number(ceilingPrice)
+            });
+
+        finalEstimatedAmount =
+            pricing.finalPrice;
+
+    } else if (
+        finalEstimatedAmount === null
+    ) {
+
+        let pricingKey =
+            skill_slug ||
+            service;
+
+if (!pricingKey && resolvedSkillId) {
+  const skillRows =
     await prisma.$queryRaw`
+      SELECT slug
+      FROM skills
+      WHERE id =
+        ${resolvedSkillId}::uuid
+      LIMIT 1
+    `;
+
+  pricingKey =
+    skillRows[0]?.slug ||
+    null;
+}
+
+        const defaults =
+            getServicePricing(
+                pricingKey
+            );
+
+        if (defaults) {
+            const pricing =
+                calculatePrice({
+                    standardPrice:
+                        defaults.standardPrice,
+
+                    demandRatio:
+                        1,
+
+                    floorPrice:
+                        defaults.floorPrice,
+
+                    ceilingPrice:
+                        defaults.ceilingPrice
+                });
+
+            finalEstimatedAmount =
+                pricing.finalPrice;
+        }
+    }
+
+
+    const booking =
+        await prisma.$queryRaw`
       INSERT INTO bookings (
         customer_id,
 
@@ -498,11 +672,10 @@ async function createBooking(
 
         ${resolvedSkillId}::uuid,
 
-        ${
-          booking_type === 'emergency'
-            ? 'emergency'
-            : 'normal'
-        }::booking_type,
+        ${booking_type === 'emergency'
+                ? 'emergency'
+                : 'normal'
+            }::booking_type,
 
         'requested'::booking_status,
 
@@ -518,10 +691,9 @@ async function createBooking(
 
         ${scheduledDate},
 
-        ${
-          customer_notes ||
-          null
-        },
+        ${customer_notes ||
+            null
+            },
 
         ${finalEstimatedAmount}
       )
@@ -530,61 +702,59 @@ async function createBooking(
     `;
 
 
-  if (
-    !booking[0]
-  ) {
-    throw error(
-      'Booking could not be created',
-      500
+    if (
+        !booking[0]
+    ) {
+        throw error(
+            'Booking could not be created',
+            500
+        );
+    }
+
+
+    return formatBooking(
+        booking[0].id
     );
-  }
-
-
-  return formatBooking(
-    booking[0].id
-  );
 }
-
-
 /**
  * GET CUSTOMER BOOKINGS
  */
 async function getCustomerBookings(
-  customerId
+    customerId
 ) {
-  const bookings =
-    await prisma.bookings.findMany({
-      where: {
-        customer_id:
-          customerId
-      },
+    const bookings =
+        await prisma.bookings.findMany({
+            where: {
+                customer_id:
+                    customerId
+            },
 
-      orderBy: {
-        created_at:
-          'desc'
-      }
-    });
+            orderBy: {
+                created_at:
+                    'desc'
+            }
+        });
 
 
-  const result = [];
+    const result = [];
 
-  for (
-    const booking of bookings
-  ) {
-    const formatted =
-      await formatBooking(
-        booking.id
-      );
+    for (
+        const booking of bookings
+    ) {
+        const formatted =
+            await formatBooking(
+                booking.id
+            );
 
-    if (formatted) {
-      result.push(
-        formatted
-      );
+        if (formatted) {
+            result.push(
+                formatted
+            );
+        }
     }
-  }
 
 
-  return result;
+    return result;
 }
 
 
@@ -592,52 +762,52 @@ async function getCustomerBookings(
  * GET SINGLE BOOKING
  */
 async function getBooking(
-  id,
-  user
+    id,
+    user
 ) {
-  const booking =
-    await prisma.bookings.findUnique({
-      where: {
+    const booking =
+        await prisma.bookings.findUnique({
+            where: {
+                id
+            }
+        });
+
+
+    if (!booking) {
+        throw error(
+            'Booking not found',
+            404
+        );
+    }
+
+
+    if (
+        user.role === 'customer' &&
+        booking.customer_id !==
+        user.customerProfileId
+    ) {
+        throw error(
+            'Access denied',
+            403
+        );
+    }
+
+
+    if (
+        user.role === 'worker' &&
+        booking.worker_id !==
+        user.workerProfileId
+    ) {
+        throw error(
+            'Access denied',
+            403
+        );
+    }
+
+
+    return formatBooking(
         id
-      }
-    });
-
-
-  if (!booking) {
-    throw error(
-      'Booking not found',
-      404
     );
-  }
-
-
-  if (
-    user.role === 'customer' &&
-    booking.customer_id !==
-      user.customerProfileId
-  ) {
-    throw error(
-      'Access denied',
-      403
-    );
-  }
-
-
-  if (
-    user.role === 'worker' &&
-    booking.worker_id !==
-      user.workerProfileId
-  ) {
-    throw error(
-      'Access denied',
-      403
-    );
-  }
-
-
-  return formatBooking(
-    id
-  );
 }
 
 
@@ -645,79 +815,79 @@ async function getBooking(
  * CANCEL BOOKING
  */
 async function cancelBooking(
-  id,
-  user
+    id,
+    user
 ) {
-  const booking =
-    await prisma.bookings.findUnique({
-      where: {
-        id
-      }
+    const booking =
+        await prisma.bookings.findUnique({
+            where: {
+                id
+            }
+        });
+
+
+    if (!booking) {
+        throw error(
+            'Booking not found',
+            404
+        );
+    }
+
+
+    if (
+        user.role === 'customer' &&
+        booking.customer_id !==
+        user.customerProfileId
+    ) {
+        throw error(
+            'Access denied',
+            403
+        );
+    }
+
+
+    if (
+        user.role === 'worker' &&
+        booking.worker_id !==
+        user.workerProfileId
+    ) {
+        throw error(
+            'Access denied',
+            403
+        );
+    }
+
+
+    if (
+        ![
+            'requested',
+            'worker_assigned',
+            'accepted'
+        ].includes(
+            booking.status
+        )
+    ) {
+        throw error(
+            'Booking cannot be cancelled in its current state'
+        );
+    }
+
+
+    await prisma.bookings.update({
+        where: {
+            id
+        },
+
+        data: {
+            status:
+                'cancelled'
+        }
     });
 
 
-  if (!booking) {
-    throw error(
-      'Booking not found',
-      404
+    return formatBooking(
+        id
     );
-  }
-
-
-  if (
-    user.role === 'customer' &&
-    booking.customer_id !==
-      user.customerProfileId
-  ) {
-    throw error(
-      'Access denied',
-      403
-    );
-  }
-
-
-  if (
-    user.role === 'worker' &&
-    booking.worker_id !==
-      user.workerProfileId
-  ) {
-    throw error(
-      'Access denied',
-      403
-    );
-  }
-
-
-  if (
-    ![
-      'requested',
-      'worker_assigned',
-      'accepted'
-    ].includes(
-      booking.status
-    )
-  ) {
-    throw error(
-      'Booking cannot be cancelled in its current state'
-    );
-  }
-
-
-  await prisma.bookings.update({
-    where: {
-      id
-    },
-
-    data: {
-      status:
-        'cancelled'
-    }
-  });
-
-
-  return formatBooking(
-    id
-  );
 }
 
 
@@ -730,10 +900,10 @@ async function cancelBooking(
  * - but not requests this worker has previously rejected
  */
 async function getWorkerBookings(
-  workerId
+    workerId
 ) {
-  const bookings =
-    await prisma.$queryRaw`
+    const bookings =
+        await prisma.$queryRaw`
       SELECT b.id
       FROM bookings b
       WHERE
@@ -758,19 +928,19 @@ async function getWorkerBookings(
       ORDER BY b.created_at ASC
     `;
 
-  const result = [];
+    const result = [];
 
-  for (const booking of bookings) {
-    const formatted = await formatBooking(booking.id);
-    if (formatted) {
-      result.push(formatted);
+    for (const booking of bookings) {
+        const formatted =
+            await formatBooking(booking.id);
+
+        if (formatted) {
+            result.push(formatted);
+        }
     }
-  }
 
-  return result;
+    return result;
 }
-
-
 /**
  * REJECT BOOKING
  *
@@ -778,42 +948,66 @@ async function getWorkerBookings(
  * and can still be accepted by another qualified worker.
  */
 async function rejectBooking(
-  id,
-  workerId
+    id,
+    workerId
 ) {
-  const booking = await prisma.bookings.findUnique({
-    where: { id }
-  });
+    const booking =
+        await prisma.bookings.findUnique({
+            where: {
+                id
+            }
+        });
 
-  if (!booking) {
-    throw error('Booking not found', 404);
-  }
+    if (!booking) {
+        throw error(
+            'Booking not found',
+            404
+        );
+    }
 
-  if (booking.status !== 'requested' || booking.worker_id !== null) {
-    throw error('Booking is no longer available');
-  }
+    if (
+        booking.status !== 'requested' ||
+        booking.worker_id !== null
+    ) {
+        throw error(
+            'Booking is no longer available'
+        );
+    }
 
-  const qualified = await prisma.$queryRaw`
-    SELECT 1
-    FROM worker_skills
-    WHERE worker_id = ${workerId}::uuid
-      AND skill_id = ${booking.skill_id}::uuid
-    LIMIT 1
+    const qualified =
+        await prisma.$queryRaw`
+      SELECT 1
+      FROM worker_skills
+      WHERE worker_id = ${workerId}::uuid
+        AND skill_id = ${booking.skill_id}::uuid
+      LIMIT 1
+    `;
+
+    if (qualified.length === 0) {
+        throw error(
+            'You are not qualified for this service',
+            403
+        );
+    }
+
+    await prisma.$executeRaw`
+    INSERT INTO worker_booking_rejections (
+      booking_id,
+      worker_id
+    )
+    VALUES (
+      ${id}::uuid,
+      ${workerId}::uuid
+    )
+    ON CONFLICT (
+      booking_id,
+      worker_id
+    )
+    DO NOTHING
   `;
 
-  if (qualified.length === 0) {
-    throw error('You are not qualified for this service', 403);
-  }
-
-  await prisma.$executeRaw`
-    INSERT INTO worker_booking_rejections (booking_id, worker_id)
-    VALUES (${id}::uuid, ${workerId}::uuid)
-    ON CONFLICT (booking_id, worker_id) DO NOTHING
-  `;
-
-  return true;
+    return true;
 }
-
 
 /**
  * ATOMIC BOOKING ACCEPTANCE
@@ -825,14 +1019,14 @@ async function rejectBooking(
  * booking.
  */
 async function acceptBooking(
-  id,
-  workerId
+    id,
+    workerId
 ) {
-  /*
-   * Verify worker has this booking's skill.
-   */
-  const workerSkill =
-    await prisma.$queryRaw`
+    /*
+     * Verify worker has this booking's skill.
+     */
+    const workerSkill =
+        await prisma.$queryRaw`
       SELECT
         b.id
 
@@ -853,21 +1047,21 @@ async function acceptBooking(
     `;
 
 
-  if (
-    workerSkill.length === 0
-  ) {
-    throw error(
-      'You are not qualified for this service',
-      403
-    );
-  }
+    if (
+        workerSkill.length === 0
+    ) {
+        throw error(
+            'You are not qualified for this service',
+            403
+        );
+    }
 
 
-  /*
-   * Atomic update.
-   */
-  const updated =
-    await prisma.$executeRaw`
+    /*
+     * Atomic update.
+     */
+    const updated =
+        await prisma.$executeRaw`
       UPDATE bookings
 
       SET
@@ -891,88 +1085,86 @@ async function acceptBooking(
     `;
 
 
-  /*
-   * Zero rows means another worker already accepted it,
-   * or it was changed/cancelled.
-   */
-  if (
-    updated !== 1
-  ) {
-    throw error(
-      'Booking is no longer available',
-      409
+    /*
+     * Zero rows means another worker already accepted it,
+     * or it was changed/cancelled.
+     */
+    if (
+        updated !== 1
+    ) {
+        throw error(
+            'Booking is no longer available',
+            409
+        );
+    }
+
+
+    return formatBooking(
+        id
     );
-  }
-
-
-  return formatBooking(
-    id
-  );
 }
-
-
 /**
  * START BOOKING
  */
 async function startBooking(
-  id,
-  workerId
+    id,
+    workerId
 ) {
-  const booking =
-    await prisma.bookings.findUnique({
-      where: {
-        id
-      }
+    const booking =
+        await prisma.bookings.findUnique({
+            where: {
+                id
+            }
+        });
+
+
+    if (!booking) {
+        throw error(
+            'Booking not found',
+            404
+        );
+    }
+
+
+    if (
+        booking.worker_id !==
+        workerId
+    ) {
+        throw error(
+            'You are not assigned to this booking',
+            403
+        );
+    }
+
+
+    if (
+        booking.status !==
+        'accepted'
+    ) {
+        throw error(
+            'Booking must be accepted before starting'
+        );
+    }
+
+
+    await prisma.bookings.update({
+        where: {
+            id
+        },
+
+        data: {
+            status:
+                'in_progress',
+
+            started_at:
+                new Date()
+        }
     });
 
 
-  if (!booking) {
-    throw error(
-      'Booking not found',
-      404
+    return formatBooking(
+        id
     );
-  }
-
-
-  if (
-    booking.worker_id !==
-    workerId
-  ) {
-    throw error(
-      'You are not assigned to this booking',
-      403
-    );
-  }
-
-
-  if (
-    booking.status !==
-    'accepted'
-  ) {
-    throw error(
-      'Booking must be accepted before starting'
-    );
-  }
-
-
-  await prisma.bookings.update({
-    where: {
-      id
-    },
-
-    data: {
-      status:
-        'in_progress',
-
-      started_at:
-        new Date()
-    }
-  });
-
-
-  return formatBooking(
-    id
-  );
 }
 
 
@@ -980,90 +1172,90 @@ async function startBooking(
  * COMPLETE BOOKING
  */
 async function completeBooking(
-  id,
-  workerId
+    id,
+    workerId
 ) {
-  const booking =
-    await prisma.bookings.findUnique({
-      where: {
-        id
-      }
+    const booking =
+        await prisma.bookings.findUnique({
+            where: {
+                id
+            }
+        });
+
+
+    if (!booking) {
+        throw error(
+            'Booking not found',
+            404
+        );
+    }
+
+
+    if (
+        booking.worker_id !==
+        workerId
+    ) {
+        throw error(
+            'You are not assigned to this booking',
+            403
+        );
+    }
+
+
+    if (
+        booking.status !==
+        'in_progress'
+    ) {
+        throw error(
+            'Booking is not in progress'
+        );
+    }
+
+
+    await prisma.bookings.update({
+        where: {
+            id
+        },
+
+        data: {
+            status:
+                'completed',
+
+            completed_at:
+                new Date(),
+
+            /*
+             * MVP:
+             * final price = estimated price.
+             */
+            final_amount:
+                booking.estimated_amount
+        }
     });
 
 
-  if (!booking) {
-    throw error(
-      'Booking not found',
-      404
+    return formatBooking(
+        id
     );
-  }
-
-
-  if (
-    booking.worker_id !==
-    workerId
-  ) {
-    throw error(
-      'You are not assigned to this booking',
-      403
-    );
-  }
-
-
-  if (
-    booking.status !==
-    'in_progress'
-  ) {
-    throw error(
-      'Booking is not in progress'
-    );
-  }
-
-
-  await prisma.bookings.update({
-    where: {
-      id
-    },
-
-    data: {
-      status:
-        'completed',
-
-      completed_at:
-        new Date(),
-
-      /*
-       * MVP:
-       * final price = estimated price.
-       */
-      final_amount:
-        booking.estimated_amount
-    }
-  });
-
-
-  return formatBooking(
-    id
-  );
 }
 
 
 module.exports = {
-  createBooking,
+    createBooking,
 
-  getCustomerBookings,
+    getCustomerBookings,
 
-  getBooking,
+    getBooking,
 
-  cancelBooking,
+    cancelBooking,
 
-  getWorkerBookings,
+    getWorkerBookings,
 
-  rejectBooking,
+    rejectBooking,
 
-  acceptBooking,
+    acceptBooking,
 
-  startBooking,
+    startBooking,
 
-  completeBooking
+    completeBooking
 };

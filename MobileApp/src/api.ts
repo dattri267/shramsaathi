@@ -928,6 +928,26 @@ export async function acceptBooking(
     }
   );
 }
+/**
+ * Reject a booking request for the logged-in worker.
+ *
+ * Rejection is worker-specific:
+ * the booking remains requested and can still
+ * be accepted by another qualified worker.
+ *
+ * Backend:
+ * PATCH /api/worker/booking/:id/reject
+ */
+export async function rejectBooking(
+  bookingId: string
+) {
+  return apiRequest<any>(
+    `/api/worker/booking/${bookingId}/reject`,
+    {
+      method: 'PATCH',
+    }
+  );
+}
 
 /**
  * Start a booking.
@@ -973,3 +993,31 @@ export async function completeBooking(
     }
   );
 }
+
+/**
+ * Create a payment for a completed customer booking.
+ * Current backend provider is `mock`; this endpoint is ready to be
+ * replaced by Razorpay integration later without changing the booking UI.
+ */
+export async function createCustomerPayment(bookingId: string) {
+  return apiRequest<any>(
+    '/api/customer/payment/create',
+    {
+      method: 'POST',
+      body: JSON.stringify({ bookingId }),
+    }
+  );
+}
+
+/**
+ * Complete the current mock payment.
+ */
+export async function completeMockCustomerPayment(paymentId: string) {
+  return apiRequest<any>(
+    `/api/customer/payment/${paymentId}/complete`,
+    {
+      method: 'PATCH',
+    }
+  );
+}
+

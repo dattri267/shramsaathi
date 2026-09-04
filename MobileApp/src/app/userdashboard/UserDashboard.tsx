@@ -33,6 +33,8 @@ import {
   getCustomerProfile,
   updateCustomerProfile,
   createBooking as createBackendBooking,
+  createCustomerPayment,
+  completeMockCustomerPayment,
 } from "../../api";
 
 
@@ -51,6 +53,7 @@ type Service = {
   name: string;
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
+  basePrice: number;
 };
 
 
@@ -80,6 +83,31 @@ type Booking = {
   time: string;
   status: "Confirmed" | "Pending" | "Completed" | "Cancelled";
   createdAt: string;
+  worker?: {
+    id: string;
+    name: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
+    rating?: number | null;
+    completedJobs?: number;
+    hourlyRate?: number | null;
+  } | null;
+  price?: {
+    estimatedAmount?: number | null;
+    finalAmount?: number | null;
+    currency?: string;
+    workerAmount?: number | null;
+    welfareAmount?: number | null;
+    platformAmount?: number | null;
+    workerSharePercent?: number;
+    welfareSharePercent?: number;
+    platformSharePercent?: number;
+  };
+  payment?: {
+    id?: string | null;
+    amount?: number | null;
+    status?: string | null;
+  };
 };
 
 
@@ -94,6 +122,7 @@ const SERVICES: Service[] = [
     name: "Electrician",
     description: "Electrical repairs & installation",
     icon: "flash-outline",
+    basePrice: 800,
   },
 
   {
@@ -101,6 +130,7 @@ const SERVICES: Service[] = [
     name: "Plumber",
     description: "Plumbing repairs & fittings",
     icon: "water-outline",
+    basePrice: 650,
   },
 
   {
@@ -108,6 +138,7 @@ const SERVICES: Service[] = [
     name: "Carpenter",
     description: "Furniture & woodwork",
     icon: "hammer-outline",
+    basePrice: 900,
   },
 
   {
@@ -115,6 +146,7 @@ const SERVICES: Service[] = [
     name: "Painter",
     description: "Painting & wall services",
     icon: "color-palette-outline",
+    basePrice: 1000,
   },
 
   {
@@ -122,6 +154,7 @@ const SERVICES: Service[] = [
     name: "Domestic Helper",
     description: "Household assistance",
     icon: "home-outline",
+    basePrice: 600,
   },
 
   {
@@ -129,6 +162,7 @@ const SERVICES: Service[] = [
     name: "Caregiver",
     description: "Care & personal assistance",
     icon: "heart-outline",
+    basePrice: 800,
   },
 
   {
@@ -136,6 +170,7 @@ const SERVICES: Service[] = [
     name: "Technician",
     description: "Appliance & technical repairs",
     icon: "construct-outline",
+    basePrice: 850,
   },
 
 ];
@@ -211,6 +246,12 @@ export default function UserDashboard({
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
 
   const [bookingSuccess, setBookingSuccess] =
+    useState(false);
+
+  const [latestBookingId, setLatestBookingId] =
+    useState<string | null>(null);
+
+  const [paymentSubmitting, setPaymentSubmitting] =
     useState(false);
 
   // Add/update service address
@@ -351,6 +392,55 @@ export default function UserDashboard({
         : "Not scheduled",
       status,
       createdAt: item?.created_at || new Date().toISOString(),
+      worker: item?.worker
+        ? {
+            id: String(item.worker.id),
+            name: item.worker.name || "Assigned professional",
+            phone: item.worker.phone || null,
+            avatarUrl: item.worker.avatar_url || null,
+            rating: item.worker.rating !== null && item.worker.rating !== undefined
+              ? Number(item.worker.rating)
+              : null,
+            completedJobs: item.worker.completed_jobs !== null && item.worker.completed_jobs !== undefined
+              ? Number(item.worker.completed_jobs)
+              : 0,
+            hourlyRate: item.worker.hourly_rate !== null && item.worker.hourly_rate !== undefined
+              ? Number(item.worker.hourly_rate)
+              : null,
+          }
+        : null,
+      price: item?.price
+        ? {
+            estimatedAmount: item.price.estimated_amount !== null && item.price.estimated_amount !== undefined
+              ? Number(item.price.estimated_amount)
+              : null,
+            finalAmount: item.price.final_amount !== null && item.price.final_amount !== undefined
+              ? Number(item.price.final_amount)
+              : null,
+            currency: item.price.currency || "INR",
+            workerAmount: item.price.worker_amount !== null && item.price.worker_amount !== undefined
+              ? Number(item.price.worker_amount)
+              : null,
+            welfareAmount: item.price.welfare_amount !== null && item.price.welfare_amount !== undefined
+              ? Number(item.price.welfare_amount)
+              : null,
+            platformAmount: item.price.platform_amount !== null && item.price.platform_amount !== undefined
+              ? Number(item.price.platform_amount)
+              : null,
+            workerSharePercent: Number(item.price.worker_share_percent ?? 80),
+            welfareSharePercent: Number(item.price.welfare_share_percent ?? 10),
+            platformSharePercent: Number(item.price.platform_share_percent ?? 10),
+          }
+        : undefined,
+      payment: item?.payment
+        ? {
+            id: item.payment.id || null,
+            amount: item.payment.amount !== null && item.payment.amount !== undefined
+              ? Number(item.payment.amount)
+              : null,
+            status: item.payment.status || null,
+          }
+        : undefined,
     };
   };
 
@@ -614,6 +704,48 @@ export default function UserDashboard({
   };
 
 
+  const handlePayNow = async (booking: Booking) => {
+    const amount = booking.price?.finalAmount ?? booking.price?.estimatedAmount ?? 0;
+
+    if (!booking.id || amount <= 0) {
+      Alert.alert("Payment unavailable", "A valid final amount is not available for this booking yet.");
+      return;
+    }
+
+    if (booking.payment?.status === "paid") {
+      Alert.alert("Already paid", "This booking has already been paid.");
+      return;
+    }
+
+    try {
+      setPaymentSubmitting(true);
+
+      const paymentResponse = await createCustomerPayment(booking.id);
+      const paymentId = paymentResponse?.payment?.id;
+
+      if (!paymentId) {
+        throw new Error("Payment could not be created.");
+      }
+
+      await completeMockCustomerPayment(String(paymentId));
+      await loadDashboardData();
+
+      Alert.alert(
+        "Payment Successful",
+        `Demo payment of ₹${amount.toFixed(2)} completed successfully.`
+      );
+    } catch (error) {
+      console.error("Customer payment failed:", error);
+      Alert.alert(
+        "Payment failed",
+        error instanceof Error ? error.message : "Unable to complete payment."
+      );
+    } finally {
+      setPaymentSubmitting(false);
+    }
+  };
+
+
   /* =======================================================
      BOOK SERVICE
   ======================================================= */
@@ -635,6 +767,7 @@ export default function UserDashboard({
     setSelectedDate(null);
     setSelectedTime(null);
     setBookingSuccess(false);
+    setLatestBookingId(null);
   };
 
   const handleNextStep = () => {
@@ -692,51 +825,80 @@ export default function UserDashboard({
       return;
     }
 
-    // Do not rely on `new Date("YYYY-MM-DD 09:00 AM")`.
-    // Hermes/Android can reject that non-ISO date format even though it
-    // works in some desktop browsers. Build the local Date explicitly.
-    const dateParts = selectedDate.split("-").map(Number);
-    const timeMatch = selectedTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+const startTime = selectedTime.split(" - ")[0];
 
-    if (dateParts.length !== 3 || dateParts.some(part => !Number.isFinite(part)) || !timeMatch) {
-      Alert.alert("Invalid schedule", "Please select a valid date and time.");
-      return;
-    }
+const dateParts = selectedDate.split("-").map(Number);
+const timeMatch = startTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
 
-    const [, hourText, minuteText, meridiem] = timeMatch;
-    let hours = Number(hourText);
-    const minutes = Number(minuteText);
+if (
+  dateParts.length !== 3 ||
+  dateParts.some(part => Number.isNaN(part))
+) {
+  Alert.alert(
+    "Invalid schedule",
+    "Please select a valid date and time."
+  );
+  return;
+}
 
-    if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) {
-      Alert.alert("Invalid schedule", "Please select a valid date and time.");
-      return;
-    }
+if (!timeMatch) {
+  Alert.alert(
+    "Invalid schedule",
+    "Please select a valid date and time."
+  );
+  return;
+}
 
-    if (meridiem.toUpperCase() === "AM") {
-      if (hours === 12) hours = 0;
-    } else {
-      if (hours !== 12) hours += 12;
-    }
+const [, hourText, minuteText, meridiem] = timeMatch;
 
-    const scheduledStart = new Date(
-      dateParts[0],
-      dateParts[1] - 1,
-      dateParts[2],
-      hours,
-      minutes,
-      0,
-      0
-    );
+let hours = Number(hourText);
+const minutes = Number(minuteText);
 
-    if (Number.isNaN(scheduledStart.getTime())) {
-      Alert.alert("Invalid schedule", "Please select a valid date and time.");
-      return;
-    }
+if (
+  hours < 1 ||
+  hours > 12 ||
+  minutes < 0 ||
+  minutes > 59
+) {
+  Alert.alert(
+    "Invalid schedule",
+    "Please select a valid date and time."
+  );
+  return;
+}
+
+if (meridiem.toUpperCase() === "AM") {
+  if (hours === 12) {
+    hours = 0;
+  }
+} else {
+  if (hours !== 12) {
+    hours += 12;
+  }
+}
+
+const scheduledStart = new Date(
+  dateParts[0],
+  dateParts[1] - 1,
+  dateParts[2],
+  hours,
+  minutes,
+  0,
+  0
+);
+
+if (Number.isNaN(scheduledStart.getTime())) {
+  Alert.alert(
+    "Invalid schedule",
+    "Please select a valid date and time."
+  );
+  return;
+}
 
     try {
       setBookingSubmitting(true);
 
-      await createBackendBooking({
+      const createdBooking = await createBackendBooking({
         skill_slug: selectedService.id,
         booking_type: "normal",
         service_address: selectedAddress.address,
@@ -745,7 +907,17 @@ export default function UserDashboard({
         scheduled_start_at: scheduledStart.toISOString(),
       });
 
+      const createdId = createdBooking?.booking?.id || createdBooking?.id || null;
+      setLatestBookingId(createdId ? String(createdId) : null);
+
       await loadDashboardData();
+
+      if (!createdId) {
+        const refreshed = bookings[0];
+        if (refreshed?.id) {
+          setLatestBookingId(refreshed.id);
+        }
+      }
       setBookingSuccess(true);
       setBookingStep(4);
     } catch (error) {
@@ -1538,6 +1710,25 @@ export default function UserDashboard({
                         </View>
                       </View>
 
+                      <View style={styles.bookingPriceCard}>
+                        <View style={styles.bookingPriceHeader}>
+                          <View>
+                            <Text style={styles.bookingPriceTitle}>Estimated service cost</Text>
+                            <Text style={styles.bookingPriceSubtitle}>For the selected 2-hour service slot</Text>
+                          </View>
+                          <Text style={styles.bookingPriceTotal}>₹{selectedService?.basePrice?.toFixed(0) || "0"}</Text>
+                        </View>
+                        <View style={styles.bookingPriceLine}>
+                          <Text style={styles.bookingPriceLabel}>Customer pays</Text>
+                          <Text style={styles.bookingPriceValue}>₹{selectedService?.basePrice?.toFixed(0) || "0"}</Text>
+                        </View>
+                        <View style={styles.bookingPriceLine}>
+                          <Text style={styles.bookingPriceLabel}>Worker share (80%)</Text>
+                          <Text style={styles.bookingWorkerValue}>₹{selectedService ? (selectedService.basePrice * 0.8).toFixed(0) : "0"}</Text>
+                        </View>
+                        <Text style={styles.bookingPriceNote}>10% supports the welfare fund and 10% covers platform operations. Final amount is fixed by the backend when the booking is created.</Text>
+                      </View>
+
                       <View style={styles.confirmNotice}>
                         <Ionicons
                           name="shield-checkmark-outline"
@@ -1582,7 +1773,7 @@ export default function UserDashboard({
                   <View style={styles.bookingIdCard}>
                     <Text style={styles.bookingIdLabel}>Booking ID</Text>
                     <Text style={styles.bookingId}>
-                      #{bookings[0]?.id}
+                      #{latestBookingId || bookings[0]?.id || "Pending"}
                     </Text>
                   </View>
 
@@ -1593,6 +1784,10 @@ export default function UserDashboard({
                     <Text style={styles.successDetailText}>
                       {selectedTime}
                     </Text>
+                    <Text style={styles.successAmountText}>
+                      Estimated amount: ₹{selectedService?.basePrice?.toFixed(0) || "0"}
+                    </Text>
+                    <Text style={styles.successPaymentNote}>Payment will be requested after the worker completes the service.</Text>
                   </View>
 
                   <Pressable
@@ -1715,6 +1910,70 @@ export default function UserDashboard({
                       <Text style={styles.fullBookingRowText}>
                         {booking.address.title} · {booking.address.address}
                       </Text>
+                    </View>
+
+                    {booking.worker && (
+                      <View style={styles.customerWorkerCard}>
+                        <View style={styles.customerWorkerAvatar}>
+                          {booking.worker.avatarUrl ? (
+                            <Image
+                              source={{ uri: booking.worker.avatarUrl }}
+                              style={styles.customerWorkerAvatarImage}
+                            />
+                          ) : (
+                            <Ionicons name="person" size={22} color="#7047E8" />
+                          )}
+                        </View>
+                        <View style={styles.customerWorkerInfo}>
+                          <Text style={styles.customerWorkerLabel}>Assigned professional</Text>
+                          <Text style={styles.customerWorkerName}>{booking.worker.name}</Text>
+                          <View style={styles.customerWorkerMeta}>
+                            <Text style={styles.customerWorkerMetaText}>★ {booking.worker.rating?.toFixed(1) || "New"}</Text>
+                            <Text style={styles.customerWorkerMetaText}>•</Text>
+                            <Text style={styles.customerWorkerMetaText}>{booking.worker.completedJobs || 0} jobs</Text>
+                          </View>
+                        </View>
+                      </View>
+                    )}
+
+                    <View style={styles.customerPaymentCard}>
+                      <View style={styles.customerPaymentHeader}>
+                        <Text style={styles.customerPaymentTitle}>Payment</Text>
+                        <Text style={styles.customerPaymentTotal}>₹{(booking.price?.finalAmount ?? booking.price?.estimatedAmount ?? 0).toFixed(2)}</Text>
+                      </View>
+                      <View style={styles.customerPaymentLine}>
+                        <Text style={styles.customerPaymentLabel}>Customer pays</Text>
+                        <Text style={styles.customerPaymentValue}>₹{(booking.price?.finalAmount ?? booking.price?.estimatedAmount ?? 0).toFixed(2)}</Text>
+                      </View>
+                      <View style={styles.customerPaymentLine}>
+                        <Text style={styles.customerPaymentLabel}>Worker receives</Text>
+                        <Text style={styles.customerWorkerAmount}>₹{(booking.price?.workerAmount ?? (((booking.price?.finalAmount ?? booking.price?.estimatedAmount ?? 0) * 80) / 100)).toFixed(2)}</Text>
+                      </View>
+                      <Text style={styles.customerPaymentNote}>80% worker · 10% welfare · 10% platform</Text>
+
+                      {booking.status === "Completed" && booking.payment?.status !== "paid" && (
+                        <Pressable
+                          style={styles.payNowButton}
+                          onPress={() => handlePayNow(booking)}
+                          disabled={paymentSubmitting}
+                        >
+                          {paymentSubmitting ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <>
+                              <Text style={styles.payNowButtonText}>Pay ₹{(booking.price?.finalAmount ?? booking.price?.estimatedAmount ?? 0).toFixed(0)}</Text>
+                              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                            </>
+                          )}
+                        </Pressable>
+                      )}
+
+                      {booking.payment?.status === "paid" && (
+                        <View style={styles.paymentPaidRow}>
+                          <Ionicons name="checkmark-circle" size={19} color="#16A34A" />
+                          <Text style={styles.paymentPaidText}>Payment completed</Text>
+                        </View>
+                      )}
                     </View>
                   </View>
                 ))}
@@ -3150,6 +3409,231 @@ const styles = StyleSheet.create({
   doneButtonText: {
     color: "#FFFFFF",
     fontSize: 15,
+    fontWeight: "700",
+  },
+
+  bookingPriceCard: {
+    backgroundColor: "#F7F4FF",
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: "#E8DFFF",
+  },
+
+  bookingPriceHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+
+  bookingPriceTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#222222",
+  },
+
+  bookingPriceSubtitle: {
+    fontSize: 11,
+    color: "#777777",
+    marginTop: 3,
+  },
+
+  bookingPriceTotal: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#7047E8",
+  },
+
+  bookingPriceLine: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 5,
+  },
+
+  bookingPriceLabel: {
+    fontSize: 12,
+    color: "#666666",
+  },
+
+  bookingPriceValue: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#222222",
+  },
+
+  bookingWorkerValue: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#16A34A",
+  },
+
+  bookingPriceNote: {
+    fontSize: 10,
+    color: "#777777",
+    lineHeight: 15,
+    marginTop: 7,
+  },
+
+  successAmountText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#7047E8",
+    marginTop: 9,
+  },
+
+  successPaymentNote: {
+    fontSize: 11,
+    color: "#777777",
+    textAlign: "center",
+    marginTop: 5,
+    lineHeight: 16,
+  },
+
+  customerWorkerCard: {
+    marginTop: 13,
+    padding: 12,
+    borderRadius: 15,
+    backgroundColor: "#F7F4FF",
+    borderWidth: 1,
+    borderColor: "#E8DFFF",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  customerWorkerAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#EEE8FF",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    marginRight: 12,
+  },
+
+  customerWorkerAvatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  customerWorkerInfo: {
+    flex: 1,
+  },
+
+  customerWorkerLabel: {
+    fontSize: 10,
+    color: "#777777",
+  },
+
+  customerWorkerName: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#222222",
+    marginTop: 2,
+  },
+
+  customerWorkerMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+
+  customerWorkerMetaText: {
+    fontSize: 10,
+    color: "#666666",
+    marginRight: 6,
+  },
+
+  customerPaymentCard: {
+    marginTop: 13,
+    padding: 13,
+    borderRadius: 15,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E6E6E6",
+  },
+
+  customerPaymentHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+
+  customerPaymentTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#222222",
+  },
+
+  customerPaymentTotal: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#7047E8",
+  },
+
+  customerPaymentLine: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 4,
+  },
+
+  customerPaymentLabel: {
+    fontSize: 11,
+    color: "#777777",
+  },
+
+  customerPaymentValue: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#222222",
+  },
+
+  customerWorkerAmount: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#16A34A",
+  },
+
+  customerPaymentNote: {
+    fontSize: 10,
+    color: "#888888",
+    marginTop: 5,
+  },
+
+  payNowButton: {
+    height: 45,
+    borderRadius: 13,
+    backgroundColor: "#7047E8",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+    gap: 8,
+  },
+
+  payNowButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+
+  paymentPaidRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+    paddingVertical: 8,
+    borderRadius: 11,
+    backgroundColor: "#ECFDF3",
+    gap: 7,
+  },
+
+  paymentPaidText: {
+    color: "#15803D",
+    fontSize: 12,
     fontWeight: "700",
   },
 
