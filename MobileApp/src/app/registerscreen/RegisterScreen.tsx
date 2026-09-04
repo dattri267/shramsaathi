@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation/AppNavigator';
+import React, { useState } from "react";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../navigation/AppNavigator";
 import {
   Animated,
   KeyboardAvoidingView,
@@ -13,89 +13,115 @@ import {
   TextInput,
   Alert,
   View,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import colors from '../../constants/colors';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import colors from "../../constants/colors";
+import { signup } from "../../api";
+type Role = "customer" | "worker";
+type Props = NativeStackScreenProps<RootStackParamList, "Register">;
 
-type Role = 'customer' | 'worker';
-type Props = NativeStackScreenProps<
-  RootStackParamList,
-  'Register'
->;
+export default function RegisterScreen({ navigation }: Props) {
+  const [role, setRole] = useState<Role>("customer");
 
-export default function RegisterScreen({
-  navigation,
-}: Props) {
-  const [role, setRole] = useState<Role>('customer');
-
-  const [email, setEmail] = useState('');
-  const [mobile, setMobile] = useState('');
-  const [password, setPassword] = useState('');
-  const [rePassword, setRePassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [password, setPassword] = useState("");
+  const [rePassword, setRePassword] = useState("");
 
   const [showPassword, setShowPassword] = useState(false);
   const [showRePassword, setShowRePassword] = useState(false);
 
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
 
-const handleRegister = () => {
-  if (
-    !email.trim() ||
-    !mobile.trim() ||
-    !password ||
-    !rePassword
-  ) {
-    Alert.alert(
-      'Incomplete Details',
-      'Please fill in all required fields.'
-    );
-    return;
-  }
+  const handleRegister = async () => {
+    if (!email.trim() || !mobile.trim() || !password || !rePassword) {
+      Alert.alert("Incomplete Details", "Please fill in all required fields.");
+      return;
+    }
 
-  if (password !== rePassword) {
-    Alert.alert(
-      'Password Mismatch',
-      'Passwords do not match.'
-    );
-    return;
-  }
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (password !== rePassword) {
+      Alert.alert("Password Mismatch", "Passwords do not match.");
+      return;
+    }
 
-if (!emailRegex.test(email.trim())) {
-  Alert.alert(
-    'Invalid Email',
-    'Please enter a valid email address.'
-  );
-  return;
-}
-if (password.length < 8) {
-  Alert.alert(
-    'Weak Password',
-    'Password must be at least 8 characters long.'
-  );
-  return;
-}
-const mobileRegex = /^[6-9]\d{9}$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-if (!mobileRegex.test(mobile.trim())) {
-  Alert.alert(
-    'Invalid Mobile Number',
-    'Please enter a valid 10-digit mobile number.'
-  );
-  return;
-}
-  if (role === 'customer') {
-    navigation.navigate('CustomerDetails', {
-      email: email.trim(),
-      mobile: mobile.trim(),
-    });
-  } else {
-    navigation.navigate('WorkerDetails', {
-  email: email.trim(),
-  mobile: mobile.trim(),
-});
-  }
-};
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert("Invalid Email", "Please enter a valid email address.");
+      return;
+    }
+
+    if (password.length < 8) {
+      Alert.alert(
+        "Weak Password",
+        "Password must be at least 8 characters long.",
+      );
+      return;
+    }
+
+    const mobileRegex = /^[6-9]\d{9}$/;
+
+    if (!mobileRegex.test(mobile.trim())) {
+      Alert.alert(
+        "Invalid Mobile Number",
+        "Please enter a valid 10-digit mobile number.",
+      );
+      return;
+    }
+
+    try {
+      setIsRegistering(true);
+
+      /*
+       * Create the actual account in the backend.
+       *
+       * We don't have the user's final name yet because
+       * that is collected on CustomerDetails / WorkerDetails.
+       *
+       * So we temporarily use the part before @ as full_name.
+       * The details screen will update the real name afterward.
+       */
+      const response = await signup({
+        email: email.trim(),
+        password,
+        phone: mobile.trim(),
+        full_name: email.trim().split("@")[0],
+        role,
+      });
+
+      console.log("Signup successful:", response);
+
+      /*
+       * signup() already saves the JWT token in AsyncStorage.
+       *
+       * Now move to the next step where the user enters
+       * their detailed profile information.
+       */
+      if (role === "customer") {
+        navigation.navigate("CustomerDetails", {
+          email: email.trim(),
+          mobile: mobile.trim(),
+        });
+      } else {
+        navigation.navigate("WorkerDetails", {
+          email: email.trim(),
+          mobile: mobile.trim(),
+        });
+      }
+    } catch (error) {
+      console.error("Signup error:", error);
+
+      Alert.alert(
+        "Registration Failed",
+        error instanceof Error
+          ? error.message
+          : "Unable to create your account. Please try again.",
+      );
+    } finally {
+      setIsRegistering(false);
+    }
+  };
   const inputStyle = (inputName: string) => [
     styles.inputContainer,
     focusedInput === inputName && styles.inputContainerFocused,
@@ -105,7 +131,7 @@ if (!mobileRegex.test(mobile.trim())) {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -115,14 +141,10 @@ if (!mobileRegex.test(mobile.trim())) {
           {/* Header */}
           <View style={styles.header}>
             <Pressable
-  style={styles.backButton}
-  onPress={() => navigation.goBack()}
->
-              <Ionicons
-                name="arrow-back"
-                size={23}
-                color={colors.text}
-              />
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Ionicons name="arrow-back" size={23} color={colors.text} />
             </Pressable>
 
             <View style={styles.headerText}>
@@ -142,7 +164,7 @@ if (!mobileRegex.test(mobile.trim())) {
               <Animated.View
                 style={[
                   styles.roleSlider,
-                  role === 'worker'
+                  role === "worker"
                     ? styles.roleSliderWorker
                     : styles.roleSliderCustomer,
                 ]}
@@ -150,22 +172,20 @@ if (!mobileRegex.test(mobile.trim())) {
 
               <Pressable
                 style={styles.roleOption}
-                onPress={() => setRole('customer')}
+                onPress={() => setRole("customer")}
               >
                 <Ionicons
                   name="person-outline"
                   size={19}
                   color={
-                    role === 'customer'
-                      ? colors.white
-                      : colors.secondaryText
+                    role === "customer" ? colors.white : colors.secondaryText
                   }
                 />
 
                 <Text
                   style={[
                     styles.roleText,
-                    role === 'customer' && styles.roleTextActive,
+                    role === "customer" && styles.roleTextActive,
                   ]}
                 >
                   Customer
@@ -174,22 +194,20 @@ if (!mobileRegex.test(mobile.trim())) {
 
               <Pressable
                 style={styles.roleOption}
-                onPress={() => setRole('worker')}
+                onPress={() => setRole("worker")}
               >
                 <Ionicons
                   name="construct-outline"
                   size={19}
                   color={
-                    role === 'worker'
-                      ? colors.white
-                      : colors.secondaryText
+                    role === "worker" ? colors.white : colors.secondaryText
                   }
                 />
 
                 <Text
                   style={[
                     styles.roleText,
-                    role === 'worker' && styles.roleTextActive,
+                    role === "worker" && styles.roleTextActive,
                   ]}
                 >
                   Worker
@@ -203,9 +221,7 @@ if (!mobileRegex.test(mobile.trim())) {
             <View style={styles.descriptionIcon}>
               <Ionicons
                 name={
-                  role === 'customer'
-                    ? 'home-outline'
-                    : 'briefcase-outline'
+                  role === "customer" ? "home-outline" : "briefcase-outline"
                 }
                 size={20}
                 color={colors.primary}
@@ -214,15 +230,15 @@ if (!mobileRegex.test(mobile.trim())) {
 
             <View style={styles.descriptionContent}>
               <Text style={styles.descriptionTitle}>
-                {role === 'customer'
-                  ? 'Create a Customer Account'
-                  : 'Join as a Cooperative Worker'}
+                {role === "customer"
+                  ? "Create a Customer Account"
+                  : "Join as a Cooperative Worker"}
               </Text>
 
               <Text style={styles.descriptionText}>
-                {role === 'customer'
-                  ? 'Book trusted services from verified cooperative workers.'
-                  : 'Offer your skills and connect with households in your community.'}
+                {role === "customer"
+                  ? "Book trusted services from verified cooperative workers."
+                  : "Offer your skills and connect with households in your community."}
               </Text>
             </View>
           </View>
@@ -232,12 +248,12 @@ if (!mobileRegex.test(mobile.trim())) {
             {/* Email */}
             <Text style={styles.inputLabel}>Email address</Text>
 
-            <View style={inputStyle('email')}>
+            <View style={inputStyle("email")}>
               <Ionicons
                 name="mail-outline"
                 size={21}
                 color={
-                  focusedInput === 'email'
+                  focusedInput === "email"
                     ? colors.primary
                     : colors.secondaryText
                 }
@@ -251,7 +267,7 @@ if (!mobileRegex.test(mobile.trim())) {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                onFocus={() => setFocusedInput('email')}
+                onFocus={() => setFocusedInput("email")}
                 onBlur={() => setFocusedInput(null)}
               />
             </View>
@@ -259,12 +275,12 @@ if (!mobileRegex.test(mobile.trim())) {
             {/* Mobile */}
             <Text style={styles.inputLabel}>Mobile number</Text>
 
-            <View style={inputStyle('mobile')}>
+            <View style={inputStyle("mobile")}>
               <Ionicons
                 name="call-outline"
                 size={21}
                 color={
-                  focusedInput === 'mobile'
+                  focusedInput === "mobile"
                     ? colors.primary
                     : colors.secondaryText
                 }
@@ -280,7 +296,7 @@ if (!mobileRegex.test(mobile.trim())) {
                 onChangeText={setMobile}
                 keyboardType="phone-pad"
                 maxLength={10}
-                onFocus={() => setFocusedInput('mobile')}
+                onFocus={() => setFocusedInput("mobile")}
                 onBlur={() => setFocusedInput(null)}
               />
             </View>
@@ -288,12 +304,12 @@ if (!mobileRegex.test(mobile.trim())) {
             {/* Password */}
             <Text style={styles.inputLabel}>Password</Text>
 
-            <View style={inputStyle('password')}>
+            <View style={inputStyle("password")}>
               <Ionicons
                 name="lock-closed-outline"
                 size={21}
                 color={
-                  focusedInput === 'password'
+                  focusedInput === "password"
                     ? colors.primary
                     : colors.secondaryText
                 }
@@ -307,7 +323,7 @@ if (!mobileRegex.test(mobile.trim())) {
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
-                onFocus={() => setFocusedInput('password')}
+                onFocus={() => setFocusedInput("password")}
                 onBlur={() => setFocusedInput(null)}
               />
 
@@ -316,11 +332,7 @@ if (!mobileRegex.test(mobile.trim())) {
                 hitSlop={10}
               >
                 <Ionicons
-                  name={
-                    showPassword
-                      ? 'eye-outline'
-                      : 'eye-off-outline'
-                  }
+                  name={showPassword ? "eye-outline" : "eye-off-outline"}
                   size={21}
                   color={colors.secondaryText}
                 />
@@ -330,12 +342,12 @@ if (!mobileRegex.test(mobile.trim())) {
             {/* Re-enter Password */}
             <Text style={styles.inputLabel}>Confirm password</Text>
 
-            <View style={inputStyle('rePassword')}>
+            <View style={inputStyle("rePassword")}>
               <Ionicons
                 name="shield-checkmark-outline"
                 size={21}
                 color={
-                  focusedInput === 'rePassword'
+                  focusedInput === "rePassword"
                     ? colors.primary
                     : colors.secondaryText
                 }
@@ -349,7 +361,7 @@ if (!mobileRegex.test(mobile.trim())) {
                 onChangeText={setRePassword}
                 secureTextEntry={!showRePassword}
                 autoCapitalize="none"
-                onFocus={() => setFocusedInput('rePassword')}
+                onFocus={() => setFocusedInput("rePassword")}
                 onBlur={() => setFocusedInput(null)}
               />
 
@@ -358,11 +370,7 @@ if (!mobileRegex.test(mobile.trim())) {
                 hitSlop={10}
               >
                 <Ionicons
-                  name={
-                    showRePassword
-                      ? 'eye-outline'
-                      : 'eye-off-outline'
-                  }
+                  name={showRePassword ? "eye-outline" : "eye-off-outline"}
                   size={21}
                   color={colors.secondaryText}
                 />
@@ -370,20 +378,17 @@ if (!mobileRegex.test(mobile.trim())) {
             </View>
 
             {/* Password mismatch */}
-            {rePassword.length > 0 &&
-              password !== rePassword && (
-                <View style={styles.errorRow}>
-                  <Ionicons
-                    name="alert-circle-outline"
-                    size={16}
-                    color="#D9534F"
-                  />
+            {rePassword.length > 0 && password !== rePassword && (
+              <View style={styles.errorRow}>
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={16}
+                  color="#D9534F"
+                />
 
-                  <Text style={styles.errorText}>
-                    Passwords do not match
-                  </Text>
-                </View>
-              )}
+                <Text style={styles.errorText}>Passwords do not match</Text>
+              </View>
+            )}
 
             {/* Register Button */}
             <Pressable
@@ -399,6 +404,7 @@ if (!mobileRegex.test(mobile.trim())) {
               ]}
               onPress={handleRegister}
               disabled={
+                isRegistering ||
                 !email ||
                 !mobile ||
                 !password ||
@@ -407,35 +413,27 @@ if (!mobileRegex.test(mobile.trim())) {
               }
             >
               <Text style={styles.registerButtonText}>
-                Create {role === 'customer' ? 'Customer' : 'Worker'} Account
+                {isRegistering
+                  ? "Creating Account..."
+                  : `Create ${role === "customer" ? "Customer" : "Worker"} Account`}
               </Text>
 
-              <Ionicons
-                name="arrow-forward"
-                size={21}
-                color={colors.white}
-              />
+              <Ionicons name="arrow-forward" size={21} color={colors.white} />
             </Pressable>
           </View>
 
           {/* Login */}
           <View style={styles.loginContainer}>
-            <Text style={styles.loginText}>
-              Already have an account?
-            </Text>
+            <Text style={styles.loginText}>Already have an account?</Text>
 
-<Pressable onPress={() => navigation.navigate('Login')}>
-  <Text style={styles.loginLink}>Login</Text>
-</Pressable>
+            <Pressable onPress={() => navigation.navigate("Login")}>
+              <Text style={styles.loginLink}>Login</Text>
+            </Pressable>
           </View>
 
           {/* Bottom Message */}
           <View style={styles.bottomMessage}>
-            <Ionicons
-              name="people-outline"
-              size={18}
-              color={colors.primary}
-            />
+            <Ionicons name="people-outline" size={18} color={colors.primary} />
 
             <Text style={styles.bottomMessageText}>
               Building stronger communities through cooperative services
@@ -466,8 +464,8 @@ const styles = StyleSheet.create({
   /* Header */
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 28,
   },
 
@@ -476,8 +474,8 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 21,
     backgroundColor: colors.inputBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 14,
   },
 
@@ -487,7 +485,7 @@ const styles = StyleSheet.create({
 
   title: {
     fontSize: 30,
-    fontWeight: '800',
+    fontWeight: "800",
     color: colors.text,
     letterSpacing: -0.5,
   },
@@ -506,7 +504,7 @@ const styles = StyleSheet.create({
 
   sectionLabel: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     marginBottom: 10,
   },
@@ -517,17 +515,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.inputBackground,
     borderWidth: 1,
     borderColor: colors.inputBorder,
-    flexDirection: 'row',
-    position: 'relative',
-    overflow: 'hidden',
+    flexDirection: "row",
+    position: "relative",
+    overflow: "hidden",
     padding: 4,
   },
 
   roleSlider: {
-    position: 'absolute',
+    position: "absolute",
     top: 4,
     bottom: 4,
-    width: '50%',
+    width: "50%",
     borderRadius: 12,
     backgroundColor: colors.primary,
   },
@@ -542,17 +540,17 @@ const styles = StyleSheet.create({
 
   roleOption: {
     flex: 1,
-    height: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    height: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     zIndex: 2,
   },
 
   roleText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.secondaryText,
   },
 
@@ -563,7 +561,7 @@ const styles = StyleSheet.create({
   /* Role Description */
 
   roleDescription: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: colors.inputBackground,
     borderRadius: 16,
     padding: 15,
@@ -575,8 +573,8 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
 
@@ -586,7 +584,7 @@ const styles = StyleSheet.create({
 
   descriptionTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     marginBottom: 4,
   },
@@ -600,12 +598,12 @@ const styles = StyleSheet.create({
   /* Form */
 
   form: {
-    width: '100%',
+    width: "100%",
   },
 
   inputLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     marginBottom: 8,
     marginTop: 4,
@@ -617,8 +615,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.inputBorder,
     backgroundColor: colors.inputBackground,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     marginBottom: 16,
   },
@@ -636,7 +634,7 @@ const styles = StyleSheet.create({
 
   countryCode: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
     marginLeft: 10,
     marginRight: 2,
@@ -645,14 +643,14 @@ const styles = StyleSheet.create({
   /* Error */
 
   errorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: -8,
     marginBottom: 12,
   },
 
   errorText: {
-    color: '#D9534F',
+    color: "#D9534F",
     fontSize: 12,
     marginLeft: 5,
   },
@@ -663,9 +661,9 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 14,
     backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 18,
     marginTop: 8,
     gap: 10,
@@ -674,7 +672,7 @@ const styles = StyleSheet.create({
   registerButtonText: {
     color: colors.white,
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: "800",
   },
 
   buttonPressed: {
@@ -689,9 +687,9 @@ const styles = StyleSheet.create({
   /* Login */
 
   loginContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 24,
   },
 
@@ -702,7 +700,7 @@ const styles = StyleSheet.create({
 
   loginLink: {
     fontSize: 13.5,
-    fontWeight: '800',
+    fontWeight: "800",
     color: colors.primary,
     marginLeft: 5,
   },
@@ -710,9 +708,9 @@ const styles = StyleSheet.create({
   /* Bottom */
 
   bottomMessage: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 28,
     paddingHorizontal: 10,
   },
@@ -721,7 +719,7 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: colors.secondaryText,
     marginLeft: 7,
-    textAlign: 'center',
+    textAlign: "center",
     flex: 1,
   },
 });

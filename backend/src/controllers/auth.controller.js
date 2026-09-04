@@ -4,275 +4,629 @@ const crypto = require('crypto');
 const prisma = require('../config/db');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZlbnFlb3d2b2VsYmVscWtzZ3dhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNzMwMjUsImV4cCI6MjEwMzk0OTAyNX0.OZAw3_gTSCkoK4H_IKE5XAxwgh7SifulLotmgn5kmVk';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+
+
+/**
+ * Generate the JWT used by OUR backend.
+ *
+ * The Expo application should send this token as:
+ *
+ * Authorization: Bearer <token>
+ */
+function generateToken(userId, email, role) {
+  const jwtSecret = process.env.JWT_SECRET;
+
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET is not configured');
+  }
+
+  return jwt.sign(
+    {
+      sub: userId,
+      email,
+      role
+    },
+    jwtSecret,
+    {
+      expiresIn: '7d'
+    }
+  );
+}
+
 
 /**
  * POST /auth/login
- * Body: { email, password }
+ *
+ * Body:
+ * {
+ *   email,
+ *   password
+ * }
  */
 async function login(req, res, next) {
   try {
-    const { email, password } = req.body;
+    const email = String(req.body.email || '')
+      .trim()
+      .toLowerCase();
+
+    const password = String(req.body.password || '');
 
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      return res.status(400).json({
+        error: 'Email and password are required'
+      });
     }
 
-    // 1. Try Supabase Auth API if configured
-    if (SUPABASE_URL) {
+
+    /*
+     * ---------------------------------------------------------
+     * 1. Try Supabase authentication if configured
+     * ---------------------------------------------------------
+     *
+     * IMPORTANT:
+     * We DO NOT return the Supabase access token.
+     *
+     * We use Supabase only to verify the credentials and then
+     * issue our own backend JWT.
+     */
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
       try {
-        let sbResponse = await fetch(
+        const response = await fetch(
           `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'apikey': SUPABASE_ANON_KEY
+              apikey: SUPABASE_ANON_KEY
             },
-            body: JSON.stringify({ email, password })
+            body: JSON.stringify({
+              email,
+              password
+            })
           }
         );
 
-        let sbData = await sbResponse.json();
+        let data = await response.json();
 
-        // Handle unconfirmed email automatically for dev testing
-        const errMsg = sbData.error_description || sbData.msg || sbData.error;
-        if (errMsg && (errMsg.includes('Email not confirmed') || errMsg.includes('email_not_confirmed'))) {
-          console.log(`Auto-confirming email for ${email} in dev...`);
-          const existingUser = await prisma.users.findFirst({ where: { email } });
-          if (existingUser) {
-            await prisma.users.update({
-              where: { id: existingUser.id },
-              data: { email_confirmed_at: new Date() }
-            });
-            // Retry Supabase login after confirmation
-            sbResponse = await fetch(
-              `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'apikey': SUPABASE_ANON_KEY
+        /*
+         * Development convenience:
+         * auto-confirm an existing local Supabase user.
+         */
+        const errorMessage =
+          data.error_description ||
+          data.msg ||
+          data.error ||
+          '';
+
+        if (
+          errorMessage.includes('Email not confirmed') ||
+          errorMessage.includes('email_not_confirmed')
+        ) {
+          try {
+            const existingUser =
+              await prisma.users.findFirst({
+                where: {
+                  email
+                }
+              });
+
+            if (existingUser) {
+              await prisma.users.update({
+                where: {
+                  id: existingUser.id
                 },
-                body: JSON.stringify({ email, password })
-              }
+                data: {
+                  email_confirmed_at: new Date()
+                }
+              });
+
+              const retryResponse = await fetch(
+                `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    apikey: SUPABASE_ANON_KEY
+                  },
+                  body: JSON.stringify({
+                    email,
+                    password
+                  })
+                }
+              );
+
+              data = await retryResponse.json();
+            }
+          } catch (confirmError) {
+            console.warn(
+              'Could not auto-confirm email:',
+              confirmError.message
             );
-            sbData = await sbResponse.json();
           }
         }
 
-        if (sbResponse.ok && sbData.access_token) {
-          // Fetch profile from Prisma database
-          let profile = await prisma.profiles.findUnique({
-            where: { id: sbData.user.id }
-          });
 
-          // If profile doesn't exist yet, auto-create default profile
-          if (!profile) {
-            profile = await prisma.profiles.create({
-              data: {
-                id: sbData.user.id,
-                role: 'customer',
-                full_name: email.split('@')[0]
+        if (data.user && data.access_token) {
+          const userId = data.user.id;
+
+          let profile =
+            await prisma.profiles.findUnique({
+              where: {
+                id: userId
               }
             });
+
+
+          /*
+           * If the Auth user exists but profile does not,
+           * create a customer profile by default.
+           */
+          if (!profile) {
+            profile =
+              await prisma.profiles.create({
+                data: {
+                  id: userId,
+                  role: 'customer',
+                  full_name:
+                    data.user.user_metadata?.full_name ||
+                    email.split('@')[0],
+                  phone:
+                    data.user.user_metadata?.phone ||
+                    null
+                }
+              });
+
             await prisma.customer_profiles.create({
-              data: { user_id: sbData.user.id }
-            }).catch(() => {});
+              data: {
+                user_id: userId
+              }
+            });
           }
+
+
+          const token = generateToken(
+            userId,
+            email,
+            profile.role
+          );
 
           return res.status(200).json({
             message: 'Login successful',
-            access_token: sbData.access_token,
-            token: sbData.access_token,
-            expires_in: sbData.expires_in,
-            user: sbData.user,
+
+            access_token: token,
+            token,
+
+            expires_in: 60 * 60 * 24 * 7,
+
+            user: {
+              id: userId,
+              email
+            },
+
             profile
           });
         }
-      } catch (sbErr) {
-        console.warn('Supabase auth attempt failed, falling back to database check:', sbErr.message);
+      } catch (supabaseError) {
+        console.warn(
+          'Supabase login failed. Falling back to database authentication:',
+          supabaseError.message
+        );
       }
     }
 
-    // 2. Fallback: Direct Prisma Database Check
+
+    /*
+     * ---------------------------------------------------------
+     * 2. Local database authentication
+     * ---------------------------------------------------------
+     */
     const user = await prisma.users.findFirst({
-      where: { email }
+      where: {
+        email
+      }
     });
 
     if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({
+        error: 'Invalid email or password'
+      });
     }
 
-    if (user.encrypted_password) {
-      const isMatch = await bcrypt.compare(password, user.encrypted_password);
-      if (!isMatch) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
+    if (!user.encrypted_password) {
+      return res.status(401).json({
+        error:
+          'This account does not have a local password. Please use the configured authentication provider.'
+      });
     }
 
-    const token = jwt.sign(
-      { sub: user.id, email: user.email },
-      process.env.JWT_SECRET || 'secret',
-      { expiresIn: '7d' }
+    const passwordMatches =
+      await bcrypt.compare(
+        password,
+        user.encrypted_password
+      );
+
+    if (!passwordMatches) {
+      return res.status(401).json({
+        error: 'Invalid email or password'
+      });
+    }
+
+
+    const profile =
+      await prisma.profiles.findUnique({
+        where: {
+          id: user.id
+        }
+      });
+
+    if (!profile) {
+      return res.status(404).json({
+        error:
+          'Account exists but profile has not been created'
+      });
+    }
+
+
+    const token = generateToken(
+      user.id,
+      email,
+      profile.role
     );
-
-    const profile = await prisma.profiles.findUnique({
-      where: { id: user.id }
-    });
 
     return res.status(200).json({
       message: 'Login successful',
+
       access_token: token,
       token,
-      user: { id: user.id, email: user.email },
-      profile: profile || null
-    });
 
+      expires_in: 60 * 60 * 24 * 7,
+
+      user: {
+        id: user.id,
+        email
+      },
+
+      profile
+    });
   } catch (error) {
     next(error);
   }
 }
 
+
 /**
- * POST /auth/signup or /auth/register
- * Body: { email, password, phone / mobile_number, role, full_name }
+ * POST /auth/signup
+ * POST /auth/register
+ *
+ * Body:
+ *
+ * {
+ *   email,
+ *   password,
+ *   phone,
+ *   mobile_number,
+ *   full_name,
+ *   role
+ * }
  */
 async function signup(req, res, next) {
   try {
-    const { email, password, phone, mobile_number, full_name, role = 'customer' } = req.body;
-    const phoneNumber = phone || mobile_number;
-    const userRole = role === 'worker' ? 'worker' : 'customer';
+    const email = String(req.body.email || '')
+      .trim()
+      .toLowerCase();
+
+    const password = String(req.body.password || '');
+
+    const phone =
+      req.body.phone ||
+      req.body.mobile_number ||
+      null;
+
+    const fullName =
+      req.body.full_name ||
+      req.body.fullName ||
+      null;
+
+    const requestedRole =
+      req.body.role || 'customer';
+
+    const userRole =
+      requestedRole === 'worker'
+        ? 'worker'
+        : 'customer';
+
 
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
-
-    // 1. Check if user with this email already exists
-    const existingDbUser = await prisma.users.findFirst({ where: { email } });
-    if (existingDbUser) {
-      return res.status(400).json({ error: 'User with this email already exists. Please log in.' });
-    }
-
-    // 2. Check if phone number is already registered
-    if (phoneNumber) {
-      const existingPhone = await prisma.profiles.findFirst({
-        where: { phone: phoneNumber }
+      return res.status(400).json({
+        error:
+          'Email and password are required'
       });
-      if (existingPhone) {
-        return res.status(400).json({ error: 'Mobile number is already registered to another account.' });
-      }
     }
 
-    let userId = null;
-    let sbData = null;
+    if (password.length < 6) {
+      return res.status(400).json({
+        error:
+          'Password must contain at least 6 characters'
+      });
+    }
 
-    // 3. Try Supabase Auth API
-    if (SUPABASE_URL) {
-      try {
-        const sbResponse = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY
-          },
-          body: JSON.stringify({
-            email,
-            password,
-            data: {
-              phone: phoneNumber,
-              role: userRole
-            }
-          })
+
+    /*
+     * Check email.
+     */
+    const existingUser =
+      await prisma.users.findFirst({
+        where: {
+          email
+        }
+      });
+
+    if (existingUser) {
+      return res.status(409).json({
+        error:
+          'User with this email already exists. Please log in.'
+      });
+    }
+
+
+    /*
+     * Check phone.
+     */
+    if (phone) {
+      const existingPhone =
+        await prisma.profiles.findFirst({
+          where: {
+            phone
+          }
         });
 
-        sbData = await sbResponse.json();
-
-        if (sbResponse.ok) {
-          userId = sbData.id || (sbData.user && sbData.user.id);
-        } else {
-          console.warn('Supabase signup returned notice/limit:', sbData.msg || sbData.error_description || sbData.error);
-        }
-      } catch (err) {
-        console.warn('Supabase fetch error, using local fallback:', err.message);
+      if (existingPhone) {
+        return res.status(409).json({
+          error:
+            'Mobile number is already registered to another account.'
+        });
       }
     }
 
-    // 4. Fallback: Direct Database Creation if Supabase rate limited or omitted
-    if (!userId) {
-      const generatedId = crypto.randomUUID();
-      const hashedPassword = await bcrypt.hash(password, 10);
 
-      const createdUser = await prisma.users.create({
+    let userId = null;
+
+
+    /*
+     * ---------------------------------------------------------
+     * Try Supabase Auth
+     * ---------------------------------------------------------
+     */
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      try {
+        const response =
+          await fetch(
+            `${SUPABASE_URL}/auth/v1/signup`,
+            {
+              method: 'POST',
+
+              headers: {
+                'Content-Type':
+                  'application/json',
+
+                apikey:
+                  SUPABASE_ANON_KEY
+              },
+
+              body: JSON.stringify({
+                email,
+                password,
+
+                data: {
+                  phone,
+                  role: userRole,
+                  full_name: fullName
+                }
+              })
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (response.ok) {
+          userId =
+            data.id ||
+            data.user?.id ||
+            null;
+        } else {
+          console.warn(
+            'Supabase signup failed:',
+            data.msg ||
+              data.error_description ||
+              data.error
+          );
+        }
+      } catch (supabaseError) {
+        console.warn(
+          'Supabase signup error:',
+          supabaseError.message
+        );
+      }
+    }
+
+
+    /*
+     * ---------------------------------------------------------
+     * Local fallback
+     * ---------------------------------------------------------
+     */
+    if (!userId) {
+      userId =
+        crypto.randomUUID();
+
+      const encryptedPassword =
+        await bcrypt.hash(
+          password,
+          10
+        );
+
+      await prisma.users.create({
         data: {
-          id: generatedId,
+          id: userId,
+
           email,
-          encrypted_password: hashedPassword,
-          email_confirmed_at: new Date(),
-          phone: phoneNumber || null,
+
+          encrypted_password:
+            encryptedPassword,
+
+          email_confirmed_at:
+            new Date(),
+
+          phone,
+
           role: 'authenticated'
         }
       });
-      userId = createdUser.id;
     } else {
-      // Auto confirm email for dev convenience
-      await prisma.users.update({
-        where: { id: userId },
-        data: {
-          email_confirmed_at: new Date(),
-          ...(phoneNumber ? { phone: phoneNumber } : {})
-        }
-      }).catch(() => {});
+      /*
+       * Keep Supabase user's local record in sync.
+       */
+      try {
+        await prisma.users.update({
+          where: {
+            id: userId
+          },
+
+          data: {
+            email_confirmed_at:
+              new Date(),
+
+            ...(phone
+              ? { phone }
+              : {})
+          }
+        });
+      } catch (error) {
+        /*
+         * In some Supabase configurations the user row may not
+         * be immediately available through the DB connection.
+         * The profile creation below will expose any real FK
+         * problem.
+         */
+        console.warn(
+          'Could not update auth.users:',
+          error.message
+        );
+      }
     }
 
-    // 5. Create Profile Record
-    const profile = await prisma.profiles.upsert({
-      where: { id: userId },
-      update: {
-        ...(phoneNumber ? { phone: phoneNumber } : {}),
-        ...(full_name ? { full_name } : {})
-      },
-      create: {
-        id: userId,
-        role: userRole,
-        full_name: full_name || email.split('@')[0],
-        phone: phoneNumber || null
-      }
-    });
 
-    // 6. Create Role Specific Profile
+    /*
+     * ---------------------------------------------------------
+     * Create application profile
+     * ---------------------------------------------------------
+     */
+    const profile =
+      await prisma.profiles.upsert({
+        where: {
+          id: userId
+        },
+
+        update: {
+          ...(fullName
+            ? {
+                full_name:
+                  fullName
+              }
+            : {}),
+
+          ...(phone
+            ? {
+                phone
+              }
+            : {})
+        },
+
+        create: {
+          id: userId,
+
+          role: userRole,
+
+          full_name:
+            fullName ||
+            email.split('@')[0],
+
+          phone
+        }
+      });
+
+
+    /*
+     * ---------------------------------------------------------
+     * Create role-specific profile
+     * ---------------------------------------------------------
+     */
     if (userRole === 'customer') {
       await prisma.customer_profiles.upsert({
-        where: { user_id: userId },
+        where: {
+          user_id: userId
+        },
+
         update: {},
-        create: { user_id: userId }
+
+        create: {
+          user_id: userId
+        }
       });
-    } else if (userRole === 'worker') {
+    } else {
       await prisma.worker_profiles.upsert({
-        where: { user_id: userId },
+        where: {
+          user_id: userId
+        },
+
         update: {},
-        create: { user_id: userId }
+
+        create: {
+          user_id: userId
+        }
       });
     }
 
-    // 7. Generate JWT Token
-    const token = jwt.sign(
-      { sub: userId, email },
-      process.env.JWT_SECRET || 'secret',
-      { expiresIn: '7d' }
-    );
+
+    /*
+     * ---------------------------------------------------------
+     * Generate OUR JWT
+     * ---------------------------------------------------------
+     */
+    const token =
+      generateToken(
+        userId,
+        email,
+        userRole
+      );
+
 
     return res.status(201).json({
-      message: 'User registered successfully',
+      message:
+        'User registered successfully',
+
       access_token: token,
       token,
-      user: { id: userId, email },
+
+      expires_in:
+        60 * 60 * 24 * 7,
+
+      user: {
+        id: userId,
+        email
+      },
+
       profile
     });
-
   } catch (error) {
     next(error);
   }
 }
 
-module.exports = { login, signup };
+
+module.exports = {
+  login,
+  signup
+};

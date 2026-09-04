@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from "react";
 
 import {
   View,
@@ -13,175 +13,165 @@ import {
   Image,
   ActivityIndicator,
   Modal,
-} from 'react-native';
+} from "react-native";
 
-import Ionicons from '@expo/vector-icons/Ionicons';
-import * as Location from 'expo-location';
-import * as ImagePicker from 'expo-image-picker';
+import Ionicons from "@expo/vector-icons/Ionicons";
+import * as Location from "expo-location";
+import * as ImagePicker from "expo-image-picker";
+import {
+  updateWorkerProfile,
+  uploadWorkerAvatar,
+  uploadWorkerDocument,
+  getSkills,
+} from "../../api";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import type {
-  NativeStackScreenProps,
-} from '@react-navigation/native-stack';
+import type { RootStackParamList } from "../navigation/AppNavigator";
 
-import type {
-  RootStackParamList,
-} from '../navigation/AppNavigator';
+type Props = NativeStackScreenProps<RootStackParamList, "WorkerDetails">;
 
-type Props = NativeStackScreenProps<
-  RootStackParamList,
-  'WorkerDetails'
->;
-
-type DocumentType =
-  | 'identity'
-  | 'address'
-  | 'work';
+type DocumentType = "identity" | "address" | "work";
 
 type DocumentData = {
   uri: string;
   name: string;
+  mimeType?: string;
 };
 
-export default function WorkerDetailsScreen({
-  navigation,
-  route,
-}: Props) {
+export default function WorkerDetailsScreen({ navigation, route }: Props) {
   // --------------------------------------------------
   // Personal Information
   // --------------------------------------------------
 
-  const [fullName, setFullName] = useState('');
-  const [mobile, setMobile] = useState(
-    route.params?.mobile || ''
-  );
+  const [fullName, setFullName] = useState("");
+  const [mobile, setMobile] = useState(route.params?.mobile || "");
 
-  const [profilePhoto, setProfilePhoto] =
-    useState<string | null>(null);
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
 
   // --------------------------------------------------
   // Professional Information
   // --------------------------------------------------
 
-  const [primarySkill, setPrimarySkill] =
-    useState('');
+  const [primarySkill, setPrimarySkill] = useState("");
+  
+  const [availableSkills, setAvailableSkills] = useState<{
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+}[]>([]);
+  const [loadingSkills, setLoadingSkills] = useState(true);
+  const [customSkillModalVisible, setCustomSkillModalVisible] = useState(false);
 
-  const [customSkillModalVisible, setCustomSkillModalVisible] =
-    useState(false);
+  const [customSkill, setCustomSkill] = useState("");
 
-  const [customSkill, setCustomSkill] = useState('');
+  const [additionalSkills, setAdditionalSkills] = useState<string[]>([]);
 
-  const [additionalSkills, setAdditionalSkills] =
-    useState<string[]>([]);
+  const [experience, setExperience] = useState("");
 
-  const [experience, setExperience] =
-    useState('');
-
-  const [workDescription, setWorkDescription] =
-    useState('');
+  const [workDescription, setWorkDescription] = useState("");
 
   // --------------------------------------------------
   // Location
   // --------------------------------------------------
 
-  const [house, setHouse] = useState('');
-  const [locality, setLocality] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [pincode, setPincode] = useState('');
-  const [landmark, setLandmark] = useState('');
+  const [house, setHouse] = useState("");
+  const [locality, setLocality] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [pincode, setPincode] = useState("");
+  const [landmark, setLandmark] = useState("");
 
-  const [isGettingLocation, setIsGettingLocation] =
-    useState(false);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
 
-  const [locationUpdated, setLocationUpdated] =
-    useState(false);
+  const [locationUpdated, setLocationUpdated] = useState(false);
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
 
+  const [saving, setSaving] = useState(false);
   // --------------------------------------------------
   // Service Radius
   // --------------------------------------------------
 
-  const [serviceRadius, setServiceRadius] =
-    useState('5 km');
+  const [serviceRadius, setServiceRadius] = useState("5 km");
 
   // --------------------------------------------------
   // Availability
   // --------------------------------------------------
 
-  const [workingDays, setWorkingDays] =
-    useState<string[]>([]);
+  const [workingDays, setWorkingDays] = useState<string[]>([]);
 
-  const [workingHours, setWorkingHours] =
-    useState<string[]>([]);
+  const [workingHours, setWorkingHours] = useState<string[]>([]);
 
   // --------------------------------------------------
   // Documents
   // --------------------------------------------------
 
-  const [identityDocument, setIdentityDocument] =
-    useState<DocumentData | null>(null);
+  const [identityDocument, setIdentityDocument] = useState<DocumentData | null>(
+    null,
+  );
 
-  const [addressDocument, setAddressDocument] =
-    useState<DocumentData | null>(null);
+  const [addressDocument, setAddressDocument] = useState<DocumentData | null>(
+    null,
+  );
 
-  const [workDocument, setWorkDocument] =
-    useState<DocumentData | null>(null);
+  const [workDocument, setWorkDocument] = useState<DocumentData | null>(null);
 
-  const [documentModalVisible, setDocumentModalVisible] =
-    useState(false);
+  const [documentModalVisible, setDocumentModalVisible] = useState(false);
 
-  const [selectedDocument, setSelectedDocument] =
-    useState<DocumentType | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<DocumentType | null>(
+    null,
+  );
 
   // --------------------------------------------------
   // Profile Photo
   // --------------------------------------------------
 
-  const [photoModalVisible, setPhotoModalVisible] =
-    useState(false);
+  const [photoModalVisible, setPhotoModalVisible] = useState(false);
 
   // --------------------------------------------------
   // Skills
   // --------------------------------------------------
 
-  const skills = [
-    'Electrician',
-    'Plumber',
-    'Carpenter',
-    'Painter',
-    'Cleaner',
-    'AC Repair',
-    'Appliance Repair',
-    'Mason',
-    'Mechanic',
-    'Other',
-  ];
+  // --------------------------------------------------
+  // Skills
+  // --------------------------------------------------
 
-  const extraSkills = [
-    'Wiring',
-    'Fan Installation',
-    'Switch & Socket Repair',
-    'Pipe Repair',
-    'Furniture Assembly',
-    'Wall Painting',
-    'Tile Work',
-    'Appliance Installation',
-  ];
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-  const days = [
-    'Mon',
-    'Tue',
-    'Wed',
-    'Thu',
-    'Fri',
-    'Sat',
-    'Sun',
-  ];
+  const hours = ["Morning", "Afternoon", "Evening"];
 
-  const hours = [
-    'Morning',
-    'Afternoon',
-    'Evening',
-  ];
+  // Load skills directly from the backend/database
+  useEffect(() => {
+    const loadSkills = async () => {
+      try {
+        setLoadingSkills(true);
+
+        const skillsFromBackend = await getSkills();
+
+        console.log("Skills loaded from backend:", skillsFromBackend);
+
+        if (Array.isArray(skillsFromBackend)) {
+          setAvailableSkills(skillsFromBackend);
+        } else {
+          setAvailableSkills([]);
+        }
+      } catch (error) {
+        console.log("Load Skills Error:", error);
+
+        Alert.alert(
+          "Unable to Load Services",
+          "We could not load the available services. Please try again.",
+        );
+
+        setAvailableSkills([]);
+      } finally {
+        setLoadingSkills(false);
+      }
+    };
+
+    loadSkills();
+  }, []);
 
   // --------------------------------------------------
   // Profile Photo
@@ -195,55 +185,43 @@ export default function WorkerDetailsScreen({
     const skill = customSkill.trim();
 
     if (!skill) {
-      Alert.alert(
-        'Skill Required',
-        'Please enter a skill before adding it.'
-      );
+      Alert.alert("Skill Required", "Please enter a skill before adding it.");
       return;
     }
 
     // Prevent duplicate skills
     if (
       additionalSkills.some(
-        (item) =>
-          item.toLowerCase() === skill.toLowerCase()
+        (item) => item.toLowerCase() === skill.toLowerCase(),
       )
     ) {
-      Alert.alert(
-        'Skill Already Added',
-        'This skill is already in your list.'
-      );
+      Alert.alert("Skill Already Added", "This skill is already in your list.");
       return;
     }
 
-    setAdditionalSkills((current) => [
-      ...current,
-      skill,
-    ]);
+    setAdditionalSkills((current) => [...current, skill]);
 
-    setCustomSkill('');
+    setCustomSkill("");
     setCustomSkillModalVisible(false);
   };
   const handleTakeProfilePhoto = async () => {
     try {
-      const permission =
-        await ImagePicker.requestCameraPermissionsAsync();
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
 
       if (!permission.granted) {
         Alert.alert(
-          'Camera Permission Required',
-          'ShramSaathi needs camera access to take your profile photo.'
+          "Camera Permission Required",
+          "ShramSaathi needs camera access to take your profile photo.",
         );
         return;
       }
 
-      const result =
-        await ImagePicker.launchCameraAsync({
-          mediaTypes: ['images'],
-          allowsEditing: true,
-          aspect: [1, 1],
-          quality: 0.8,
-        });
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
 
       if (!result.canceled) {
         setProfilePhoto(result.assets[0].uri);
@@ -251,12 +229,9 @@ export default function WorkerDetailsScreen({
 
       setPhotoModalVisible(false);
     } catch (error) {
-      console.log('Camera Error:', error);
+      console.log("Camera Error:", error);
 
-      Alert.alert(
-        'Camera Error',
-        'Unable to open the camera.'
-      );
+      Alert.alert("Camera Error", "Unable to open the camera.");
     }
   };
 
@@ -267,19 +242,18 @@ export default function WorkerDetailsScreen({
 
       if (!permission.granted) {
         Alert.alert(
-          'Photo Permission Required',
-          'ShramSaathi needs access to your photos so you can select a profile picture.'
+          "Photo Permission Required",
+          "ShramSaathi needs access to your photos so you can select a profile picture.",
         );
         return;
       }
 
-      const result =
-        await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
-          allowsEditing: true,
-          aspect: [1, 1],
-          quality: 0.8,
-        });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
 
       if (!result.canceled) {
         setProfilePhoto(result.assets[0].uri);
@@ -287,12 +261,9 @@ export default function WorkerDetailsScreen({
 
       setPhotoModalVisible(false);
     } catch (error) {
-      console.log('Gallery Error:', error);
+      console.log("Gallery Error:", error);
 
-      Alert.alert(
-        'Gallery Error',
-        'Unable to open your photos.'
-      );
+      Alert.alert("Gallery Error", "Unable to open your photos.");
     }
   };
 
@@ -305,45 +276,42 @@ export default function WorkerDetailsScreen({
       setIsGettingLocation(true);
       setLocationUpdated(false);
 
-      const { status } =
-        await Location.requestForegroundPermissionsAsync();
+      const { status } = await Location.requestForegroundPermissionsAsync();
 
-      if (status !== 'granted') {
+      if (status !== "granted") {
         setIsGettingLocation(false);
 
         Alert.alert(
-          'Location Permission Required',
-          'Please allow location access so ShramSaathi can automatically fill your service address.'
+          "Location Permission Required",
+          "Please allow location access so ShramSaathi can automatically fill your service address.",
         );
 
         return;
       }
 
-      const location =
-        await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        });
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
 
-      const {
+      const { latitude, longitude } = location.coords;
+
+      setLatitude(latitude);
+      setLongitude(longitude);
+
+      console.log("Latitude:", latitude);
+      console.log("Longitude:", longitude);
+
+      const addresses = await Location.reverseGeocodeAsync({
         latitude,
         longitude,
-      } = location.coords;
-
-      console.log('Latitude:', latitude);
-      console.log('Longitude:', longitude);
-
-      const addresses =
-        await Location.reverseGeocodeAsync({
-          latitude,
-          longitude,
-        });
+      });
 
       if (addresses.length === 0) {
         setIsGettingLocation(false);
 
         Alert.alert(
-          'Address Not Found',
-          'We could not determine your address. Please enter it manually.'
+          "Address Not Found",
+          "We could not determine your address. Please enter it manually.",
         );
 
         return;
@@ -351,45 +319,26 @@ export default function WorkerDetailsScreen({
 
       const currentAddress = addresses[0];
 
-      setHouse(
-        currentAddress.streetNumber ||
-        currentAddress.name ||
-        ''
-      );
+      setHouse(currentAddress.streetNumber || currentAddress.name || "");
 
-      setLocality(
-        currentAddress.district ||
-        currentAddress.subregion ||
-        ''
-      );
+      setLocality(currentAddress.district || currentAddress.subregion || "");
 
-      setCity(
-        currentAddress.city ||
-        currentAddress.subregion ||
-        ''
-      );
+      setCity(currentAddress.city || currentAddress.subregion || "");
 
-      setState(
-        currentAddress.region ||
-        ''
-      );
+      setState(currentAddress.region || "");
 
-      setPincode(
-        currentAddress.postalCode ||
-        ''
-      );
+      setPincode(currentAddress.postalCode || "");
 
       setLocationUpdated(true);
       setIsGettingLocation(false);
-
     } catch (error) {
-      console.log('Location Error:', error);
+      console.log("Location Error:", error);
 
       setIsGettingLocation(false);
 
       Alert.alert(
-        'Location Error',
-        'Unable to fetch your current location. Please enter your address manually.'
+        "Location Error",
+        "Unable to fetch your current location. Please enter your address manually.",
       );
     }
   };
@@ -398,25 +347,21 @@ export default function WorkerDetailsScreen({
   // Document Modal
   // --------------------------------------------------
 
-  const openDocumentPicker = (
-    type: DocumentType
-  ) => {
+  const openDocumentPicker = (type: DocumentType) => {
     setSelectedDocument(type);
     setDocumentModalVisible(true);
   };
 
-  const saveDocument = (
-    document: DocumentData
-  ) => {
-    if (selectedDocument === 'identity') {
+  const saveDocument = (document: DocumentData) => {
+    if (selectedDocument === "identity") {
       setIdentityDocument(document);
     }
 
-    if (selectedDocument === 'address') {
+    if (selectedDocument === "address") {
       setAddressDocument(document);
     }
 
-    if (selectedDocument === 'work') {
+    if (selectedDocument === "work") {
       setWorkDocument(document);
     }
 
@@ -426,37 +371,33 @@ export default function WorkerDetailsScreen({
 
   const handleDocumentCamera = async () => {
     try {
-      const permission =
-        await ImagePicker.requestCameraPermissionsAsync();
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
 
       if (!permission.granted) {
         Alert.alert(
-          'Camera Permission Required',
-          'Camera access is required to capture this document.'
+          "Camera Permission Required",
+          "Camera access is required to capture this document.",
         );
         return;
       }
 
-      const result =
-        await ImagePicker.launchCameraAsync({
-          mediaTypes: ['images'],
-          allowsEditing: true,
-          quality: 0.8,
-        });
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        quality: 0.8,
+      });
 
       if (!result.canceled) {
         saveDocument({
           uri: result.assets[0].uri,
-          name: 'Captured Document',
+          name: "Captured Document",
+          mimeType: result.assets[0].mimeType || "image/jpeg",
         });
       }
     } catch (error) {
-      console.log('Document Camera Error:', error);
+      console.log("Document Camera Error:", error);
 
-      Alert.alert(
-        'Camera Error',
-        'Unable to open the camera.'
-      );
+      Alert.alert("Camera Error", "Unable to open the camera.");
     }
   };
 
@@ -467,34 +408,29 @@ export default function WorkerDetailsScreen({
 
       if (!permission.granted) {
         Alert.alert(
-          'Photo Permission Required',
-          'Photo access is required to select your document.'
+          "Photo Permission Required",
+          "Photo access is required to select your document.",
         );
         return;
       }
 
-      const result =
-        await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
-          allowsEditing: false,
-          quality: 0.8,
-        });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 0.8,
+      });
 
       if (!result.canceled) {
         saveDocument({
           uri: result.assets[0].uri,
-          name:
-            result.assets[0].fileName ||
-            'Uploaded Document',
+          name: result.assets[0].fileName || "Uploaded Document",
+          mimeType: result.assets[0].mimeType || "image/jpeg",
         });
       }
     } catch (error) {
-      console.log('Document Gallery Error:', error);
+      console.log("Document Gallery Error:", error);
 
-      Alert.alert(
-        'Gallery Error',
-        'Unable to open your photos.'
-      );
+      Alert.alert("Gallery Error", "Unable to open your photos.");
     }
   };
 
@@ -502,13 +438,11 @@ export default function WorkerDetailsScreen({
   // Selection Helpers
   // --------------------------------------------------
 
-  const toggleExtraSkill = (
-    skill: string
-  ) => {
+  const toggleExtraSkill = (skill: string) => {
     setAdditionalSkills((current) =>
       current.includes(skill)
         ? current.filter((item) => item !== skill)
-        : [...current, skill]
+        : [...current, skill],
     );
   };
 
@@ -516,7 +450,7 @@ export default function WorkerDetailsScreen({
     setWorkingDays((current) =>
       current.includes(day)
         ? current.filter((item) => item !== day)
-        : [...current, day]
+        : [...current, day],
     );
   };
 
@@ -524,113 +458,327 @@ export default function WorkerDetailsScreen({
     setWorkingHours((current) =>
       current.includes(hour)
         ? current.filter((item) => item !== hour)
-        : [...current, hour]
+        : [...current, hour],
     );
   };
+  const getFileExtension = (fileName: string, mimeType?: string) => {
+    const existingExtension = fileName.split(".").pop();
 
+    if (
+      existingExtension &&
+      existingExtension !== fileName &&
+      existingExtension.length <= 5
+    ) {
+      return existingExtension.toLowerCase();
+    }
+
+    if (mimeType === "image/png") {
+      return "png";
+    }
+
+    if (mimeType === "image/webp") {
+      return "webp";
+    }
+
+    if (mimeType === "application/pdf") {
+      return "pdf";
+    }
+
+    return "jpg";
+  };
+
+  const uploadWorkerFiles = async () => {
+    let avatarUrl: string | null = null;
+
+    /*
+     * --------------------------------------------------
+     * Profile Photo
+     * --------------------------------------------------
+     */
+
+    if (profilePhoto) {
+      if (
+        profilePhoto.startsWith("http://") ||
+        profilePhoto.startsWith("https://")
+      ) {
+        avatarUrl = profilePhoto;
+      } else {
+        const avatarResult = await uploadWorkerAvatar(
+          profilePhoto,
+          "worker-profile.jpg",
+          "image/jpeg",
+        );
+
+        avatarUrl =
+          avatarResult?.public_url ||
+          avatarResult?.url ||
+          avatarResult?.avatar_url ||
+          avatarResult?.profile?.avatar_url ||
+          avatarResult?.data?.public_url ||
+          null;
+
+        if (!avatarUrl) {
+          throw new Error(
+            "Profile photo was uploaded, but the server did not return a photo URL.",
+          );
+        }
+      }
+    }
+
+    /*
+     * --------------------------------------------------
+     * Documents
+     * --------------------------------------------------
+     */
+
+    const uploadedDocuments: Array<{
+      file_type:
+        | "certificate"
+        | "work_evidence"
+        | "invoice"
+        | "identity_proof"
+        | "address_proof";
+      title: string;
+      storage_path: string;
+      public_url?: string | null;
+    }> = [];
+
+    const documentsToUpload = [
+      {
+        document: identityDocument,
+        fileType: "identity_proof" as const,
+        title: "Identity Proof",
+      },
+      {
+        document: addressDocument,
+        fileType: "address_proof" as const,
+        title: "Address Proof",
+      },
+      {
+        document: workDocument,
+        fileType: "work_evidence" as const,
+        title: "Skill / Work Proof",
+      },
+    ];
+
+    for (const item of documentsToUpload) {
+      if (!item.document) {
+        continue;
+      }
+
+      const extension = getFileExtension(
+        item.document.name,
+        item.document.mimeType,
+      );
+
+      const mimeType =
+        item.document.mimeType ||
+        (extension === "png"
+          ? "image/png"
+          : extension === "webp"
+            ? "image/webp"
+            : extension === "pdf"
+              ? "application/pdf"
+              : "image/jpeg");
+
+      const result = await uploadWorkerDocument({
+        uri: item.document.uri,
+        fileName: `${item.fileType}-${Date.now()}.${extension}`,
+        mimeType,
+        fileType: item.fileType,
+        title: item.title,
+      });
+
+      const uploaded = result?.document || result?.data || result;
+
+      const storagePath = uploaded?.storage_path || uploaded?.storagePath;
+
+      const publicUrl =
+        uploaded?.public_url || uploaded?.publicUrl || uploaded?.url || null;
+
+      if (!storagePath) {
+        throw new Error(
+          `${item.title} was uploaded, but the server did not return a storage path.`,
+        );
+      }
+
+      uploadedDocuments.push({
+        file_type: item.fileType,
+        title: item.title,
+        storage_path: storagePath,
+        public_url: publicUrl,
+      });
+    }
+
+    return {
+      avatarUrl,
+      uploadedDocuments,
+    };
+  };
   // --------------------------------------------------
   // Submit
   // --------------------------------------------------
 
-  const handleCompleteProfile = () => {
+  const handleCompleteProfile = async () => {
     if (!fullName.trim()) {
-      Alert.alert(
-        'Incomplete Details',
-        'Please enter your full name.'
-      );
+      Alert.alert("Incomplete Details", "Please enter your full name.");
       return;
     }
 
     if (!primarySkill) {
-      Alert.alert(
-        'Select Your Skill',
-        'Please select your primary service.'
-      );
+      Alert.alert("Select Your Skill", "Please select your primary service.");
       return;
     }
 
     if (!experience.trim()) {
       Alert.alert(
-        'Experience Required',
-        'Please enter your years of experience.'
+        "Experience Required",
+        "Please enter your years of experience.",
       );
       return;
     }
 
     if (!city.trim() || !state.trim() || !pincode.trim()) {
       Alert.alert(
-        'Incomplete Address',
-        'Please complete your service location details.'
+        "Incomplete Address",
+        "Please complete your service location details.",
       );
       return;
     }
 
     if (!identityDocument) {
       Alert.alert(
-        'Identity Proof Required',
-        'Please upload your identity proof.'
+        "Identity Proof Required",
+        "Please upload your identity proof.",
       );
       return;
     }
 
     if (!addressDocument) {
       Alert.alert(
-        'Address Proof Required',
-        'Please upload your address proof.'
+        "Address Proof Required",
+        "Please upload your address proof.",
       );
       return;
     }
 
     if (!workDocument) {
       Alert.alert(
-        'Work Proof Required',
-        'Please upload your skill or work proof.'
+        "Work Proof Required",
+        "Please upload your skill or work proof.",
       );
       return;
     }
 
-    const workerDetails = {
-      name: fullName.trim(),
-      mobile: mobile.trim(),
-      profilePhoto,
+    if (latitude === null || longitude === null) {
+      Alert.alert(
+        "Location Required",
+        'Please tap "Use Current Location" so we can save your service location.',
+      );
+      return;
+    }
 
-      primarySkill,
-      additionalSkills,
-      experience,
-      workDescription,
+    const radius = parseFloat(serviceRadius);
 
-      address: {
-        house,
-        locality,
-        city,
-        state,
-        pincode,
-        landmark,
-      },
+    if (Number.isNaN(radius)) {
+      Alert.alert(
+        "Invalid Service Radius",
+        "Please select a valid service radius.",
+      );
+      return;
+    }
 
-      serviceRadius,
-      workingDays,
-      workingHours,
+    const yearsOfExperience = Number(experience);
 
-      documents: {
-        identityDocument,
-        addressDocument,
-        workDocument,
-      },
-    };
+    if (Number.isNaN(yearsOfExperience)) {
+      Alert.alert(
+        "Invalid Experience",
+        "Please enter a valid number of years of experience.",
+      );
+      return;
+    }
 
-    console.log(
-      'Worker Details:',
-      workerDetails
-    );
+    try {
+      setSaving(true);
 
-    navigation.replace('WorkerDashboard', {
-      worker: {
-        name: fullName.trim(),
+      const serviceAddress = {
+        house: house.trim(),
+        locality: locality.trim(),
+        city: city.trim(),
+        state: state.trim(),
+        pincode: pincode.trim(),
+        landmark: landmark.trim(),
+      };
+
+      // ---------------------------------------------------------
+      // 1. Upload profile photo + worker documents
+      // ---------------------------------------------------------
+      const { avatarUrl, uploadedDocuments } = await uploadWorkerFiles();
+
+      // ---------------------------------------------------------
+      // 2. Save worker profile with uploaded file URLs
+      // ---------------------------------------------------------
+      await updateWorkerProfile({
+        full_name: fullName.trim(),
         phone: mobile.trim(),
-        email: route.params?.email,
-      },
-    });
+
+        // Use the Cloudinary URL returned by the upload API.
+        // If no profile photo was selected, this remains undefined.
+        avatar_url: avatarUrl,
+
+        bio: workDescription.trim(),
+
+        primary_skill: primarySkill,
+        additional_skills: additionalSkills,
+
+        years_experience: yearsOfExperience,
+        service_radius_km: radius,
+
+        working_days: workingDays,
+        working_hours: workingHours,
+
+        service_address: serviceAddress,
+
+        latitude,
+        longitude,
+
+        // Uploaded document metadata returned by backend.
+        documents: uploadedDocuments,
+      });
+
+      // ---------------------------------------------------------
+      // 3. Profile saved successfully
+      // ---------------------------------------------------------
+      Alert.alert(
+        "Profile Completed",
+        "Your worker profile has been saved successfully.",
+        [
+          {
+            text: "Continue",
+            onPress: () => {
+              navigation.replace("WorkerDashboard", {
+                worker: {
+                  name: fullName.trim(),
+                  phone: mobile.trim(),
+                  email: route.params?.email,
+                },
+              });
+            },
+          },
+        ],
+      );
+    } catch (error) {
+      console.log("Worker Profile Error:", error);
+
+      Alert.alert(
+        "Unable to Save Profile",
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while saving your profile.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   // --------------------------------------------------
@@ -642,7 +790,7 @@ export default function WorkerDetailsScreen({
     title: string,
     subtitle: string,
     document: DocumentData | null,
-    icon: keyof typeof Ionicons.glyphMap
+    icon: keyof typeof Ionicons.glyphMap,
   ) => {
     return (
       <Pressable
@@ -650,52 +798,31 @@ export default function WorkerDetailsScreen({
         onPress={() => openDocumentPicker(type)}
       >
         <View style={styles.documentIcon}>
-          <Ionicons
-            name={icon}
-            size={24}
-            color="#2563EB"
-          />
+          <Ionicons name={icon} size={24} color="#2563EB" />
         </View>
 
         <View style={styles.documentInfo}>
           <View style={styles.documentTitleRow}>
-            <Text style={styles.documentTitle}>
-              {title}
-            </Text>
+            <Text style={styles.documentTitle}>{title}</Text>
 
-            <Text style={styles.requiredText}>
-              Required
-            </Text>
+            <Text style={styles.requiredText}>Required</Text>
           </View>
 
           {document ? (
             <View style={styles.uploadedRow}>
-              <Ionicons
-                name="checkmark-circle"
-                size={16}
-                color="#16A34A"
-              />
+              <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
 
-              <Text
-                style={styles.uploadedText}
-                numberOfLines={1}
-              >
+              <Text style={styles.uploadedText} numberOfLines={1}>
                 {document.name}
               </Text>
             </View>
           ) : (
-            <Text style={styles.documentSubtitle}>
-              {subtitle}
-            </Text>
+            <Text style={styles.documentSubtitle}>{subtitle}</Text>
           )}
         </View>
 
         <Ionicons
-          name={
-            document
-              ? 'create-outline'
-              : 'chevron-forward'
-          }
+          name={document ? "create-outline" : "chevron-forward"}
           size={20}
           color="#9CA3AF"
         />
@@ -710,20 +837,13 @@ export default function WorkerDetailsScreen({
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={
-        Platform.OS === 'ios'
-          ? 'padding'
-          : undefined
-      }
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={
-          styles.scrollContent
-        }
+        contentContainerStyle={styles.scrollContent}
       >
-
         {/* Header */}
 
         <View style={styles.header}>
@@ -731,17 +851,11 @@ export default function WorkerDetailsScreen({
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Ionicons
-              name="arrow-back"
-              size={22}
-              color="#111827"
-            />
+            <Ionicons name="arrow-back" size={22} color="#111827" />
           </Pressable>
 
           <View>
-            <Text style={styles.headerTitle}>
-              Worker Details
-            </Text>
+            <Text style={styles.headerTitle}>Worker Details</Text>
 
             <Text style={styles.headerSubtitle}>
               Complete your ShramSaathi profile
@@ -754,9 +868,7 @@ export default function WorkerDetailsScreen({
         {/* ----------------------------------------- */}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Personal Information
-          </Text>
+          <Text style={styles.sectionTitle}>Personal Information</Text>
 
           <Text style={styles.sectionDescription}>
             Tell us a little about yourself
@@ -765,10 +877,7 @@ export default function WorkerDetailsScreen({
           {/* Profile Photo */}
 
           <View style={styles.profilePhotoSection}>
-            <Pressable
-              style={styles.avatar}
-              onPress={handleProfilePhoto}
-            >
+            <Pressable style={styles.avatar} onPress={handleProfilePhoto}>
               {profilePhoto ? (
                 <Image
                   source={{
@@ -777,26 +886,16 @@ export default function WorkerDetailsScreen({
                   style={styles.avatarImage}
                 />
               ) : (
-                <Ionicons
-                  name="person-outline"
-                  size={40}
-                  color="#9CA3AF"
-                />
+                <Ionicons name="person-outline" size={40} color="#9CA3AF" />
               )}
 
               <View style={styles.cameraBadge}>
-                <Ionicons
-                  name="camera"
-                  size={15}
-                  color="#FFFFFF"
-                />
+                <Ionicons name="camera" size={15} color="#FFFFFF" />
               </View>
             </Pressable>
 
             <Text style={styles.photoTitle}>
-              {profilePhoto
-                ? 'Change Photo'
-                : 'Add Profile Photo'}
+              {profilePhoto ? "Change Photo" : "Add Profile Photo"}
             </Text>
 
             <Text style={styles.photoSubtitle}>
@@ -811,11 +910,7 @@ export default function WorkerDetailsScreen({
           </Text>
 
           <View style={styles.inputContainer}>
-            <Ionicons
-              name="person-outline"
-              size={20}
-              color="#9CA3AF"
-            />
+            <Ionicons name="person-outline" size={20} color="#9CA3AF" />
 
             <TextInput
               style={styles.input}
@@ -833,11 +928,7 @@ export default function WorkerDetailsScreen({
           </Text>
 
           <View style={styles.inputContainer}>
-            <Ionicons
-              name="call-outline"
-              size={20}
-              color="#9CA3AF"
-            />
+            <Ionicons name="call-outline" size={20} color="#9CA3AF" />
 
             <TextInput
               style={styles.input}
@@ -856,9 +947,7 @@ export default function WorkerDetailsScreen({
         {/* ----------------------------------------- */}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Professional Information
-          </Text>
+          <Text style={styles.sectionTitle}>Professional Information</Text>
 
           <Text style={styles.sectionDescription}>
             Help customers understand your expertise
@@ -873,151 +962,158 @@ export default function WorkerDetailsScreen({
           </Text>
 
           <View style={styles.primaryServiceContainer}>
-            {skills.map((skill) => {
-              const selected =
-                primarySkill === skill;
+            {loadingSkills ? (
+              <View
+                style={{
+                  paddingVertical: 20,
+                  alignItems: "center",
+                }}
+              >
+                <ActivityIndicator size="small" color="#2563EB" />
 
-              const iconName =
-                skill === 'Electrician'
-                  ? 'flash-outline'
-                  : skill === 'Plumber'
-                  ? 'water-outline'
-                  : skill === 'Carpenter'
-                  ? 'hammer-outline'
-                  : skill === 'Painter'
-                  ? 'color-palette-outline'
-                  : skill === 'Cleaner'
-                  ? 'sparkles-outline'
-                  : skill === 'AC Repair'
-                  ? 'snow-outline'
-                  : skill === 'Appliance Repair'
-                  ? 'construct-outline'
-                  : skill === 'Mason'
-                  ? 'business-outline'
-                  : skill === 'Mechanic'
-                  ? 'car-outline'
-                  : 'ellipsis-horizontal-outline';
-
-              return (
-                <Pressable
-                  key={skill}
-                  style={[
-                    styles.primaryServiceCard,
-                    selected &&
-                      styles.primaryServiceCardSelected,
-                  ]}
-                  onPress={() =>
-                    setPrimarySkill(skill)
-                  }
+                <Text
+                  style={{
+                    marginTop: 8,
+                    fontSize: 12,
+                    color: "#6B7280",
+                  }}
                 >
-                  <View
-                    style={[
-                      styles.primaryServiceIcon,
-                      selected &&
-                        styles.primaryServiceIconSelected,
-                    ]}
-                  >
-                    <Ionicons
-                      name={iconName}
-                      size={23}
-                      color={
-                        selected
-                          ? '#2563EB'
-                          : '#6B7280'
-                      }
-                    />
-                  </View>
+                  Loading services...
+                </Text>
+              </View>
+            ) : availableSkills.length === 0 ? (
+              <View
+                style={{
+                  paddingVertical: 20,
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={24}
+                  color="#DC2626"
+                />
 
-                  <Text
-                    style={[
-                      styles.primaryServiceText,
-                      selected &&
-                        styles.primaryServiceTextSelected,
-                    ]}
-                  >
-                    {skill}
-                  </Text>
+                <Text
+                  style={{
+                    marginTop: 8,
+                    fontSize: 12,
+                    color: "#6B7280",
+                    textAlign: "center",
+                  }}
+                >
+                  No services are currently available.
+                </Text>
+              </View>
+            ) : (
+              availableSkills.map((skill) => {
+                const skillName = skill.name;
+                const skillSlug = skill.slug;
 
-                  {selected && (
+                const selected = primarySkill === skillSlug;
+
+                const iconName =
+                  skillName?.toLowerCase().includes("electric") ||
+                  skillSlug?.includes("electric")
+                    ? "flash-outline"
+                    : skillName?.toLowerCase().includes("plumb") ||
+                        skillSlug?.includes("plumb")
+                      ? "water-outline"
+                      : skillName?.toLowerCase().includes("carpenter") ||
+                          skillSlug?.includes("carpenter")
+                        ? "hammer-outline"
+                        : skillName?.toLowerCase().includes("paint") ||
+                            skillSlug?.includes("paint")
+                          ? "color-palette-outline"
+                          : skillName?.toLowerCase().includes("ac") ||
+                              skillSlug?.includes("ac-")
+                            ? "snow-outline"
+                            : skillName?.toLowerCase().includes("clean") ||
+                                skillSlug?.includes("clean")
+                              ? "sparkles-outline"
+                              : skillName?.toLowerCase().includes("mechanic") ||
+                                  skillSlug?.includes("mechanic")
+                                ? "car-outline"
+                                : "construct-outline";
+
+                return (
+                  <Pressable
+                    key={skill.id || skillSlug}
+                    style={[
+                      styles.primaryServiceCard,
+                      selected && styles.primaryServiceCardSelected,
+                    ]}
+                    onPress={() => setPrimarySkill(skillSlug)}
+                  >
                     <View
-                      style={styles.primaryServiceCheck}
+                      style={[
+                        styles.primaryServiceIcon,
+                        selected && styles.primaryServiceIconSelected,
+                      ]}
                     >
                       <Ionicons
-                        name="checkmark"
-                        size={15}
-                        color="#FFFFFF"
+                        name={iconName as keyof typeof Ionicons.glyphMap}
+                        size={23}
+                        color={selected ? "#2563EB" : "#6B7280"}
                       />
                     </View>
-                  )}
-                </Pressable>
-              );
-            })}
+
+                    <Text
+                      style={[
+                        styles.primaryServiceText,
+                        selected && styles.primaryServiceTextSelected,
+                      ]}
+                    >
+                      {skillName}
+                    </Text>
+
+                    {selected && (
+                      <View style={styles.primaryServiceCheck}>
+                        <Ionicons name="checkmark" size={15} color="#FFFFFF" />
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })
+            )}
           </View>
 
-          <Text style={styles.inputLabel}>
-            Additional Skills
-          </Text>
+          <Text style={styles.inputLabel}>Additional Skills</Text>
 
           <Text style={styles.helperText}>
             Select other skills you can provide
           </Text>
 
           <View style={styles.chipContainer}>
-            {extraSkills.map((skill) => {
-              const selected =
-                additionalSkills.includes(skill);
+            {availableSkills
+              .filter((skill) => skill.slug !== primarySkill)
+              .map((skill) => {
+                const selected = additionalSkills.includes(skill.slug);
 
-              return (
-                <Pressable
-                  key={skill}
-                  style={[
-                    styles.skillChip,
-                    selected &&
-                      styles.skillChipSelected,
-                  ]}
-                  onPress={() =>
-                    toggleExtraSkill(skill)
-                  }
-                >
-                  {selected && (
-                    <Ionicons
-                      name="checkmark"
-                      size={14}
-                      color="#FFFFFF"
-                    />
-                  )}
-
-                  <Text
+                return (
+                  <Pressable
+                    key={skill.id || skill.slug}
                     style={[
-                      styles.skillChipText,
-                      selected &&
-                        styles.skillChipTextSelected,
+                      styles.skillChip,
+                      selected && styles.skillChipSelected,
                     ]}
+                    onPress={() => toggleExtraSkill(skill.slug)}
                   >
-                    {skill}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                    {selected && (
+                      <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                    )}
 
-            <Pressable
-              style={styles.addSkillChip}
-              onPress={() =>
-                setCustomSkillModalVisible(true)
-              }
-            >
-              <View style={styles.addSkillIcon}>
-                <Ionicons
-                  name="add"
-                  size={15}
-                  color="#2563EB"
-                />
-              </View>
-
-              <Text style={styles.addSkillText}>
-                Add Your Own
-              </Text>
-            </Pressable>
+                    <Text
+                      style={[
+                        styles.skillChipText,
+                        selected && styles.skillChipTextSelected,
+                      ]}
+                    >
+                      {skill.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
           </View>
 
           <Text style={styles.inputLabel}>
@@ -1025,11 +1121,7 @@ export default function WorkerDetailsScreen({
           </Text>
 
           <View style={styles.inputContainer}>
-            <Ionicons
-              name="briefcase-outline"
-              size={20}
-              color="#9CA3AF"
-            />
+            <Ionicons name="briefcase-outline" size={20} color="#9CA3AF" />
 
             <TextInput
               style={styles.input}
@@ -1040,26 +1132,14 @@ export default function WorkerDetailsScreen({
               onChangeText={setExperience}
             />
 
-            <Text style={styles.inputSuffix}>
-              years
-            </Text>
+            <Text style={styles.inputSuffix}>years</Text>
           </View>
 
-          <Text style={styles.inputLabel}>
-            About Your Work
-          </Text>
+          <Text style={styles.inputLabel}>About Your Work</Text>
 
-          <View
-            style={[
-              styles.inputContainer,
-              styles.textAreaContainer,
-            ]}
-          >
+          <View style={[styles.inputContainer, styles.textAreaContainer]}>
             <TextInput
-              style={[
-                styles.input,
-                styles.textArea,
-              ]}
+              style={[styles.input, styles.textArea]}
               placeholder="Briefly describe your experience and the type of work you provide..."
               placeholderTextColor="#9CA3AF"
               multiline
@@ -1076,9 +1156,7 @@ export default function WorkerDetailsScreen({
         {/* ----------------------------------------- */}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Work Location
-          </Text>
+          <Text style={styles.sectionTitle}>Work Location</Text>
 
           <Text style={styles.sectionDescription}>
             Customers will be matched with workers near them
@@ -1087,30 +1165,18 @@ export default function WorkerDetailsScreen({
           <Pressable
             style={[
               styles.locationButton,
-              locationUpdated &&
-                styles.locationButtonSuccess,
+              locationUpdated && styles.locationButtonSuccess,
             ]}
             onPress={handleUseCurrentLocation}
             disabled={isGettingLocation}
           >
             {isGettingLocation ? (
-              <ActivityIndicator
-                size="small"
-                color="#2563EB"
-              />
+              <ActivityIndicator size="small" color="#2563EB" />
             ) : (
               <Ionicons
-                name={
-                  locationUpdated
-                    ? 'checkmark-circle'
-                    : 'location-outline'
-                }
+                name={locationUpdated ? "checkmark-circle" : "location-outline"}
                 size={21}
-                color={
-                  locationUpdated
-                    ? '#16A34A'
-                    : '#2563EB'
-                }
+                color={locationUpdated ? "#16A34A" : "#2563EB"}
               />
             )}
 
@@ -1118,39 +1184,32 @@ export default function WorkerDetailsScreen({
               <Text
                 style={[
                   styles.locationButtonTitle,
-                  locationUpdated &&
-                    styles.locationSuccessText,
+                  locationUpdated && styles.locationSuccessText,
                 ]}
               >
                 {isGettingLocation
-                  ? 'Getting your location...'
+                  ? "Getting your location..."
                   : locationUpdated
-                  ? 'Location Updated'
-                  : 'Use Current Location'}
+                    ? "Location Updated"
+                    : "Use Current Location"}
               </Text>
 
               <Text style={styles.locationButtonSubtitle}>
                 {isGettingLocation
-                  ? 'This may take a few seconds'
+                  ? "This may take a few seconds"
                   : locationUpdated
-                  ? 'Please verify your address below'
-                  : 'Automatically fill your work address'}
+                    ? "Please verify your address below"
+                    : "Automatically fill your work address"}
               </Text>
             </View>
           </Pressable>
 
           {/* Address Inputs */}
 
-          <Text style={styles.inputLabel}>
-            House / Flat / Building
-          </Text>
+          <Text style={styles.inputLabel}>House / Flat / Building</Text>
 
           <View style={styles.inputContainer}>
-            <Ionicons
-              name="home-outline"
-              size={20}
-              color="#9CA3AF"
-            />
+            <Ionicons name="home-outline" size={20} color="#9CA3AF" />
 
             <TextInput
               style={styles.input}
@@ -1161,16 +1220,10 @@ export default function WorkerDetailsScreen({
             />
           </View>
 
-          <Text style={styles.inputLabel}>
-            Street / Locality
-          </Text>
+          <Text style={styles.inputLabel}>Street / Locality</Text>
 
           <View style={styles.inputContainer}>
-            <Ionicons
-              name="navigate-outline"
-              size={20}
-              color="#9CA3AF"
-            />
+            <Ionicons name="navigate-outline" size={20} color="#9CA3AF" />
 
             <TextInput
               style={styles.input}
@@ -1235,9 +1288,7 @@ export default function WorkerDetailsScreen({
             </View>
 
             <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>
-                Landmark
-              </Text>
+              <Text style={styles.inputLabel}>Landmark</Text>
 
               <View style={styles.inputContainer}>
                 <TextInput
@@ -1253,45 +1304,36 @@ export default function WorkerDetailsScreen({
 
           {/* Service Radius */}
 
-          <Text style={styles.inputLabel}>
-            Service Radius
-          </Text>
+          <Text style={styles.inputLabel}>Service Radius</Text>
 
           <Text style={styles.helperText}>
             How far are you willing to travel for a job?
           </Text>
 
           <View style={styles.radiusContainer}>
-            {['2 km', '5 km', '10 km', '15 km'].map(
-              (radius) => {
-                const selected =
-                  serviceRadius === radius;
+            {["2 km", "5 km", "10 km", "15 km"].map((radius) => {
+              const selected = serviceRadius === radius;
 
-                return (
-                  <Pressable
-                    key={radius}
+              return (
+                <Pressable
+                  key={radius}
+                  style={[
+                    styles.radiusOption,
+                    selected && styles.radiusOptionSelected,
+                  ]}
+                  onPress={() => setServiceRadius(radius)}
+                >
+                  <Text
                     style={[
-                      styles.radiusOption,
-                      selected &&
-                        styles.radiusOptionSelected,
+                      styles.radiusText,
+                      selected && styles.radiusTextSelected,
                     ]}
-                    onPress={() =>
-                      setServiceRadius(radius)
-                    }
                   >
-                    <Text
-                      style={[
-                        styles.radiusText,
-                        selected &&
-                          styles.radiusTextSelected,
-                      ]}
-                    >
-                      {radius}
-                    </Text>
-                  </Pressable>
-                );
-              }
-            )}
+                    {radius}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 
@@ -1300,39 +1342,29 @@ export default function WorkerDetailsScreen({
         {/* ----------------------------------------- */}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Availability
-          </Text>
+          <Text style={styles.sectionTitle}>Availability</Text>
 
           <Text style={styles.sectionDescription}>
             Let customers know when you're usually available
           </Text>
 
-          <Text style={styles.inputLabel}>
-            Working Days
-          </Text>
+          <Text style={styles.inputLabel}>Working Days</Text>
 
           <View style={styles.dayContainer}>
             {days.map((day) => {
-              const selected =
-                workingDays.includes(day);
+              const selected = workingDays.includes(day);
 
               return (
                 <Pressable
                   key={day}
                   style={[
                     styles.dayOption,
-                    selected &&
-                      styles.dayOptionSelected,
+                    selected && styles.dayOptionSelected,
                   ]}
                   onPress={() => toggleDay(day)}
                 >
                   <Text
-                    style={[
-                      styles.dayText,
-                      selected &&
-                        styles.dayTextSelected,
-                    ]}
+                    style={[styles.dayText, selected && styles.dayTextSelected]}
                   >
                     {day}
                   </Text>
@@ -1341,48 +1373,37 @@ export default function WorkerDetailsScreen({
             })}
           </View>
 
-          <Text style={styles.inputLabel}>
-            Preferred Working Hours
-          </Text>
+          <Text style={styles.inputLabel}>Preferred Working Hours</Text>
 
           <View style={styles.hoursContainer}>
             {hours.map((hour) => {
-              const selected =
-                workingHours.includes(hour);
+              const selected = workingHours.includes(hour);
 
               return (
                 <Pressable
                   key={hour}
                   style={[
                     styles.hourOption,
-                    selected &&
-                      styles.hourOptionSelected,
+                    selected && styles.hourOptionSelected,
                   ]}
-                  onPress={() =>
-                    toggleHour(hour)
-                  }
+                  onPress={() => toggleHour(hour)}
                 >
                   <Ionicons
                     name={
-                      hour === 'Morning'
-                        ? 'sunny-outline'
-                        : hour === 'Afternoon'
-                        ? 'partly-sunny-outline'
-                        : 'moon-outline'
+                      hour === "Morning"
+                        ? "sunny-outline"
+                        : hour === "Afternoon"
+                          ? "partly-sunny-outline"
+                          : "moon-outline"
                     }
                     size={20}
-                    color={
-                      selected
-                        ? '#2563EB'
-                        : '#6B7280'
-                    }
+                    color={selected ? "#2563EB" : "#6B7280"}
                   />
 
                   <Text
                     style={[
                       styles.hourText,
-                      selected &&
-                        styles.hourTextSelected,
+                      selected && styles.hourTextSelected,
                     ]}
                   >
                     {hour}
@@ -1408,9 +1429,7 @@ export default function WorkerDetailsScreen({
             </View>
 
             <View style={styles.verificationHeaderText}>
-              <Text style={styles.sectionTitle}>
-                Verification Documents
-              </Text>
+              <Text style={styles.sectionTitle}>Verification Documents</Text>
 
               <Text style={styles.sectionDescription}>
                 Verify your identity and professional experience
@@ -1419,44 +1438,39 @@ export default function WorkerDetailsScreen({
           </View>
 
           <View style={styles.securityNote}>
-            <Ionicons
-              name="lock-closed-outline"
-              size={17}
-              color="#2563EB"
-            />
+            <Ionicons name="lock-closed-outline" size={17} color="#2563EB" />
 
             <Text style={styles.securityText}>
-              Your documents are securely stored and used only
-              for verification.
+              Your documents are securely stored and used only for verification.
             </Text>
           </View>
 
           {renderDocumentCard(
-            'identity',
-            'Identity Proof',
-            'Aadhaar, PAN, Driving Licence or Voter ID',
+            "identity",
+            "Identity Proof",
+            "Aadhaar, PAN, Driving Licence or Voter ID",
             identityDocument,
-            'card-outline'
+            "card-outline",
           )}
 
           {renderDocumentCard(
-            'address',
-            'Address Proof',
-            'Government ID, utility bill or other valid proof',
+            "address",
+            "Address Proof",
+            "Government ID, utility bill or other valid proof",
             addressDocument,
-            'location-outline'
+            "location-outline",
           )}
 
           {renderDocumentCard(
-            'work',
-            'Skill / Work Proof',
-            'Certificate, experience letter or previous work',
+            "work",
+            "Skill / Work Proof",
+            "Certificate, experience letter or previous work",
             workDocument,
-            'briefcase-outline'
+            "briefcase-outline",
           )}
 
           <Text style={styles.documentFooter}>
-            Supported formats: JPG, PNG
+            Supported formats: JPG, PNG, WEBP
           </Text>
         </View>
 
@@ -1472,9 +1486,8 @@ export default function WorkerDetailsScreen({
           />
 
           <Text style={styles.declarationText}>
-            By completing your profile, you confirm that the
-            information and documents provided are genuine
-            and belong to you.
+            By completing your profile, you confirm that the information and
+            documents provided are genuine and belong to you.
           </Text>
         </View>
 
@@ -1483,23 +1496,27 @@ export default function WorkerDetailsScreen({
         <Pressable
           style={styles.completeButton}
           onPress={handleCompleteProfile}
+          disabled={saving}
         >
-          <Text style={styles.completeButtonText}>
-            Complete Profile
-          </Text>
+          {saving ? (
+            <>
+              <ActivityIndicator size="small" color="#FFFFFF" />
 
-          <Ionicons
-            name="arrow-forward"
-            size={20}
-            color="#FFFFFF"
-          />
+              <Text style={styles.completeButtonText}>Saving Profile...</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.completeButtonText}>Complete Profile</Text>
+
+              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+            </>
+          )}
         </Pressable>
 
         <Text style={styles.bottomText}>
-          Your profile will be reviewed before you start
-          receiving service requests.
+          Your profile will be reviewed before you start receiving service
+          requests.
         </Text>
-
       </ScrollView>
 
       {/* ========================================== */}
@@ -1511,24 +1528,18 @@ export default function WorkerDetailsScreen({
         transparent
         animationType="fade"
         onRequestClose={() => {
-          setCustomSkill('');
+          setCustomSkill("");
           setCustomSkillModalVisible(false);
         }}
       >
         <KeyboardAvoidingView
           style={styles.customSkillModalOverlay}
-          behavior={
-            Platform.OS === 'ios'
-              ? 'padding'
-              : undefined
-          }
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <View style={styles.customSkillModal}>
             <View style={styles.customSkillHeader}>
               <View style={styles.customSkillHeaderText}>
-                <Text style={styles.customSkillTitle}>
-                  Add Your Own Skill
-                </Text>
+                <Text style={styles.customSkillTitle}>Add Your Own Skill</Text>
 
                 <Text style={styles.customSkillSubtitle}>
                   Add a skill that isn't listed above
@@ -1538,21 +1549,15 @@ export default function WorkerDetailsScreen({
               <Pressable
                 style={styles.modalClose}
                 onPress={() => {
-                  setCustomSkill('');
+                  setCustomSkill("");
                   setCustomSkillModalVisible(false);
                 }}
               >
-                <Ionicons
-                  name="close"
-                  size={21}
-                  color="#6B7280"
-                />
+                <Ionicons name="close" size={21} color="#6B7280" />
               </Pressable>
             </View>
 
-            <Text style={styles.customSkillLabel}>
-              Skill Name
-            </Text>
+            <Text style={styles.customSkillLabel}>Skill Name</Text>
 
             <TextInput
               style={styles.customSkillInput}
@@ -1569,28 +1574,20 @@ export default function WorkerDetailsScreen({
               <Pressable
                 style={styles.cancelSkillButton}
                 onPress={() => {
-                  setCustomSkill('');
+                  setCustomSkill("");
                   setCustomSkillModalVisible(false);
                 }}
               >
-                <Text style={styles.cancelSkillText}>
-                  Cancel
-                </Text>
+                <Text style={styles.cancelSkillText}>Cancel</Text>
               </Pressable>
 
               <Pressable
                 style={styles.addSkillButton}
                 onPress={handleAddCustomSkill}
               >
-                <Ionicons
-                  name="add"
-                  size={18}
-                  color="#FFFFFF"
-                />
+                <Ionicons name="add" size={18} color="#FFFFFF" />
 
-                <Text style={styles.addSkillButtonText}>
-                  Add Skill
-                </Text>
+                <Text style={styles.addSkillButtonText}>Add Skill</Text>
               </Pressable>
             </View>
           </View>
@@ -1605,21 +1602,16 @@ export default function WorkerDetailsScreen({
         visible={photoModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() =>
-          setPhotoModalVisible(false)
-        }
+        onRequestClose={() => setPhotoModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.bottomSheet}>
-
             <View style={styles.modalHandle} />
 
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>
-                  {profilePhoto
-                    ? 'Change Profile Photo'
-                    : 'Add Profile Photo'}
+                  {profilePhoto ? "Change Profile Photo" : "Add Profile Photo"}
                 </Text>
 
                 <Text style={styles.modalSubtitle}>
@@ -1629,39 +1621,24 @@ export default function WorkerDetailsScreen({
 
               <Pressable
                 style={styles.modalClose}
-                onPress={() =>
-                  setPhotoModalVisible(false)
-                }
+                onPress={() => setPhotoModalVisible(false)}
               >
-                <Ionicons
-                  name="close"
-                  size={21}
-                  color="#6B7280"
-                />
+                <Ionicons name="close" size={21} color="#6B7280" />
               </Pressable>
             </View>
 
             <View style={styles.modalOptions}>
-
               <Pressable
                 style={styles.modalOption}
                 onPress={handleTakeProfilePhoto}
               >
                 <View style={styles.modalOptionIcon}>
-                  <Ionicons
-                    name="camera-outline"
-                    size={28}
-                    color="#2563EB"
-                  />
+                  <Ionicons name="camera-outline" size={28} color="#2563EB" />
                 </View>
 
-                <Text style={styles.modalOptionTitle}>
-                  Take Photo
-                </Text>
+                <Text style={styles.modalOptionTitle}>Take Photo</Text>
 
-                <Text style={styles.modalOptionSubtitle}>
-                  Use your camera
-                </Text>
+                <Text style={styles.modalOptionSubtitle}>Use your camera</Text>
               </Pressable>
 
               <Pressable
@@ -1669,35 +1646,23 @@ export default function WorkerDetailsScreen({
                 onPress={handleChooseProfilePhoto}
               >
                 <View style={styles.modalOptionIcon}>
-                  <Ionicons
-                    name="images-outline"
-                    size={28}
-                    color="#2563EB"
-                  />
+                  <Ionicons name="images-outline" size={28} color="#2563EB" />
                 </View>
 
-                <Text style={styles.modalOptionTitle}>
-                  Choose from Device
-                </Text>
+                <Text style={styles.modalOptionTitle}>Choose from Device</Text>
 
                 <Text style={styles.modalOptionSubtitle}>
                   Select from your photos
                 </Text>
               </Pressable>
-
             </View>
 
             <Pressable
               style={styles.cancelButton}
-              onPress={() =>
-                setPhotoModalVisible(false)
-              }
+              onPress={() => setPhotoModalVisible(false)}
             >
-              <Text style={styles.cancelButtonText}>
-                Cancel
-              </Text>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
             </Pressable>
-
           </View>
         </View>
       </Modal>
@@ -1717,14 +1682,11 @@ export default function WorkerDetailsScreen({
       >
         <View style={styles.modalOverlay}>
           <View style={styles.bottomSheet}>
-
             <View style={styles.modalHandle} />
 
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderText}>
-                <Text style={styles.modalTitle}>
-                  Upload Document
-                </Text>
+                <Text style={styles.modalTitle}>Upload Document</Text>
 
                 <Text style={styles.modalSubtitle}>
                   Take a clear photo or choose a document
@@ -1738,31 +1700,20 @@ export default function WorkerDetailsScreen({
                   setSelectedDocument(null);
                 }}
               >
-                <Ionicons
-                  name="close"
-                  size={21}
-                  color="#6B7280"
-                />
+                <Ionicons name="close" size={21} color="#6B7280" />
               </Pressable>
             </View>
 
             <View style={styles.modalOptions}>
-
               <Pressable
                 style={styles.modalOption}
                 onPress={handleDocumentCamera}
               >
                 <View style={styles.modalOptionIcon}>
-                  <Ionicons
-                    name="camera-outline"
-                    size={28}
-                    color="#2563EB"
-                  />
+                  <Ionicons name="camera-outline" size={28} color="#2563EB" />
                 </View>
 
-                <Text style={styles.modalOptionTitle}>
-                  Take Photo
-                </Text>
+                <Text style={styles.modalOptionTitle}>Take Photo</Text>
 
                 <Text style={styles.modalOptionSubtitle}>
                   Capture the document
@@ -1774,22 +1725,15 @@ export default function WorkerDetailsScreen({
                 onPress={handleDocumentGallery}
               >
                 <View style={styles.modalOptionIcon}>
-                  <Ionicons
-                    name="document-outline"
-                    size={28}
-                    color="#2563EB"
-                  />
+                  <Ionicons name="document-outline" size={28} color="#2563EB" />
                 </View>
 
-                <Text style={styles.modalOptionTitle}>
-                  Choose from Device
-                </Text>
+                <Text style={styles.modalOptionTitle}>Choose from Device</Text>
 
                 <Text style={styles.modalOptionSubtitle}>
                   Select an existing image
                 </Text>
               </Pressable>
-
             </View>
 
             <Pressable
@@ -1799,15 +1743,11 @@ export default function WorkerDetailsScreen({
                 setSelectedDocument(null);
               }}
             >
-              <Text style={styles.cancelButtonText}>
-                Cancel
-              </Text>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
             </Pressable>
-
           </View>
         </View>
       </Modal>
-
     </KeyboardAvoidingView>
   );
 }
@@ -1819,7 +1759,7 @@ export default function WorkerDetailsScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
   },
 
   scrollContent: {
@@ -1831,8 +1771,8 @@ const styles = StyleSheet.create({
   // Header
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 22,
   },
 
@@ -1840,24 +1780,24 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 13,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
 
   headerTitle: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
   },
 
   headerSubtitle: {
     marginTop: 3,
     fontSize: 13,
-    color: '#6B7280',
+    color: "#6B7280",
   },
 
   // Progress
@@ -1867,56 +1807,56 @@ const styles = StyleSheet.create({
   },
 
   progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 8,
   },
 
   progressText: {
     fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
+    color: "#6B7280",
+    fontWeight: "500",
   },
 
   progressPercentage: {
     fontSize: 12,
-    color: '#2563EB',
-    fontWeight: '600',
+    color: "#2563EB",
+    fontWeight: "600",
   },
 
   progressTrack: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#E5E7EB',
-    overflow: 'hidden',
+    backgroundColor: "#E5E7EB",
+    overflow: "hidden",
   },
 
   progressFill: {
-    height: '100%',
-    backgroundColor: '#2563EB',
+    height: "100%",
+    backgroundColor: "#2563EB",
     borderRadius: 3,
   },
 
   // Section
 
   section: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
     padding: 18,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
 
   sectionTitle: {
     fontSize: 17,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
   },
 
   sectionDescription: {
     fontSize: 12.5,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 4,
     marginBottom: 18,
     lineHeight: 18,
@@ -1925,7 +1865,7 @@ const styles = StyleSheet.create({
   // Profile photo
 
   profilePhotoSection: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 22,
   },
 
@@ -1933,113 +1873,113 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    position: 'relative',
+    borderColor: "#E5E7EB",
+    position: "relative",
   },
 
   avatarImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
     borderRadius: 44,
   },
 
   cameraBadge: {
-    position: 'absolute',
+    position: "absolute",
     right: -2,
     bottom: -2,
     width: 29,
     height: 29,
     borderRadius: 15,
-    backgroundColor: '#2563EB',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#2563EB",
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 3,
-    borderColor: '#FFFFFF',
+    borderColor: "#FFFFFF",
   },
 
   photoTitle: {
     marginTop: 9,
     fontSize: 14,
-    fontWeight: '600',
-    color: '#2563EB',
+    fontWeight: "600",
+    color: "#2563EB",
   },
 
   photoSubtitle: {
     marginTop: 3,
     fontSize: 11.5,
-    color: '#9CA3AF',
-    textAlign: 'center',
+    color: "#9CA3AF",
+    textAlign: "center",
   },
 
   // Inputs
 
   inputLabel: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: "600",
+    color: "#374151",
     marginBottom: 7,
     marginTop: 13,
   },
 
   required: {
-    color: '#EF4444',
+    color: "#EF4444",
   },
 
   requiredText: {
     fontSize: 9,
-    color: '#DC2626',
-    backgroundColor: '#FEF2F2',
+    color: "#DC2626",
+    backgroundColor: "#FEF2F2",
     paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 5,
-    overflow: 'hidden',
-    textTransform: 'uppercase',
-    fontWeight: '700',
+    overflow: "hidden",
+    textTransform: "uppercase",
+    fontWeight: "700",
   },
 
   inputContainer: {
     minHeight: 48,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 11,
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 13,
   },
 
   input: {
     flex: 1,
     fontSize: 14,
-    color: '#111827',
+    color: "#111827",
     marginLeft: 9,
     paddingVertical: 11,
   },
 
   inputSuffix: {
     fontSize: 13,
-    color: '#6B7280',
+    color: "#6B7280",
     marginLeft: 5,
   },
 
   textAreaContainer: {
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
     minHeight: 105,
   },
 
   textArea: {
-    width: '100%',
+    width: "100%",
     marginLeft: 0,
     minHeight: 90,
   },
 
   helperText: {
     fontSize: 11.5,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
     marginTop: -3,
     marginBottom: 7,
   },
@@ -2047,35 +1987,35 @@ const styles = StyleSheet.create({
   // Skills
 
   chipContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
 
   skillChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
 
   skillChipSelected: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
   },
 
   skillChipText: {
     fontSize: 12,
-    color: '#4B5563',
+    color: "#4B5563",
   },
 
   skillChipTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
 
   primaryServiceContainer: {
@@ -2087,16 +2027,16 @@ const styles = StyleSheet.create({
     minHeight: 64,
     borderRadius: 13,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 12,
   },
 
   primaryServiceCardSelected: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB',
+    backgroundColor: "#EFF6FF",
+    borderColor: "#2563EB",
     borderWidth: 1.5,
   },
 
@@ -2104,69 +2044,69 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 11,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
 
   primaryServiceIconSelected: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: "#DBEAFE",
   },
 
   primaryServiceText: {
     flex: 1,
     fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: "600",
+    color: "#374151",
   },
 
   primaryServiceTextSelected: {
-    color: '#2563EB',
-    fontWeight: '700',
+    color: "#2563EB",
+    fontWeight: "700",
   },
 
   primaryServiceCheck: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#2563EB',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#2563EB",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   addSkillChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#93C5FD',
-    borderStyle: 'dashed',
+    borderColor: "#93C5FD",
+    borderStyle: "dashed",
     borderRadius: 20,
     paddingHorizontal: 11,
     paddingVertical: 8,
-    backgroundColor: '#F8FBFF',
+    backgroundColor: "#F8FBFF",
   },
 
   addSkillIcon: {
     width: 19,
     height: 19,
     borderRadius: 10,
-    backgroundColor: '#DBEAFE',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#DBEAFE",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 5,
   },
 
   addSkillText: {
     fontSize: 12,
-    color: '#2563EB',
-    fontWeight: '600',
+    color: "#2563EB",
+    fontWeight: "600",
   },
 
   // Rows
 
   row: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
   },
 
@@ -2177,19 +2117,19 @@ const styles = StyleSheet.create({
   // Location
 
   locationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderRadius: 13,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
-    backgroundColor: '#EFF6FF',
+    borderColor: "#BFDBFE",
+    backgroundColor: "#EFF6FF",
     padding: 13,
     marginBottom: 5,
   },
 
   locationButtonSuccess: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
+    backgroundColor: "#F0FDF4",
+    borderColor: "#BBF7D0",
   },
 
   locationTextContainer: {
@@ -2199,24 +2139,24 @@ const styles = StyleSheet.create({
 
   locationButtonTitle: {
     fontSize: 13.5,
-    fontWeight: '700',
-    color: '#2563EB',
+    fontWeight: "700",
+    color: "#2563EB",
   },
 
   locationSuccessText: {
-    color: '#15803D',
+    color: "#15803D",
   },
 
   locationButtonSubtitle: {
     fontSize: 11,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 2,
   },
 
   // Radius
 
   radiusContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     marginTop: 4,
   },
@@ -2226,31 +2166,31 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 9,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    alignItems: 'center',
+    borderColor: "#E5E7EB",
+    alignItems: "center",
   },
 
   radiusOptionSelected: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB',
+    backgroundColor: "#EFF6FF",
+    borderColor: "#2563EB",
   },
 
   radiusText: {
     fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
+    color: "#6B7280",
+    fontWeight: "500",
   },
 
   radiusTextSelected: {
-    color: '#2563EB',
-    fontWeight: '700',
+    color: "#2563EB",
+    fontWeight: "700",
   },
 
   // Availability
 
   dayContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     gap: 5,
   },
 
@@ -2259,25 +2199,25 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 9,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderColor: "#E5E7EB",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   dayOptionSelected: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB',
+    backgroundColor: "#EFF6FF",
+    borderColor: "#2563EB",
   },
 
   dayText: {
     fontSize: 11,
-    color: '#6B7280',
-    fontWeight: '500',
+    color: "#6B7280",
+    fontWeight: "500",
   },
 
   dayTextSelected: {
-    color: '#2563EB',
-    fontWeight: '700',
+    color: "#2563EB",
+    fontWeight: "700",
   },
 
   hoursContainer: {
@@ -2285,44 +2225,44 @@ const styles = StyleSheet.create({
   },
 
   hourOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
 
   hourOptionSelected: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
   },
 
   hourText: {
     fontSize: 13,
-    color: '#4B5563',
+    color: "#4B5563",
     marginLeft: 10,
   },
 
   hourTextSelected: {
-    color: '#2563EB',
-    fontWeight: '600',
+    color: "#2563EB",
+    fontWeight: "600",
   },
 
   // Verification
 
   verificationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
 
   verificationIcon: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#EFF6FF",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 11,
   },
 
@@ -2331,9 +2271,9 @@ const styles = StyleSheet.create({
   },
 
   securityNote: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#F8FAFC',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#F8FAFC",
     borderRadius: 9,
     padding: 10,
     marginBottom: 13,
@@ -2342,18 +2282,18 @@ const styles = StyleSheet.create({
   securityText: {
     flex: 1,
     fontSize: 11,
-    color: '#64748B',
+    color: "#64748B",
     marginLeft: 8,
     lineHeight: 16,
   },
 
   documentCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 13,
     paddingHorizontal: 10,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 12,
     marginBottom: 9,
   },
@@ -2362,9 +2302,9 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 10,
-    backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#EFF6FF",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 10,
   },
 
@@ -2373,49 +2313,49 @@ const styles = StyleSheet.create({
   },
 
   documentTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 7,
   },
 
   documentTitle: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
   },
 
   documentSubtitle: {
     fontSize: 10.5,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
     marginTop: 3,
     lineHeight: 15,
   },
 
   uploadedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 4,
   },
 
   uploadedText: {
     flex: 1,
     fontSize: 10.5,
-    color: '#16A34A',
+    color: "#16A34A",
     marginLeft: 5,
   },
 
   documentFooter: {
     fontSize: 10.5,
-    color: '#9CA3AF',
-    textAlign: 'center',
+    color: "#9CA3AF",
+    textAlign: "center",
     marginTop: 3,
   },
 
   // Declaration
 
   declarationCard: {
-    flexDirection: 'row',
-    backgroundColor: '#EFF6FF',
+    flexDirection: "row",
+    backgroundColor: "#EFF6FF",
     borderRadius: 12,
     padding: 13,
     marginBottom: 16,
@@ -2424,7 +2364,7 @@ const styles = StyleSheet.create({
   declarationText: {
     flex: 1,
     fontSize: 11.5,
-    color: '#4B5563',
+    color: "#4B5563",
     marginLeft: 9,
     lineHeight: 17,
   },
@@ -2434,23 +2374,23 @@ const styles = StyleSheet.create({
   completeButton: {
     height: 54,
     borderRadius: 13,
-    backgroundColor: '#000000',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#000000",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     gap: 9,
   },
 
   completeButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 
   bottomText: {
     fontSize: 10.5,
-    color: '#9CA3AF',
-    textAlign: 'center',
+    color: "#9CA3AF",
+    textAlign: "center",
     marginTop: 11,
     lineHeight: 16,
   },
@@ -2459,17 +2399,17 @@ const styles = StyleSheet.create({
 
   customSkillModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    justifyContent: "center",
     paddingHorizontal: 20,
   },
 
   customSkillModal: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 20,
     elevation: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 5,
@@ -2479,9 +2419,9 @@ const styles = StyleSheet.create({
   },
 
   customSkillHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
     marginBottom: 20,
   },
 
@@ -2492,36 +2432,36 @@ const styles = StyleSheet.create({
 
   customSkillTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
   },
 
   customSkillSubtitle: {
     fontSize: 12,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 4,
   },
 
   customSkillLabel: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: "600",
+    color: "#374151",
     marginBottom: 8,
   },
 
   customSkillInput: {
     height: 50,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: "#D1D5DB",
     borderRadius: 12,
     paddingHorizontal: 14,
     fontSize: 14,
-    color: '#111827',
-    backgroundColor: '#FFFFFF',
+    color: "#111827",
+    backgroundColor: "#FFFFFF",
   },
 
   customSkillActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
     marginTop: 20,
   },
@@ -2531,44 +2471,44 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderColor: "#D1D5DB",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   cancelSkillText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#4B5563',
+    fontWeight: "600",
+    color: "#4B5563",
   },
 
   addSkillButton: {
     flex: 1,
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#2563EB',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#2563EB",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     gap: 6,
   },
 
   addSkillButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 
   // Modal
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    justifyContent: "flex-end",
   },
 
   bottomSheet: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
     paddingHorizontal: 20,
@@ -2580,15 +2520,15 @@ const styles = StyleSheet.create({
     width: 38,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#D1D5DB',
-    alignSelf: 'center',
+    backgroundColor: "#D1D5DB",
+    alignSelf: "center",
     marginBottom: 20,
   },
 
   modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
     marginBottom: 20,
   },
 
@@ -2598,13 +2538,13 @@ const styles = StyleSheet.create({
 
   modalTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
   },
 
   modalSubtitle: {
     fontSize: 12,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 4,
   },
 
@@ -2612,62 +2552,62 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   modalOptions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
   },
 
   modalOption: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 14,
     paddingVertical: 18,
     paddingHorizontal: 10,
-    alignItems: 'center',
+    alignItems: "center",
   },
 
   modalOptionIcon: {
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#EFF6FF",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 10,
   },
 
   modalOptionTitle: {
     fontSize: 12.5,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'center',
+    fontWeight: "700",
+    color: "#111827",
+    textAlign: "center",
   },
 
   modalOptionSubtitle: {
     fontSize: 10,
-    color: '#9CA3AF',
-    textAlign: 'center',
+    color: "#9CA3AF",
+    textAlign: "center",
     marginTop: 3,
   },
 
   cancelButton: {
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 13,
   },
 
   cancelButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#4B5563',
+    fontWeight: "600",
+    color: "#4B5563",
   },
 });

@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 
 import {
+  Alert,
   Animated,
   Dimensions,
   KeyboardAvoidingView,
@@ -12,25 +13,25 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { Ionicons } from '@expo/vector-icons';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Ionicons } from "@expo/vector-icons";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import AppLogo from '../../components/AppLogo';
-import colors from '../../constants/colors';
+import AppLogo from "../../components/AppLogo";
+import colors from "../../constants/colors";
+import { login } from "../../api";
+import type { RootStackParamList } from "../navigation/AppNavigator";
 
-import type { RootStackParamList } from '../navigation/AppNavigator';
+type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
-
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   /*
    * Animation values
    */
@@ -43,9 +44,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
   const contentOpacity = useRef(new Animated.Value(0)).current;
 
-  const contentTranslateY = useRef(
-    new Animated.Value(25)
-  ).current;
+  const contentTranslateY = useRef(new Animated.Value(25)).current;
 
   useEffect(() => {
     /*
@@ -113,81 +112,58 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
    * LATER:
    * Replace this with the FastAPI login request.
    */
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email.trim() || !password) {
       return;
     }
 
-    console.log('Login:', {
-      email,
-      password,
-    });
+    setIsLoggingIn(true);
 
-    /*
-     * TEMPORARY USER LOGIN
-     *
-     * We are using the email before @ as the user's name
-     * until the FastAPI backend returns the actual user data.
-     *
-     * Example:
-     * akhilesh@gmail.com
-     *        ↓
-     * name = "akhilesh"
-     */
-    const userName = email.split('@')[0];
+    try {
+      const response = await login({
+        email: email.trim(),
+        password,
+      });
 
-    // navigation.replace('UserDashboard', {
-    //   user: {
-    //     name: userName,
-    //     email: email,
-    //   },
-    // });
-    navigation.replace('WorkerDashboard');
+      console.log("Login successful:", response);
 
-    /*
-     * ----------------------------------------------------
-     * FASTAPI INTEGRATION - ADD LATER
-     * ----------------------------------------------------
-     *
-     * const response = await fetch(
-     *   'YOUR_FASTAPI_URL/api/auth/login',
-     *   {
-     *     method: 'POST',
-     *     headers: {
-     *       'Content-Type': 'application/json',
-     *     },
-     *     body: JSON.stringify({
-     *       email,
-     *       password,
-     *     }),
-     *   }
-     * );
-     *
-     * const data = await response.json();
-     *
-     * if (data.role === 'user') {
-     *   navigation.replace('UserDashboard', {
-     *     user: data.user,
-     *   });
-     * }
-     *
-     * if (data.role === 'worker') {
-     *   navigation.replace('WorkerDashboard');
-     * }
-     *
-     * ----------------------------------------------------
-     */
+      const role = response.profile?.role;
+
+      if (role === "customer") {
+        navigation.replace("CustomerDetails", {
+          email: response.user?.email || email.trim(),
+          mobile: response.profile?.phone || "",
+        });
+      } else if (role === "worker") {
+        navigation.replace("WorkerDetails", {
+          email: response.user?.email || email.trim(),
+          mobile: response.profile?.phone || "",
+        });
+      } else {
+        throw new Error("Invalid user role returned by server.");
+      }
+    } catch (error: any) {
+      console.log("Login error:", error);
+
+      Alert.alert(
+        "Login Failed",
+        error?.message ||
+          "Unable to login. Please check your email and password.",
+      );
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
-const handleRegister = () => {
-  navigation.navigate('Register');
-};
+  const handleRegister = () => {
+    navigation.navigate("Register");
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -229,9 +205,7 @@ const handleRegister = () => {
             {/* Heading */}
 
             <View style={styles.headingContainer}>
-              <Text style={styles.title}>
-                Login
-              </Text>
+              <Text style={styles.title}>Login</Text>
 
               <Text style={styles.subtitle}>
                 Log in to continue to ShramSaathi
@@ -241,9 +215,7 @@ const handleRegister = () => {
             {/* Email */}
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                Email
-              </Text>
+              <Text style={styles.label}>Email</Text>
 
               <View style={styles.inputContainer}>
                 <Ionicons
@@ -270,9 +242,7 @@ const handleRegister = () => {
             {/* Password */}
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                Password
-              </Text>
+              <Text style={styles.label}>Password</Text>
 
               <View style={styles.inputContainer}>
                 <Ionicons
@@ -295,17 +265,11 @@ const handleRegister = () => {
                 />
 
                 <Pressable
-                  onPress={() =>
-                    setShowPassword(!showPassword)
-                  }
+                  onPress={() => setShowPassword(!showPassword)}
                   style={styles.eyeButton}
                 >
                   <Ionicons
-                    name={
-                      showPassword
-                        ? 'eye-outline'
-                        : 'eye-off-outline'
-                    }
+                    name={showPassword ? "eye-outline" : "eye-off-outline"}
                     size={21}
                     color={colors.secondaryText}
                   />
@@ -317,13 +281,9 @@ const handleRegister = () => {
 
             <Pressable
               style={styles.forgotContainer}
-              onPress={() =>
-                console.log('Forgot password')
-              }
+              onPress={() => console.log("Forgot password")}
             >
-              <Text style={styles.forgotText}>
-                Forgot password?
-              </Text>
+              <Text style={styles.forgotText}>Forgot password?</Text>
             </Pressable>
 
             {/* Login Button */}
@@ -331,28 +291,24 @@ const handleRegister = () => {
             <Pressable
               style={[
                 styles.loginButton,
-                (!email.trim() || !password) &&
+                (!email.trim() || !password || isLoggingIn) &&
                   styles.loginButtonDisabled,
               ]}
               onPress={handleLogin}
-              disabled={!email.trim() || !password}
+              disabled={!email.trim() || !password || isLoggingIn}
             >
               <Text style={styles.loginButtonText}>
-                Log in
+                {isLoggingIn ? "Logging in..." : "Log in"}
               </Text>
             </Pressable>
 
             {/* Register */}
 
             <View style={styles.registerContainer}>
-              <Text style={styles.registerText}>
-                New to ShramSaathi?
-              </Text>
+              <Text style={styles.registerText}>New to ShramSaathi?</Text>
 
               <Pressable onPress={handleRegister}>
-                <Text style={styles.registerLink}>
-                  Create account
-                </Text>
+                <Text style={styles.registerLink}>Create account</Text>
               </Pressable>
             </View>
 
@@ -401,10 +357,10 @@ const styles = StyleSheet.create({
    */
 
   logoContainer: {
-    position: 'absolute',
+    position: "absolute",
 
-    top: '50%',
-    left: '50%',
+    top: "50%",
+    left: "50%",
 
     marginLeft: -32,
     marginTop: -32,
@@ -427,7 +383,7 @@ const styles = StyleSheet.create({
 
   title: {
     fontSize: 34,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     letterSpacing: -1,
     marginBottom: 8,
@@ -449,7 +405,7 @@ const styles = StyleSheet.create({
 
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
     marginBottom: 9,
   },
@@ -457,8 +413,8 @@ const styles = StyleSheet.create({
   inputContainer: {
     height: 56,
 
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
 
     backgroundColor: colors.inputBackground,
 
@@ -477,7 +433,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
 
-    height: '100%',
+    height: "100%",
 
     fontSize: 16,
     color: colors.text,
@@ -495,14 +451,14 @@ const styles = StyleSheet.create({
    */
 
   forgotContainer: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
     marginTop: -5,
     marginBottom: 26,
   },
 
   forgotText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
 
@@ -517,8 +473,8 @@ const styles = StyleSheet.create({
 
     borderRadius: 14,
 
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
 
     marginBottom: 24,
   },
@@ -531,7 +487,7 @@ const styles = StyleSheet.create({
     color: colors.white,
 
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 
   /*
@@ -539,9 +495,9 @@ const styles = StyleSheet.create({
    */
 
   registerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
 
     gap: 5,
   },
@@ -553,7 +509,7 @@ const styles = StyleSheet.create({
 
   registerLink: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
 
@@ -562,15 +518,15 @@ const styles = StyleSheet.create({
    */
 
   bottomContainer: {
-    marginTop: 'auto',
+    marginTop: "auto",
     paddingTop: 60,
 
-    alignItems: 'center',
+    alignItems: "center",
   },
 
   bottomText: {
     fontSize: 12,
-    color: '#999999',
+    color: "#999999",
     lineHeight: 18,
   },
 });

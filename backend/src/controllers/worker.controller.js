@@ -83,10 +83,41 @@ async function getJobs(req, res, next) {
     next(err);
   }
 }
+async function uploadDocument(req, res, next) {
+  try {
+    if (req.user.role !== 'worker') {
+      return res.status(403).json({
+        error: 'Only workers can upload documents'
+      });
+    }
 
+    if (!req.file) {
+      return res.status(400).json({
+        error: 'Document file is required'
+      });
+    }
+
+    const result = await workerService.uploadWorkerDocument(
+      req.user.id,
+      req.file,
+      {
+        file_type: req.body.file_type,
+        title: req.body.title
+      }
+    );
+
+    res.status(201).json({
+      message: 'Document uploaded successfully',
+      document: result
+    });
+  } catch (err) {
+    next(err);
+  }
+}
 module.exports = {
   getProfile,
   updateProfile,
   updateAvailability,
-  getJobs
+  getJobs,
+  uploadDocument
 };
