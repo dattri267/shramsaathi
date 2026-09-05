@@ -75,6 +75,7 @@ type Address = {
 
 type Booking = {
   id: string;
+  bookingType?: "normal" | "emergency";
   serviceId: string;
   serviceName: string;
   serviceIcon: keyof typeof Ionicons.glyphMap;
@@ -111,9 +112,28 @@ type Booking = {
 };
 
 
+type CaregiverSkill = {
+  slug: string;
+  name: string;
+  description: string;
+};
+
 /* =========================================================
    SERVICES
 ========================================================= */
+
+const CAREGIVER_SKILLS: CaregiverSkill[] = [
+  {
+    slug: "elder-care",
+    name: "Elder Care",
+    description: "Support and assistance for elderly family members",
+  },
+  {
+    slug: "child-care",
+    name: "Child Care",
+    description: "Safe and reliable care for children",
+  },
+];
 
 const SERVICES: Service[] = [
 
@@ -222,6 +242,12 @@ export default function UserDashboard({
 
   const [selectedService, setSelectedService] =
     useState<Service | null>(null);
+
+  const [bookingType, setBookingType] =
+    useState<"normal" | "emergency">("normal");
+
+  const [selectedCaregiverSkill, setSelectedCaregiverSkill] =
+    useState<CaregiverSkill | null>(null);
 
   const [profileVisible, setProfileVisible] =
     useState(false);
@@ -382,6 +408,8 @@ export default function UserDashboard({
 
     return {
       id: String(item.id),
+      bookingType:
+        item?.booking_type === "emergency" ? "emergency" : "normal",
       serviceId,
       serviceName,
       serviceIcon: serviceIconForSlug(item?.service?.slug),
@@ -765,6 +793,8 @@ export default function UserDashboard({
     setSelectedAddress(null);
     setSelectedDate(null);
     setSelectedTime(null);
+    setBookingType("normal");
+    setSelectedCaregiverSkill(null);
     setBookingSuccess(false);
   };
 
@@ -774,14 +804,33 @@ export default function UserDashboard({
     setSelectedAddress(null);
     setSelectedDate(null);
     setSelectedTime(null);
+    setBookingType("normal");
+    setSelectedCaregiverSkill(null);
     setBookingSuccess(false);
     setLatestBookingId(null);
   };
 
   const handleNextStep = () => {
-    if (bookingStep === 1 && !selectedAddress) {
-      Alert.alert("Select Address", "Please select a service address.");
-      return;
+    if (bookingStep === 1) {
+      if (!selectedService) return;
+
+      if (selectedService.id === "caregiver" && !selectedCaregiverSkill) {
+        Alert.alert(
+          "Select Care Type",
+          "Please select whether you need Elder Care or Child Care."
+        );
+        return;
+      }
+
+      if (!selectedAddress) {
+        Alert.alert("Select Address", "Please select a service address.");
+        return;
+      }
+
+      if (bookingType === "emergency") {
+        setBookingStep(4);
+        return;
+      }
     }
 
     if (bookingStep === 2 && !selectedDate) {
@@ -798,6 +847,11 @@ export default function UserDashboard({
   };
 
   const handlePreviousStep = () => {
+    if (bookingType === "emergency" && bookingStep === 4) {
+      setBookingStep(1);
+      return;
+    }
+
     setBookingStep(prev => Math.max(prev - 1, 1));
   };
 
@@ -812,16 +866,35 @@ export default function UserDashboard({
   };
 
   const confirmBooking = async () => {
-    if (!selectedService || !selectedAddress || !selectedDate || !selectedTime) {
+    if (!selectedService || !selectedAddress) {
       return;
     }
 
-    const addressDetails = customerProfile?.address || customerProfile?.address_details || {};
+    if (selectedService.id === "caregiver" && !selectedCaregiverSkill) {
+      Alert.alert(
+        "Select Care Type",
+        "Please select whether you need Elder Care or Child Care."
+      );
+      return;
+    }
+
+    if (bookingType === "normal" && (!selectedDate || !selectedTime)) {
+      Alert.alert(
+        "Select Schedule",
+        "Please select a preferred date and time."
+      );
+      return;
+    }
+
+    const addressDetails =
+      customerProfile?.address || customerProfile?.address_details || {};
+
     const latitude = Number(
       selectedAddress?.latitude ??
       customerProfile?.location?.latitude ??
       addressDetails.latitude
     );
+
     const longitude = Number(
       selectedAddress?.longitude ??
       customerProfile?.location?.longitude ??
@@ -829,93 +902,109 @@ export default function UserDashboard({
     );
 
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      Alert.alert("Location required", "Please add a valid service location in your customer profile first.");
+      Alert.alert(
+        "Location required",
+        "Please add a valid service location in your customer profile first."
+      );
       return;
     }
 
-const startTime = selectedTime.split(" - ")[0];
+    let scheduledStart: Date;
 
-const dateParts = selectedDate.split("-").map(Number);
-const timeMatch = startTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (bookingType === "emergency") {
+      scheduledStart = new Date();
+    } else {
+      const startTime = selectedTime!.split(" - ")[0];
 
-if (
-  dateParts.length !== 3 ||
-  dateParts.some(part => Number.isNaN(part))
-) {
-  Alert.alert(
-    "Invalid schedule",
-    "Please select a valid date and time."
-  );
-  return;
-}
+      const dateParts = selectedDate!.split("-").map(Number);
+      const timeMatch = startTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
 
-if (!timeMatch) {
-  Alert.alert(
-    "Invalid schedule",
-    "Please select a valid date and time."
-  );
-  return;
-}
+      if (
+        dateParts.length !== 3 ||
+        dateParts.some(part => Number.isNaN(part))
+      ) {
+        Alert.alert(
+          "Invalid schedule",
+          "Please select a valid date and time."
+        );
+        return;
+      }
 
-const [, hourText, minuteText, meridiem] = timeMatch;
+      if (!timeMatch) {
+        Alert.alert(
+          "Invalid schedule",
+          "Please select a valid date and time."
+        );
+        return;
+      }
 
-let hours = Number(hourText);
-const minutes = Number(minuteText);
+      const [, hourText, minuteText, meridiem] = timeMatch;
 
-if (
-  hours < 1 ||
-  hours > 12 ||
-  minutes < 0 ||
-  minutes > 59
-) {
-  Alert.alert(
-    "Invalid schedule",
-    "Please select a valid date and time."
-  );
-  return;
-}
+      let hours = Number(hourText);
+      const minutes = Number(minuteText);
 
-if (meridiem.toUpperCase() === "AM") {
-  if (hours === 12) {
-    hours = 0;
-  }
-} else {
-  if (hours !== 12) {
-    hours += 12;
-  }
-}
+      if (
+        hours < 1 ||
+        hours > 12 ||
+        minutes < 0 ||
+        minutes > 59
+      ) {
+        Alert.alert(
+          "Invalid schedule",
+          "Please select a valid date and time."
+        );
+        return;
+      }
 
-const scheduledStart = new Date(
-  dateParts[0],
-  dateParts[1] - 1,
-  dateParts[2],
-  hours,
-  minutes,
-  0,
-  0
-);
+      if (meridiem.toUpperCase() === "AM") {
+        if (hours === 12) {
+          hours = 0;
+        }
+      } else {
+        if (hours !== 12) {
+          hours += 12;
+        }
+      }
 
-if (Number.isNaN(scheduledStart.getTime())) {
-  Alert.alert(
-    "Invalid schedule",
-    "Please select a valid date and time."
-  );
-  return;
-}
+      scheduledStart = new Date(
+        dateParts[0],
+        dateParts[1] - 1,
+        dateParts[2],
+        hours,
+        minutes,
+        0,
+        0
+      );
+
+      if (Number.isNaN(scheduledStart.getTime())) {
+        Alert.alert(
+          "Invalid schedule",
+          "Please select a valid date and time."
+        );
+        return;
+      }
+    }
+
+    const selectedSkillSlug =
+      selectedService.id === "caregiver"
+        ? selectedCaregiverSkill!.slug
+        : selectedService.id;
 
     try {
       setBookingSubmitting(true);
 
       const createdBooking = await createBackendBooking({
-        skill_slug: selectedService.id,
-        booking_type: "normal",
+        skill_slug: selectedSkillSlug,
+        booking_type: bookingType,
         service_address: selectedAddress.address,
         latitude,
         longitude,
         scheduled_start_at: scheduledStart.toISOString(),
       });
 
-      const createdId = createdBooking?.booking?.id || createdBooking?.id || null;
+      const createdId =
+        createdBooking?.booking?.id || createdBooking?.id || null;
+
       setLatestBookingId(createdId ? String(createdId) : null);
 
       await loadDashboardData();
@@ -926,6 +1015,7 @@ if (Number.isNaN(scheduledStart.getTime())) {
           setLatestBookingId(refreshed.id);
         }
       }
+
       setBookingSuccess(true);
       setBookingStep(4);
     } catch (error) {
@@ -1519,6 +1609,105 @@ if (Number.isNaN(scheduledStart.getTime())) {
                         Select the address where the professional should visit.
                       </Text>
 
+                      {selectedService?.id === "caregiver" && (
+                        <View style={styles.caregiverSkillSection}>
+                          <Text style={styles.bookingOptionLabel}>
+                            What type of care do you need?
+                          </Text>
+
+                          {CAREGIVER_SKILLS.map(skill => (
+                            <Pressable
+                              key={skill.slug}
+                              onPress={() => setSelectedCaregiverSkill(skill)}
+                              style={[
+                                styles.caregiverSkillCard,
+                                selectedCaregiverSkill?.slug === skill.slug &&
+                                  styles.caregiverSkillCardSelected,
+                              ]}
+                            >
+                              <View style={styles.caregiverSkillIcon}>
+                                <Ionicons
+                                  name={
+                                    skill.slug === "elder-care"
+                                      ? "person-outline"
+                                      : "people-outline"
+                                  }
+                                  size={21}
+                                  color="#7047E8"
+                                />
+                              </View>
+
+                              <View style={styles.caregiverSkillContent}>
+                                <Text style={styles.caregiverSkillName}>
+                                  {skill.name}
+                                </Text>
+                                <Text style={styles.caregiverSkillDescription}>
+                                  {skill.description}
+                                </Text>
+                              </View>
+
+                              <Ionicons
+                                name={
+                                  selectedCaregiverSkill?.slug === skill.slug
+                                    ? "radio-button-on"
+                                    : "radio-button-off"
+                                }
+                                size={22}
+                                color={
+                                  selectedCaregiverSkill?.slug === skill.slug
+                                    ? "#7047E8"
+                                    : "#AAAAAA"
+                                }
+                              />
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
+
+                      <Text style={styles.bookingOptionLabel}>
+                        Service type
+                      </Text>
+
+                      <View style={styles.bookingTypeRow}>
+                        <Pressable
+                          onPress={() => setBookingType("normal")}
+                          style={[
+                            styles.bookingTypeCard,
+                            bookingType === "normal" &&
+                              styles.bookingTypeCardSelected,
+                          ]}
+                        >
+                          <Ionicons
+                            name="calendar-outline"
+                            size={22}
+                            color="#7047E8"
+                          />
+                          <Text style={styles.bookingTypeTitle}>Normal</Text>
+                          <Text style={styles.bookingTypeDescription}>
+                            Schedule a convenient date and time
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => setBookingType("emergency")}
+                          style={[
+                            styles.bookingTypeCard,
+                            bookingType === "emergency" &&
+                              styles.bookingTypeCardSelected,
+                          ]}
+                        >
+                          <Ionicons
+                            name="flash-outline"
+                            size={22}
+                            color="#7047E8"
+                          />
+                          <Text style={styles.bookingTypeTitle}>Emergency</Text>
+                          <Text style={styles.bookingTypeDescription}>
+                            Request service immediately
+                          </Text>
+                        </Pressable>
+                      </View>
+
                       {addresses.map(address => (
                         <Pressable
                           key={address.id}
@@ -1685,6 +1874,28 @@ if (Number.isNaN(scheduledStart.getTime())) {
                         </View>
                       </View>
 
+                      {selectedService?.id === "caregiver" && selectedCaregiverSkill && (
+                        <View style={styles.summaryRow}>
+                          <Ionicons name="heart-outline" size={21} color="#7047E8" />
+                          <View style={styles.summaryRowContent}>
+                            <Text style={styles.summaryLabel}>Care type</Text>
+                            <Text style={styles.summaryValue}>
+                              {selectedCaregiverSkill.name}
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+
+                      <View style={styles.summaryRow}>
+                        <Ionicons name="flash-outline" size={21} color="#7047E8" />
+                        <View style={styles.summaryRowContent}>
+                          <Text style={styles.summaryLabel}>Booking type</Text>
+                          <Text style={styles.summaryValue}>
+                            {bookingType === "emergency" ? "Emergency" : "Normal"}
+                          </Text>
+                        </View>
+                      </View>
+
                       <View style={styles.summaryRow}>
                         <Ionicons name="location-outline" size={21} color="#7047E8" />
                         <View style={styles.summaryRowContent}>
@@ -1698,31 +1909,39 @@ if (Number.isNaN(scheduledStart.getTime())) {
                         </View>
                       </View>
 
-                      <View style={styles.summaryRow}>
-                        <Ionicons name="calendar-outline" size={21} color="#7047E8" />
-                        <View style={styles.summaryRowContent}>
-                          <Text style={styles.summaryLabel}>Date</Text>
-                          <Text style={styles.summaryValue}>
-                            {selectedDate ? formatBookingDate(selectedDate) : "Not selected"}
-                          </Text>
-                        </View>
-                      </View>
+                      {bookingType === "normal" && (
+                        <>
+                          <View style={styles.summaryRow}>
+                            <Ionicons name="calendar-outline" size={21} color="#7047E8" />
+                            <View style={styles.summaryRowContent}>
+                              <Text style={styles.summaryLabel}>Date</Text>
+                              <Text style={styles.summaryValue}>
+                                {selectedDate ? formatBookingDate(selectedDate) : "Not selected"}
+                              </Text>
+                            </View>
+                          </View>
 
-                      <View style={styles.summaryRow}>
-                        <Ionicons name="time-outline" size={21} color="#7047E8" />
-                        <View style={styles.summaryRowContent}>
-                          <Text style={styles.summaryLabel}>Time slot</Text>
-                          <Text style={styles.summaryValue}>
-                            {selectedTime}
-                          </Text>
-                        </View>
-                      </View>
+                          <View style={styles.summaryRow}>
+                            <Ionicons name="time-outline" size={21} color="#7047E8" />
+                            <View style={styles.summaryRowContent}>
+                              <Text style={styles.summaryLabel}>Time slot</Text>
+                              <Text style={styles.summaryValue}>
+                                {selectedTime}
+                              </Text>
+                            </View>
+                          </View>
+                        </>
+                      )}
 
                       <View style={styles.bookingPriceCard}>
                         <View style={styles.bookingPriceHeader}>
                           <View>
                             <Text style={styles.bookingPriceTitle}>Estimated service cost</Text>
-                            <Text style={styles.bookingPriceSubtitle}>For the selected 2-hour service slot</Text>
+                            <Text style={styles.bookingPriceSubtitle}>
+                              {bookingType === "emergency"
+                                ? "Estimated cost for immediate service"
+                                : "For the selected 2-hour service slot"}
+                            </Text>
                           </View>
                           <Text style={styles.bookingPriceTotal}>₹{selectedService?.basePrice?.toFixed(0) || "0"}</Text>
                         </View>
@@ -1775,8 +1994,9 @@ if (Number.isNaN(scheduledStart.getTime())) {
                   </Text>
 
                   <Text style={styles.successText}>
-                    Your {selectedService?.name} service has been successfully booked.
-                  </Text>
+                    {bookingType === "emergency"
+                      ? `Your ${selectedService?.name} emergency service has been requested immediately.`
+                      : `Your ${selectedService?.name} service has been successfully booked.`}</Text>
 
                   <View style={styles.bookingIdCard}>
                     <Text style={styles.bookingIdLabel}>Booking ID</Text>
@@ -1786,11 +2006,18 @@ if (Number.isNaN(scheduledStart.getTime())) {
                   </View>
 
                   <View style={styles.successDetails}>
+                    {bookingType === "normal" && (
+                      <>
+                        <Text style={styles.successDetailText}>
+                          {selectedDate ? formatBookingDate(selectedDate) : ""}
+                        </Text>
+                        <Text style={styles.successDetailText}>
+                          {selectedTime}
+                        </Text>
+                      </>
+                    )}
                     <Text style={styles.successDetailText}>
-                      {selectedDate ? formatBookingDate(selectedDate) : ""}
-                    </Text>
-                    <Text style={styles.successDetailText}>
-                      {selectedTime}
+                      {bookingType === "emergency" ? "Emergency request" : "Normal booking"}
                     </Text>
                     <Text style={styles.successAmountText}>
                       Estimated amount: ₹{selectedService?.basePrice?.toFixed(0) || "0"}
@@ -3160,6 +3387,97 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#777777",
     lineHeight: 17,
+  },
+
+  bookingOptionLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#222222",
+    marginBottom: 9,
+    marginTop: 2,
+  },
+
+  caregiverSkillSection: {
+    marginBottom: 16,
+  },
+
+  caregiverSkillCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 13,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#E7E3F0",
+    marginBottom: 9,
+    backgroundColor: "#FFFFFF",
+  },
+
+  caregiverSkillCardSelected: {
+    borderColor: "#7047E8",
+    backgroundColor: "#F7F4FF",
+  },
+
+  caregiverSkillIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "#F0EBFF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 11,
+  },
+
+  caregiverSkillContent: {
+    flex: 1,
+    marginRight: 8,
+  },
+
+  caregiverSkillName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#222222",
+  },
+
+  caregiverSkillDescription: {
+    fontSize: 11,
+    color: "#777777",
+    lineHeight: 16,
+    marginTop: 3,
+  },
+
+  bookingTypeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 15,
+  },
+
+  bookingTypeCard: {
+    width: "48%",
+    minHeight: 112,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#E7E3F0",
+    backgroundColor: "#FFFFFF",
+    padding: 12,
+  },
+
+  bookingTypeCardSelected: {
+    borderColor: "#7047E8",
+    backgroundColor: "#F7F4FF",
+  },
+
+  bookingTypeTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#222222",
+    marginTop: 8,
+  },
+
+  bookingTypeDescription: {
+    fontSize: 10,
+    lineHeight: 15,
+    color: "#777777",
+    marginTop: 4,
   },
 
   addAddressButton: {

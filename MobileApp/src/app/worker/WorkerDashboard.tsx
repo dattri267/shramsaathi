@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   Alert,
@@ -56,6 +56,7 @@ type BookingStatus =
 
 type Booking = {
   id: string;
+  bookingType?: 'normal' | 'emergency';
 
   customerName: string;
   customerPhone: string;
@@ -131,6 +132,7 @@ export default function WorkerDashboard({
   */
   const workerFromRoute = route.params?.worker;
   const [workerProfile, setWorkerProfile] = useState<any>(null);
+  const dashboardRefreshInFlight = useRef(false);
 
   const WORKER = useMemo(() => {
     const backend = workerProfile?.worker_profile || {};
@@ -186,6 +188,7 @@ export default function WorkerDashboard({
 
     return {
       id: String(item.id),
+      bookingType: item?.booking_type === 'emergency' ? 'emergency' : 'normal',
       customerName: item?.customer?.name || 'Customer',
       customerPhone: item?.customer?.phone || '',
       service: item?.service?.name || 'Service',
@@ -207,6 +210,10 @@ export default function WorkerDashboard({
   };
 
   const loadWorkerDashboard = async (silent = false) => {
+    if (dashboardRefreshInFlight.current) return;
+
+    dashboardRefreshInFlight.current = true;
+
     try {
       if (!silent) setLoadingBookings(true);
       const [profileResponse, bookingResponse] = await Promise.all([
@@ -227,6 +234,7 @@ export default function WorkerDashboard({
       }
     } finally {
       if (!silent) setLoadingBookings(false);
+      dashboardRefreshInFlight.current = false;
     }
   };
 
@@ -678,6 +686,13 @@ export default function WorkerDashboard({
 
         </View>
 
+
+        {booking.bookingType === 'emergency' && (
+          <View style={styles.emergencyRequestBanner}>
+            <Ionicons name="flash" size={16} color="#DC2626" />
+            <Text style={styles.emergencyRequestText}>EMERGENCY REQUEST • RESPOND IMMEDIATELY</Text>
+          </View>
+        )}
 
         {/* SERVICE */}
 
@@ -1347,7 +1362,9 @@ export default function WorkerDashboard({
             </Text>
 
             <Text style={styles.requestCountSubtitle}>
-              Respond to requests to grow your earnings
+              {pendingRequests.some(request => request.bookingType === 'emergency')
+                ? 'Emergency requests need immediate response'
+                : 'Respond to requests to grow your earnings'}
             </Text>
 
           </View>
@@ -2078,8 +2095,27 @@ export default function WorkerDashboard({
             </View>
 
 
+            {booking.bookingType === 'emergency' && (
+              <View style={styles.modalEmergencyBanner}>
+                <Ionicons name="flash" size={20} color="#DC2626" />
+                <View style={styles.modalEmergencyContent}>
+                  <Text style={styles.modalEmergencyTitle}>Emergency Service</Text>
+                  <Text style={styles.modalEmergencyText}>Customer requested immediate service.</Text>
+                </View>
+              </View>
+            )}
+
             {/* DATE */}
 
+            {booking.bookingType === 'emergency' ? (
+              <View style={styles.modalImmediateRow}>
+                <Ionicons name="flash-outline" size={19} color="#DC2626" />
+                <View>
+                  <Text style={styles.detailSmallLabel}>Response</Text>
+                  <Text style={styles.detailSmallValue}>Immediate</Text>
+                </View>
+              </View>
+            ) : (
             <View style={styles.modalTwoColumns}>
 
               <View style={styles.modalDetailColumn}>
@@ -2128,6 +2164,7 @@ export default function WorkerDashboard({
               </View>
 
             </View>
+            )}
 
 
             {/* ADDRESS */}
@@ -3005,6 +3042,63 @@ const styles = StyleSheet.create({
   /* =======================================================
      PAYMENT
   ======================================================= */
+
+  emergencyRequestBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    marginTop: 11,
+  },
+
+  emergencyRequestText: {
+    flex: 1,
+    marginLeft: 7,
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+
+  modalEmergencyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12,
+  },
+
+  modalEmergencyContent: {
+    flex: 1,
+    marginLeft: 9,
+  },
+
+  modalEmergencyTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+
+  modalEmergencyText: {
+    fontSize: 11,
+    color: '#991B1B',
+    marginTop: 3,
+  },
+
+  modalImmediateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderRadius: 13,
+    padding: 12,
+    marginBottom: 12,
+  },
 
   paymentPendingBox: {
     flexDirection: 'row',

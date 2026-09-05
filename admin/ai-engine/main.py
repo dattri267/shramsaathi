@@ -125,7 +125,17 @@ async def health() -> dict[str, Any]:
         "trainedOn": METADATA.get("trained_on"),
         "metrics": METADATA.get("metrics"),
     }
+@app.get("/analytics")
+async def analytics() -> dict[str, Any]:
+    analytics_path = HERE / "data" / "spark_output.json"
 
+    if not analytics_path.exists():
+        raise fastapi.HTTPException(
+            status_code=404,
+            detail="Spark analytics output not found. Run spark_pipeline.py first.",
+        )
+
+    return json.loads(analytics_path.read_text())
 
 @app.get("/options")
 async def options() -> dict[str, list[str]]:

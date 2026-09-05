@@ -13,6 +13,7 @@
   <nav class="tabs">
     <button id="tabBtnWorkers" class="active">Worker Verification</button>
     <button id="tabBtnPricing">Demand &amp; Pricing Model</button>
+    <button id="tabBtnAnalytics">Demand Intelligence</button>
   </nav>
 </header>
 
@@ -88,6 +89,52 @@
     </div>
   </section>
 
+  <!-- ===================== DEMAND INTELLIGENCE PANEL ===================== -->
+  <section id="panelAnalytics" class="panel">
+    <div class="analytics-header">
+      <div>
+        <h2>Demand Intelligence</h2>
+        <p>
+          Spark-powered demand analytics from historical synthetic booking data.
+        </p>
+      </div>
+    </div>
+
+    <div id="analyticsLoading" class="card placeholder-note">
+      Loading demand intelligence...
+    </div>
+
+    <div id="analyticsContent" style="display:none;">
+      <div id="analyticsKpis" class="analytics-kpis"></div>
+
+      <div class="analytics-columns">
+        <div class="card analytics-box">
+          <h3>Demand by City</h3>
+          <div id="analyticsCities"></div>
+        </div>
+
+        <div class="card analytics-box">
+          <h3>Demand by Service Category</h3>
+          <div id="analyticsCategories"></div>
+        </div>
+      </div>
+
+      <div class="card analytics-box">
+        <h3>Top City + Category Combinations</h3>
+        <div id="analyticsCityCategories"></div>
+      </div>
+
+      <div class="card allocation-card">
+        <h3>Cooperative Resource Allocation</h3>
+        <p id="analyticsAllocation"></p>
+      </div>
+    </div>
+
+    <div id="analyticsError" class="card placeholder-note" style="display:none;">
+      Unable to load demand intelligence.
+    </div>
+  </section>
+
 </main>
 
 <!-- ===================== WORKER DETAIL MODAL ===================== -->
@@ -101,24 +148,44 @@
 <script>
   const tabBtnWorkers = document.getElementById('tabBtnWorkers');
   const tabBtnPricing = document.getElementById('tabBtnPricing');
+  const tabBtnAnalytics = document.getElementById('tabBtnAnalytics');
+
   const panelWorkers = document.getElementById('panelWorkers');
   const panelPricing = document.getElementById('panelPricing');
+  const panelAnalytics = document.getElementById('panelAnalytics');
 
   tabBtnWorkers.addEventListener('click', () => {
     tabBtnWorkers.classList.add('active');
     tabBtnPricing.classList.remove('active');
+    tabBtnAnalytics.classList.remove('active');
+
     panelWorkers.classList.add('active');
     panelPricing.classList.remove('active');
+    panelAnalytics.classList.remove('active');
   });
 
   tabBtnPricing.addEventListener('click', () => {
     tabBtnPricing.classList.add('active');
     tabBtnWorkers.classList.remove('active');
+    tabBtnAnalytics.classList.remove('active');
+
     panelPricing.classList.add('active');
     panelWorkers.classList.remove('active');
+    panelAnalytics.classList.remove('active');
+  });
+
+  tabBtnAnalytics.addEventListener('click', () => {
+    tabBtnAnalytics.classList.add('active');
+    tabBtnWorkers.classList.remove('active');
+    tabBtnPricing.classList.remove('active');
+
+    panelAnalytics.classList.add('active');
+    panelWorkers.classList.remove('active');
+    panelPricing.classList.remove('active');
   });
 </script>
 <script src="js/workers.js"></script>
 <script src="js/pricing.js"></script>
+<script src="js/analytics.js"></script>
 </body>
 </html>

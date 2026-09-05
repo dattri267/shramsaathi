@@ -35,7 +35,7 @@ async function loadOptions() {
     // Fall back to the model's known defaults so the form still works
     // even if the AI engine isn't reachable yet.
     fillSelect(citySelect, ['Bengaluru', 'Mumbai', 'Delhi', 'Hyderabad']);
-    fillSelect(categorySelect, ['Home services', 'Grocery delivery', 'Medicine delivery']);
+    fillSelect(categorySelect, ['Electrician', 'Plumber', 'Carpenter', 'Painter', 'Domestic Helper', 'Caregiver', 'Technician']);
     fillSelect(weatherSelect, ['Clear', 'Rain', 'Extreme heat']);
     fillSelect(eventsSelect, ['Normal day', 'Holiday', 'Major event']);
     console.warn('Could not reach AI engine /options — using fallback lists.', err.message);

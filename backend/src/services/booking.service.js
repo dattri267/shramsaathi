@@ -908,24 +908,28 @@ async function getWorkerBookings(
       FROM bookings b
       WHERE
         b.worker_id = ${workerId}::uuid
-        OR (
-          b.status = 'requested'::booking_status
-          AND b.worker_id IS NULL
-          AND b.booking_type = 'normal'::booking_type
-          AND EXISTS (
-            SELECT 1
-            FROM worker_skills ws
-            WHERE ws.worker_id = ${workerId}::uuid
-              AND ws.skill_id = b.skill_id
+          OR (
+            b.status = 'requested'::booking_status
+            AND b.worker_id IS NULL
+            AND EXISTS (
+              SELECT 1
+              FROM worker_skills ws
+              WHERE ws.worker_id = ${workerId}::uuid
+                AND ws.skill_id = b.skill_id
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM worker_booking_rejections r
+              WHERE r.worker_id = ${workerId}::uuid
+                AND r.booking_id = b.id
+            )
           )
-          AND NOT EXISTS (
-            SELECT 1
-            FROM worker_booking_rejections r
-            WHERE r.worker_id = ${workerId}::uuid
-              AND r.booking_id = b.id
-          )
-        )
-      ORDER BY b.created_at ASC
+            ORDER BY
+        CASE
+          WHEN b.booking_type = 'emergency'::booking_type THEN 0
+          ELSE 1
+        END,
+        b.created_at ASC
     `;
 
     const result = [];

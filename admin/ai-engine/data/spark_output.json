@@ -1,0 +1,137 @@
+{
+  "generated_by": "Apache Spark / PySpark",
+  "source": "synthetic_demand.csv",
+  "total_jobs": 1276491,
+  "avg_daily_jobs": 106.37,
+  "cities": [
+    {
+      "city": "Mumbai",
+      "total_jobs": 343910,
+      "avg_jobs": 114.87,
+      "records": 2994
+    },
+    {
+      "city": "Delhi",
+      "total_jobs": 327323,
+      "avg_jobs": 110.66,
+      "records": 2958
+    },
+    {
+      "city": "Bengaluru",
+      "total_jobs": 304998,
+      "avg_jobs": 102.52,
+      "records": 2975
+    },
+    {
+      "city": "Hyderabad",
+      "total_jobs": 300260,
+      "avg_jobs": 97.71,
+      "records": 3073
+    }
+  ],
+  "categories": [
+    {
+      "category": "Plumber",
+      "total_jobs": 207657,
+      "avg_jobs": 122.22,
+      "records": 1699
+    },
+    {
+      "category": "Electrician",
+      "total_jobs": 202776,
+      "avg_jobs": 117.35,
+      "records": 1728
+    },
+    {
+      "category": "Technician",
+      "total_jobs": 188467,
+      "avg_jobs": 106.84,
+      "records": 1764
+    },
+    {
+      "category": "Domestic Helper",
+      "total_jobs": 186907,
+      "avg_jobs": 110.99,
+      "records": 1684
+    },
+    {
+      "category": "Carpenter",
+      "total_jobs": 167533,
+      "avg_jobs": 101.78,
+      "records": 1646
+    },
+    {
+      "category": "Caregiver",
+      "total_jobs": 166400,
+      "avg_jobs": 95.63,
+      "records": 1740
+    },
+    {
+      "category": "Painter",
+      "total_jobs": 156751,
+      "avg_jobs": 90.14,
+      "records": 1739
+    }
+  ],
+  "top_city_category": [
+    {
+      "city": "Mumbai",
+      "category": "Electrician",
+      "total_jobs": 55705
+    },
+    {
+      "city": "Mumbai",
+      "category": "Plumber",
+      "total_jobs": 55500
+    },
+    {
+      "city": "Delhi",
+      "category": "Electrician",
+      "total_jobs": 55100
+    },
+    {
+      "city": "Delhi",
+      "category": "Plumber",
+      "total_jobs": 53930
+    },
+    {
+      "city": "Mumbai",
+      "category": "Technician",
+      "total_jobs": 51001
+    },
+    {
+      "city": "Hyderabad",
+      "category": "Plumber",
+      "total_jobs": 50780
+    },
+    {
+      "city": "Delhi",
+      "category": "Technician",
+      "total_jobs": 48771
+    },
+    {
+      "city": "Mumbai",
+      "category": "Domestic Helper",
+      "total_jobs": 48461
+    },
+    {
+      "city": "Bengaluru",
+      "category": "Plumber",
+      "total_jobs": 47447
+    },
+    {
+      "city": "Delhi",
+      "category": "Domestic Helper",
+      "total_jobs": 47330
+    }
+  ],
+  "peak_day": {
+    "day": "Saturday",
+    "avg_jobs": 118.05
+  },
+  "peak_month": {
+    "month": 7,
+    "avg_jobs": 119.19
+  },
+  "allocation_insight": "Prioritize cooperative worker availability for Plumber in Mumbai."
+}
