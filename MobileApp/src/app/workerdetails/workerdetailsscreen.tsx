@@ -151,11 +151,42 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
         console.log("Skills loaded from backend:", skillsFromBackend);
 
-        if (Array.isArray(skillsFromBackend)) {
-          setAvailableSkills(skillsFromBackend);
-        } else {
-          setAvailableSkills([]);
+        const backendSkills = Array.isArray(skillsFromBackend)
+          ? skillsFromBackend
+          : [];
+
+        // These two caregiver subcategories are required by the MVP.
+        // Keep them available even if an older database has not yet had
+        // the new skill rows inserted.
+        const requiredCaregiverSkills = [
+          {
+            id: "virtual-elder-care",
+            name: "Elder Care",
+            slug: "elder-care",
+            description: "Support and assistance for elderly family members",
+          },
+          {
+            id: "virtual-child-care",
+            name: "Child Care",
+            slug: "child-care",
+            description: "Safe and reliable care for children",
+          },
+        ];
+
+        const mergedSkills = [...backendSkills];
+
+        for (const requiredSkill of requiredCaregiverSkills) {
+          if (
+            !mergedSkills.some(
+              (skill: any) =>
+                String(skill.slug || "").toLowerCase() === requiredSkill.slug
+            )
+          ) {
+            mergedSkills.push(requiredSkill);
+          }
         }
+
+        setAvailableSkills(mergedSkills);
       } catch (error) {
         console.log("Load Skills Error:", error);
 
@@ -621,8 +652,16 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
   // --------------------------------------------------
 
   const handleCompleteProfile = async () => {
-    if (!fullName.trim()) {
-      Alert.alert("Incomplete Details", "Please enter your full name.");
+    if (fullName.trim().length < 2) {
+      Alert.alert("Invalid Name", "Please enter your full name.");
+      return;
+    }
+
+    if (!/^\d{10}$/.test(mobile.trim())) {
+      Alert.alert(
+        "Invalid Mobile Number",
+        "Please enter a valid 10-digit mobile number.",
+      );
       return;
     }
 
@@ -631,18 +670,31 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
       return;
     }
 
-    if (!experience.trim()) {
+    const yearsOfExperience = Number(experience);
+
+    if (
+      !experience.trim() ||
+      !Number.isFinite(yearsOfExperience) ||
+      yearsOfExperience < 0 ||
+      yearsOfExperience > 60
+    ) {
       Alert.alert(
-        "Experience Required",
-        "Please enter your years of experience.",
+        "Invalid Experience",
+        "Please enter experience between 0 and 60 years.",
       );
       return;
     }
 
-    if (!city.trim() || !state.trim() || !pincode.trim()) {
+    if (
+      !house.trim() ||
+      !locality.trim() ||
+      !city.trim() ||
+      !state.trim() ||
+      !/^\d{6}$/.test(pincode.trim())
+    ) {
       Alert.alert(
         "Incomplete Address",
-        "Please complete your service location details.",
+        "Please provide house, locality, city, state and a valid 6-digit PIN code.",
       );
       return;
     }
@@ -681,7 +733,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
     const radius = parseFloat(serviceRadius);
 
-    if (Number.isNaN(radius)) {
+    if (!Number.isFinite(radius) || radius <= 0) {
       Alert.alert(
         "Invalid Service Radius",
         "Please select a valid service radius.",
@@ -689,12 +741,18 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
       return;
     }
 
-    const yearsOfExperience = Number(experience);
-
-    if (Number.isNaN(yearsOfExperience)) {
+    if (workingDays.length === 0) {
       Alert.alert(
-        "Invalid Experience",
-        "Please enter a valid number of years of experience.",
+        "Availability Required",
+        "Please select at least one working day.",
+      );
+      return;
+    }
+
+    if (workingHours.length === 0) {
+      Alert.alert(
+        "Availability Required",
+        "Please select at least one working-hour slot.",
       );
       return;
     }

@@ -1021,3 +1021,36 @@ export async function completeMockCustomerPayment(paymentId: string) {
   );
 }
 
+
+
+/**
+ * Get the current AI-model predicted price for a service.
+ * The backend proxies the admin AI engine, so the mobile app never
+ * needs to know the AI engine's internal URL.
+ */
+export async function getPredictedServicePrice(data: {
+  skill_slug: string;
+  city?: string;
+  date?: string;
+  weather?: string;
+  events?: string;
+}) {
+  return apiRequest<any>('/api/pricing/predict', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateWorkerLocation(
+  latitude: number,
+  longitude: number
+) {
+  return apiRequest<any>('/api/worker/location', {
+    method: 'PATCH',
+    body: JSON.stringify({ latitude, longitude }),
+  });
+}
+
+export async function getWorkerLocation(workerId: string) {
+  return apiRequest<any>(`/api/worker/${workerId}/location`);
+}

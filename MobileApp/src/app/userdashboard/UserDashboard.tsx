@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
   Image,
+  Linking,
 } from "react-native";
 
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -35,6 +36,8 @@ import {
   createBooking as createBackendBooking,
   createCustomerPayment,
   completeMockCustomerPayment,
+  getPredictedServicePrice,
+  getWorkerLocation,
 } from "../../api";
 
 
@@ -270,6 +273,11 @@ export default function UserDashboard({
   const [customerProfile, setCustomerProfile] = useState<any>(null);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [emergencyPrice, setEmergencyPrice] = useState<number | null>(null);
+  const [emergencyPriceLoading, setEmergencyPriceLoading] = useState(false);
+  const [liveWorkerLocations, setLiveWorkerLocations] = useState<
+    Record<string, { latitude: number; longitude: number; updatedAt?: string }>
+  >({});
 
   const [bookingSuccess, setBookingSuccess] =
     useState(false);
@@ -422,52 +430,52 @@ export default function UserDashboard({
       createdAt: item?.created_at || new Date().toISOString(),
       worker: item?.worker
         ? {
-            id: String(item.worker.id),
-            name: item.worker.name || "Assigned professional",
-            phone: item.worker.phone || null,
-            avatarUrl: item.worker.avatar_url || null,
-            rating: item.worker.rating !== null && item.worker.rating !== undefined
-              ? Number(item.worker.rating)
-              : null,
-            completedJobs: item.worker.completed_jobs !== null && item.worker.completed_jobs !== undefined
-              ? Number(item.worker.completed_jobs)
-              : 0,
-            hourlyRate: item.worker.hourly_rate !== null && item.worker.hourly_rate !== undefined
-              ? Number(item.worker.hourly_rate)
-              : null,
-          }
+          id: String(item.worker.id),
+          name: item.worker.name || "Assigned professional",
+          phone: item.worker.phone || null,
+          avatarUrl: item.worker.avatar_url || null,
+          rating: item.worker.rating !== null && item.worker.rating !== undefined
+            ? Number(item.worker.rating)
+            : null,
+          completedJobs: item.worker.completed_jobs !== null && item.worker.completed_jobs !== undefined
+            ? Number(item.worker.completed_jobs)
+            : 0,
+          hourlyRate: item.worker.hourly_rate !== null && item.worker.hourly_rate !== undefined
+            ? Number(item.worker.hourly_rate)
+            : null,
+        }
         : null,
       price: item?.price
         ? {
-            estimatedAmount: item.price.estimated_amount !== null && item.price.estimated_amount !== undefined
-              ? Number(item.price.estimated_amount)
-              : null,
-            finalAmount: item.price.final_amount !== null && item.price.final_amount !== undefined
-              ? Number(item.price.final_amount)
-              : null,
-            currency: item.price.currency || "INR",
-            workerAmount: item.price.worker_amount !== null && item.price.worker_amount !== undefined
-              ? Number(item.price.worker_amount)
-              : null,
-            welfareAmount: item.price.welfare_amount !== null && item.price.welfare_amount !== undefined
-              ? Number(item.price.welfare_amount)
-              : null,
-            platformAmount: item.price.platform_amount !== null && item.price.platform_amount !== undefined
-              ? Number(item.price.platform_amount)
-              : null,
-            workerSharePercent: Number(item.price.worker_share_percent ?? 80),
-            welfareSharePercent: Number(item.price.welfare_share_percent ?? 10),
-            platformSharePercent: Number(item.price.platform_share_percent ?? 10),
-          }
+          estimatedAmount: item.price.estimated_amount !== null && item.price.estimated_amount !== undefined
+            ? Number(item.price.estimated_amount)
+            : null,
+          finalAmount: item.price.final_amount !== null && item.price.final_amount !== undefined
+            ? Number(item.price.final_amount)
+            : null,
+          currency: item.price.currency || "INR",
+          workerAmount: item.price.worker_amount !== null && item.price.worker_amount !== undefined
+            ? Number(item.price.worker_amount)
+            : null,
+          welfareAmount: item.price.welfare_amount !== null && item.price.welfare_amount !== undefined
+            ? Number(item.price.welfare_amount)
+            : null,
+          platformAmount: item.price.platform_amount !== null && item.price.platform_amount !== undefined
+            ? Number(item.price.platform_amount)
+            : null,
+          workerSharePercent: Number(item.price.worker_share_percent ?? 80),
+          welfareSharePercent: Number(item.price.welfare_share_percent ?? 10),
+          platformSharePercent: Number(item.price.platform_share_percent ?? 10),
+        }
         : undefined,
       payment: item?.payment
         ? {
-            id: item.payment.id || null,
-            amount: item.payment.amount !== null && item.payment.amount !== undefined
-              ? Number(item.payment.amount)
-              : null,
-            status: item.payment.status || null,
-          }
+          id: item.payment.id || null,
+          amount: item.payment.amount !== null && item.payment.amount !== undefined
+            ? Number(item.payment.amount)
+            : null,
+          status: item.payment.status || null,
+        }
         : undefined,
     };
   };
@@ -521,6 +529,115 @@ export default function UserDashboard({
 
     return () => clearInterval(refreshInterval);
   }, []);
+
+  // Fetch the live AI price only for emergency requests.
+  useEffect(() => {
+    if (
+      bookingType !== "emergency" ||
+      !selectedService ||
+      !customerProfile
+    ) {
+      setEmergencyPrice(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadEmergencyPrice = async () => {
+      try {
+        setEmergencyPriceLoading(true);
+
+        const address =
+          customerProfile?.address ||
+          customerProfile?.address_details ||
+          {};
+
+        const result = await getPredictedServicePrice({
+          skill_slug:
+            selectedService.id === "caregiver"
+              ? "caregiver"
+              : selectedService.id,
+          city: address?.city || "",
+          date: new Date().toISOString().slice(0, 10),
+          weather: "Clear",
+          events: "Normal day",
+        });
+
+        const price = Number(result?.suggestedPrice);
+
+        if (!cancelled && Number.isFinite(price) && price > 0) {
+          setEmergencyPrice(price);
+        }
+      } catch (error) {
+        console.error("Emergency AI price error:", error);
+        if (!cancelled) setEmergencyPrice(null);
+      } finally {
+        if (!cancelled) setEmergencyPriceLoading(false);
+      }
+    };
+
+    loadEmergencyPrice();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingType, selectedService?.id, customerProfile?.id, customerProfile?.city]);
+
+  // After an emergency worker accepts, keep fetching that worker's
+  // current Redis-backed location so the customer UI stays updated.
+  useEffect(() => {
+    const activeEmergencyBookings = bookings.filter(
+      booking =>
+        booking.bookingType === "emergency" &&
+        booking.worker?.id &&
+        booking.status === "Confirmed"
+    );
+
+    if (activeEmergencyBookings.length === 0) return;
+
+    let cancelled = false;
+
+    const refreshLocations = async () => {
+      for (const booking of activeEmergencyBookings) {
+        const workerId = booking.worker?.id;
+        if (!workerId) continue;
+
+        try {
+          const response = await getWorkerLocation(workerId);
+          const location = response?.location || response;
+
+          const latitude = Number(location?.latitude);
+          const longitude = Number(location?.longitude);
+
+          if (
+            !cancelled &&
+            Number.isFinite(latitude) &&
+            Number.isFinite(longitude)
+          ) {
+            setLiveWorkerLocations(current => ({
+              ...current,
+              [workerId]: {
+                latitude,
+                longitude,
+                updatedAt: location?.updatedAt,
+              },
+            }));
+          }
+        } catch (error) {
+          // Location may not exist for the first few seconds after acceptance.
+          console.log("Worker location not available yet:", error);
+        }
+      }
+    };
+
+    refreshLocations();
+    const interval = setInterval(refreshLocations, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [bookings]);
 
   /* =======================================================
      SEARCH
@@ -1000,6 +1117,9 @@ export default function UserDashboard({
         latitude,
         longitude,
         scheduled_start_at: scheduledStart.toISOString(),
+        ...(bookingType === "emergency" && emergencyPrice
+          ? { estimated_amount: emergencyPrice }
+          : {}),
       });
 
       const createdId =
@@ -1622,7 +1742,7 @@ export default function UserDashboard({
                               style={[
                                 styles.caregiverSkillCard,
                                 selectedCaregiverSkill?.slug === skill.slug &&
-                                  styles.caregiverSkillCardSelected,
+                                styles.caregiverSkillCardSelected,
                               ]}
                             >
                               <View style={styles.caregiverSkillIcon}>
@@ -1674,7 +1794,7 @@ export default function UserDashboard({
                           style={[
                             styles.bookingTypeCard,
                             bookingType === "normal" &&
-                              styles.bookingTypeCardSelected,
+                            styles.bookingTypeCardSelected,
                           ]}
                         >
                           <Ionicons
@@ -1693,7 +1813,7 @@ export default function UserDashboard({
                           style={[
                             styles.bookingTypeCard,
                             bookingType === "emergency" &&
-                              styles.bookingTypeCardSelected,
+                            styles.bookingTypeCardSelected,
                           ]}
                         >
                           <Ionicons
@@ -1943,15 +2063,15 @@ export default function UserDashboard({
                                 : "For the selected 2-hour service slot"}
                             </Text>
                           </View>
-                          <Text style={styles.bookingPriceTotal}>₹{selectedService?.basePrice?.toFixed(0) || "0"}</Text>
+                          <Text style={styles.bookingPriceTotal}>₹{(bookingType === "emergency" ? emergencyPrice : selectedService?.basePrice)?.toFixed(0) || "0"}</Text>
                         </View>
                         <View style={styles.bookingPriceLine}>
                           <Text style={styles.bookingPriceLabel}>Customer pays</Text>
-                          <Text style={styles.bookingPriceValue}>₹{selectedService?.basePrice?.toFixed(0) || "0"}</Text>
+                          <Text style={styles.bookingPriceValue}>₹{(bookingType === "emergency" ? emergencyPrice : selectedService?.basePrice)?.toFixed(0) || "0"}</Text>
                         </View>
                         <View style={styles.bookingPriceLine}>
                           <Text style={styles.bookingPriceLabel}>Worker share (80%)</Text>
-                          <Text style={styles.bookingWorkerValue}>₹{selectedService ? (selectedService.basePrice * 0.8).toFixed(0) : "0"}</Text>
+                          <Text style={styles.bookingWorkerValue}>₹{(bookingType === "emergency" ? emergencyPrice : selectedService?.basePrice) ? (((bookingType === "emergency" ? emergencyPrice : selectedService?.basePrice) || 0) * 0.8).toFixed(0) : "0"}</Text>
                         </View>
                         <Text style={styles.bookingPriceNote}>10% supports the welfare fund and 10% covers platform operations. Final amount is fixed by the backend when the booking is created.</Text>
                       </View>
@@ -2020,7 +2140,7 @@ export default function UserDashboard({
                       {bookingType === "emergency" ? "Emergency request" : "Normal booking"}
                     </Text>
                     <Text style={styles.successAmountText}>
-                      Estimated amount: ₹{selectedService?.basePrice?.toFixed(0) || "0"}
+                      Estimated amount: ₹{(bookingType === "emergency" ? emergencyPrice : selectedService?.basePrice)?.toFixed(0) || "0"}
                     </Text>
                     <Text style={styles.successPaymentNote}>Payment will be requested after the worker completes the service.</Text>
                   </View>
@@ -2171,6 +2291,66 @@ export default function UserDashboard({
                       </View>
                     )}
 
+                    {booking.bookingType === "emergency" &&
+                      booking.worker?.id &&
+                      liveWorkerLocations[booking.worker.id] && (
+                        <Pressable
+                          onPress={() => {
+                            const location =
+                              liveWorkerLocations[booking.worker!.id];
+
+                            const url =
+                              `https://www.google.com/maps/search/?api=1&query=` +
+                              `${location.latitude},${location.longitude}`;
+
+                            Linking.openURL(url).catch(() =>
+                              Alert.alert(
+                                "Unable to open Maps",
+                                "Google Maps could not be opened on this device."
+                              )
+                            );
+                          }}
+                          style={{
+                            marginTop: 10,
+                            padding: 12,
+                            borderRadius: 12,
+                            backgroundColor: "#EEF2FF",
+                            borderWidth: 1,
+                            borderColor: "#C7D2FE",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontWeight: "700",
+                              color: "#3730A3",
+                            }}
+                          >
+                            Live worker location
+                          </Text>
+
+                          <Text
+                            style={{
+                              marginTop: 3,
+                              color: "#4B5563",
+                            }}
+                          >
+                            {liveWorkerLocations[booking.worker.id].latitude.toFixed(6)}
+                            {", "}
+                            {liveWorkerLocations[booking.worker.id].longitude.toFixed(6)}
+                          </Text>
+
+                          <Text
+                            style={{
+                              marginTop: 4,
+                              color: "#2563EB",
+                              fontWeight: "600",
+                            }}
+                          >
+                            Open in Maps
+                          </Text>
+                        </Pressable>
+                      )}
+
                     <View style={styles.customerPaymentCard}>
                       <View style={styles.customerPaymentHeader}>
                         <Text style={styles.customerPaymentTitle}>Payment</Text>
@@ -2269,7 +2449,7 @@ export default function UserDashboard({
                   style={[
                     styles.addressLocationButton,
                     addressLocationLoading &&
-                      styles.addressLocationButtonDisabled,
+                    styles.addressLocationButtonDisabled,
                   ]}
                   onPress={handleAddressCurrentLocation}
                   disabled={addressLocationLoading || addressSaving}
@@ -2384,7 +2564,7 @@ export default function UserDashboard({
                   style={[
                     styles.addressSaveButton,
                     addressSaving &&
-                      styles.addressSaveButtonDisabled,
+                    styles.addressSaveButtonDisabled,
                   ]}
                   onPress={handleSaveAddress}
                   disabled={addressSaving}

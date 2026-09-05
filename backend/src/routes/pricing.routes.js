@@ -3,7 +3,8 @@ const express = require('express');
 const router = express.Router();
 
 const {
-  calculateBookingPrice
+  calculateBookingPrice,
+  predictBookingPrice
 } = require('../controllers/pricing.controller');
 
 const {
@@ -16,6 +17,13 @@ router.post(
   requireAuth,
   resolveRoleProfile,
   calculateBookingPrice
+);
+
+router.post(
+  '/pricing/predict',
+  requireAuth,
+  resolveRoleProfile,
+  predictBookingPrice
 );
 
 module.exports = router;

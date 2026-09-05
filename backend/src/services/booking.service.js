@@ -36,6 +36,88 @@ function getServicePricing(slug) {
     return SERVICE_PRICING[String(slug).trim().toLowerCase()] || null;
 }
 
+const MODEL_CATEGORIES = {
+    electrician: 'Electrician',
+    plumber: 'Plumber',
+    carpenter: 'Carpenter',
+    painter: 'Painter',
+    'domestic-helper': 'Domestic Helper',
+    caregiver: 'Caregiver',
+    technician: 'Technician'
+};
+
+const MODEL_CITIES = ['Bengaluru', 'Mumbai', 'Delhi', 'Hyderabad'];
+
+function normalizeModelCity(value) {
+    const input = String(value || '').trim().toLowerCase();
+    return MODEL_CITIES.find(city => city.toLowerCase() === input) || 'Bengaluru';
+}
+
+async function getEmergencyModelPrice(skillSlug, serviceAddress) {
+    const slug = String(skillSlug || '').trim().toLowerCase();
+    const category = MODEL_CATEGORIES[slug];
+
+    if (!category) {
+        throw error(`AI pricing does not support service: ${skillSlug}`, 502);
+    }
+
+    const currentPrice = SERVICE_PRICING[slug]?.standardPrice;
+    if (currentPrice === undefined) {
+        throw error(`No baseline price configured for service: ${skillSlug}`, 502);
+    }
+
+    const addressText =
+        typeof serviceAddress === 'string'
+            ? serviceAddress
+            : JSON.stringify(serviceAddress || {});
+
+    const cityMatch = MODEL_CITIES.find(city =>
+        addressText.toLowerCase().includes(city.toLowerCase())
+    );
+
+    const city = normalizeModelCity(cityMatch || 'Bengaluru');
+
+    const aiBaseUrl =
+        process.env.AI_ENGINE_BASE_URL || 'http://127.0.0.1:8001';
+
+    const response = await fetch(`${aiBaseUrl}/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            city,
+            category,
+            date: new Date().toISOString().slice(0, 10),
+            currentPrice,
+            weather: 'Clear',
+            events: 'Normal day'
+        })
+    });
+
+    let data = null;
+    try {
+        data = await response.json();
+    } catch {
+        data = null;
+    }
+
+    if (!response.ok || !data) {
+        throw error(
+            data?.detail ||
+            data?.error ||
+            `AI pricing engine returned ${response.status}`,
+            502
+        );
+    }
+
+    const suggestedPrice = Number(data.suggestedPrice);
+
+    if (!Number.isFinite(suggestedPrice) || suggestedPrice <= 0) {
+        throw error('AI pricing engine returned an invalid price', 502);
+    }
+
+    return suggestedPrice;
+}
+
 
 /**
  * Convert a booking into the API response we want
@@ -179,7 +261,8 @@ async function formatBooking(
 
         worker: row.worker_user_id
             ? {
-                id: row.worker_user_id,
+                id: row.worker_id,
+                user_id: row.worker_user_id,
                 name: row.worker_name || 'Assigned professional',
                 phone: row.worker_phone,
                 avatar_url: row.worker_avatar,
@@ -566,6 +649,31 @@ async function createBooking(
     let finalEstimatedAmount =
         estimated_amount ??
         null;
+
+    let resolvedSkillSlug = skill_slug || service || null;
+
+    if (!resolvedSkillSlug && resolvedSkillId) {
+        const skillRows = await prisma.$queryRaw`
+          SELECT slug
+          FROM skills
+          WHERE id = ${resolvedSkillId}::uuid
+          LIMIT 1
+        `;
+
+        resolvedSkillSlug = skillRows[0]?.slug || null;
+    }
+
+    /*
+     * Emergency bookings use the live admin AI pricing model.
+     * The server is authoritative so the client cannot submit a
+     * stale/static emergency price.
+     */
+    if (booking_type === 'emergency') {
+        finalEstimatedAmount = await getEmergencyModelPrice(
+            resolvedSkillSlug,
+            service_address
+        );
+    }
 
 
     /*

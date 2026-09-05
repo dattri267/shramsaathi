@@ -303,6 +303,41 @@ async function updateWorkerProfile(
 
   /*
    * ---------------------------------------------------------
+   * Validate basic registration fields
+   * ---------------------------------------------------------
+   */
+  if (full_name !== undefined && String(full_name).trim().length < 2) {
+    throw createError('full_name must contain at least 2 characters');
+  }
+
+  if (phone !== undefined && phone !== null) {
+    const normalizedPhone = String(phone).trim();
+    if (!/^\d{10}$/.test(normalizedPhone)) {
+      throw createError('phone must be a valid 10-digit mobile number');
+    }
+  }
+
+  if (years_experience !== undefined) {
+    const experienceNumber = Number(years_experience);
+    if (
+      !Number.isFinite(experienceNumber) ||
+      experienceNumber < 0 ||
+      experienceNumber > 60
+    ) {
+      throw createError('years_experience must be between 0 and 60');
+    }
+  }
+
+  if (working_days !== undefined && !Array.isArray(working_days)) {
+    throw createError('working_days must be an array');
+  }
+
+  if (working_hours !== undefined && !Array.isArray(working_hours)) {
+    throw createError('working_hours must be an array');
+  }
+
+  /*
+   * ---------------------------------------------------------
    * Validate coordinates
    * ---------------------------------------------------------
    */

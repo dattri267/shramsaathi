@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import * as Location from 'expo-location';
 
 import {
   Alert,
@@ -32,6 +33,7 @@ import {
   startBooking,
   completeBooking,
   rejectBooking,
+  updateWorkerLocation,
 } from '../../api';
 
 
@@ -247,6 +249,92 @@ export default function WorkerDashboard({
 
     return () => clearInterval(refreshInterval);
   }, []);
+
+  // Share the worker's current position only while an emergency job
+  // has been accepted/in progress. The backend stores it in Redis.
+  useEffect(() => {
+    const workerId = workerProfile?.worker_profile?.id;
+
+    const hasActiveEmergency = bookings.some(
+      booking =>
+        booking.bookingType === "emergency" &&
+        (booking.status === "accepted" || booking.status === "started")
+    );
+
+    if (!workerId || !hasActiveEmergency) return;
+
+    let subscription: Location.LocationSubscription | null = null;
+    let cancelled = false;
+
+    const startLocationSharing = async () => {
+      try {
+        const { status } =
+          await Location.requestForegroundPermissionsAsync();
+
+        if (status !== "granted") {
+          Alert.alert(
+            "Location Permission Required",
+            "Allow location access so the customer can see your live location during an emergency job."
+          );
+          return;
+        }
+
+        const current = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+
+        if (!cancelled) {
+          await updateWorkerLocation(
+            current.coords.latitude,
+            current.coords.longitude
+          );
+        }
+
+        subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 5000,
+            distanceInterval: 5,
+          },
+          async location => {
+            if (cancelled) return;
+
+            const { latitude, longitude } = location.coords;
+
+            if (
+              Number.isFinite(latitude) &&
+              Number.isFinite(longitude)
+            ) {
+              try {
+                await updateWorkerLocation(latitude, longitude);
+              } catch (error) {
+                console.warn(
+                  "Failed to update worker live location:",
+                  error
+                );
+              }
+            }
+          }
+        );
+      } catch (error) {
+        console.warn("Worker location sharing failed:", error);
+      }
+    };
+
+    startLocationSharing();
+
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
+  }, [
+    workerProfile?.worker_profile?.id,
+    bookings.some(
+      booking =>
+        booking.bookingType === "emergency" &&
+        (booking.status === "accepted" || booking.status === "started")
+    ),
+  ]);
 
   /* =======================================================
      LOCATION + CALL ACTIONS
