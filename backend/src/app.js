@@ -13,6 +13,7 @@ const customerRoutes = require('./routes/customer.routes');
 const workerRoutes = require('./routes/worker.routes');
 const skillRoutes = require('./routes/skill.routes');
 const avatarRoutes = require('./routes/avatar.routes');
+const adminRoutes = require('./routes/admin.routes');
 
 const ratingRoutes = require('./routes/rating.routes');
 const disputeRoutes = require('./routes/dispute.routes');
@@ -48,7 +49,7 @@ app.use('/api', skillRoutes);
 
 // Cloudinary avatar
 app.use('/api', avatarRoutes);
-
+app.use('/api', adminRoutes);
 // Other existing modules from main
 app.use('/api', ratingRoutes);
 app.use('/api', disputeRoutes);
