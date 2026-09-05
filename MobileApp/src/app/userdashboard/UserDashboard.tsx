@@ -444,9 +444,9 @@ export default function UserDashboard({
     };
   };
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (silent = false) => {
     try {
-      setLoadingBookings(true);
+      if (!silent) setLoadingBookings(true);
       const [profileResponse, bookingResponse] = await Promise.all([
         getCustomerProfile(),
         getCustomerBookings(),
@@ -473,17 +473,25 @@ export default function UserDashboard({
       setBookings((bookingResponse?.bookings || []).map(formatBackendBooking));
     } catch (error) {
       console.error("Failed to load customer dashboard:", error);
-      Alert.alert(
-        "Unable to load dashboard",
-        error instanceof Error ? error.message : "Please try again."
-      );
+      if (!silent) {
+        Alert.alert(
+          "Unable to load dashboard",
+          error instanceof Error ? error.message : "Please try again."
+        );
+      }
     } finally {
-      setLoadingBookings(false);
+      if (!silent) setLoadingBookings(false);
     }
   };
 
   useEffect(() => {
     loadDashboardData();
+
+    const refreshInterval = setInterval(() => {
+      loadDashboardData(true);
+    }, 5000);
+
+    return () => clearInterval(refreshInterval);
   }, []);
 
   /* =======================================================

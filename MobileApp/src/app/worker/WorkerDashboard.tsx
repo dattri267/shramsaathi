@@ -206,9 +206,9 @@ export default function WorkerDashboard({
     };
   };
 
-  const loadWorkerDashboard = async () => {
+  const loadWorkerDashboard = async (silent = false) => {
     try {
-      setLoadingBookings(true);
+      if (!silent) setLoadingBookings(true);
       const [profileResponse, bookingResponse] = await Promise.all([
         getWorkerProfile(),
         getWorkerBookings(),
@@ -219,17 +219,25 @@ export default function WorkerDashboard({
       setBookings(rawBookings.map(formatBackendWorkerBooking));
     } catch (error) {
       console.error('Failed to load worker dashboard:', error);
-      Alert.alert(
-        'Unable to load dashboard',
-        error instanceof Error ? error.message : 'Please try again.'
-      );
+      if (!silent) {
+        Alert.alert(
+          'Unable to load dashboard',
+          error instanceof Error ? error.message : 'Please try again.'
+        );
+      }
     } finally {
-      setLoadingBookings(false);
+      if (!silent) setLoadingBookings(false);
     }
   };
 
   useEffect(() => {
     loadWorkerDashboard();
+
+    const refreshInterval = setInterval(() => {
+      loadWorkerDashboard(true);
+    }, 5000);
+
+    return () => clearInterval(refreshInterval);
   }, []);
 
   /* =======================================================
