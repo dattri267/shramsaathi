@@ -1,0 +1,5 @@
+# Python environments and generated cache files
+ai-engine/.venv/
+ai-engine/venv/
+ai-engine/**/__pycache__/
+ai-engine/**/*.py[cod]

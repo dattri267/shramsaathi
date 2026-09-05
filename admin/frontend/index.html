@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ShramSaathi — Federation Admin</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <h1>ShramSaathi · Federation Admin</h1>
+  <nav class="tabs">
+    <button id="tabBtnWorkers" class="active">Worker Verification</button>
+    <button id="tabBtnPricing">Demand &amp; Pricing Model</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ===================== WORKERS PANEL ===================== -->
+  <section id="panelWorkers" class="panel active">
+    <div class="toolbar">
+      <input id="workerSearch" type="text" placeholder="Search by name or phone…" />
+      <select id="statusFilter">
+        <option value="">All statuses</option>
+        <option value="pending_verification">Pending verification</option>
+        <option value="verified">Verified</option>
+        <option value="suspended">Suspended</option>
+        <option value="rejected">Rejected</option>
+      </select>
+    </div>
+
+    <div id="workerGrid" class="worker-grid">
+      <div class="loading-state">Loading workers…</div>
+    </div>
+  </section>
+
+  <!-- ===================== PRICING PANEL ===================== -->
+  <section id="panelPricing" class="panel">
+    <div class="pricing-grid">
+
+      <div class="card">
+        <div class="eyebrow">01 / INPUT SIGNALS</div>
+        <h2 style="margin:6px 0 18px;">Set a scenario</h2>
+
+        <label class="field-label">City</label>
+        <select id="citySelect"></select>
+
+        <label class="field-label">Service category</label>
+        <select id="categorySelect"></select>
+
+        <div class="two-col">
+          <div>
+            <label class="field-label">Forecast date</label>
+            <input id="forecastDate" type="date" />
+          </div>
+          <div>
+            <label class="field-label">Current price (₹)</label>
+            <input id="currentPrice" type="number" min="1" value="559" />
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div>
+            <label class="field-label">Weather</label>
+            <select id="weatherSelect"></select>
+          </div>
+          <div>
+            <label class="field-label">Local activity</label>
+            <select id="eventsSelect"></select>
+          </div>
+        </div>
+
+        <button id="runModelBtn" class="run-btn">Run pricing model →</button>
+        <p class="hint-text">
+          Prices are bounded between 82% and 118% to protect worker access and customer trust.
+        </p>
+      </div>
+
+      <div>
+        <div id="outputEmpty" class="card placeholder-note">
+          Set a scenario and run the model to see the demand forecast and suggested price.
+        </div>
+        <div id="outputResults" style="display:none;"></div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<!-- ===================== WORKER DETAIL MODAL ===================== -->
+<div id="workerModal" class="modal-overlay">
+  <div class="modal">
+    <div id="workerModalBody"></div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script>
+  const tabBtnWorkers = document.getElementById('tabBtnWorkers');
+  const tabBtnPricing = document.getElementById('tabBtnPricing');
+  const panelWorkers = document.getElementById('panelWorkers');
+  const panelPricing = document.getElementById('panelPricing');
+
+  tabBtnWorkers.addEventListener('click', () => {
+    tabBtnWorkers.classList.add('active');
+    tabBtnPricing.classList.remove('active');
+    panelWorkers.classList.add('active');
+    panelPricing.classList.remove('active');
+  });
+
+  tabBtnPricing.addEventListener('click', () => {
+    tabBtnPricing.classList.add('active');
+    tabBtnWorkers.classList.remove('active');
+    panelPricing.classList.add('active');
+    panelWorkers.classList.remove('active');
+  });
+</script>
+<script src="js/workers.js"></script>
+<script src="js/pricing.js"></script>
+</body>
+</html>
