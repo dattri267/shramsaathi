@@ -1,1508 +1,1110 @@
-ShramSaathi
-
-AI-enabled labour cooperative service marketplace for fast, fair, and reliable access to verified workers.
-
-ShramSaathi is a full-stack service marketplace designed around customers, workers, and cooperative administrators. Customers can discover and request local services, workers can create verified professional profiles and receive jobs, and administrators can verify workers and manage platform intelligence.
-
-The platform combines a conventional service marketplace with emergency worker matching, geospatial services, Redis-based location handling, AI-assisted pricing, demand intelligence, and a PySpark analytics pipeline.
-
-Table of Contents
-
-Project Overview
-
-Problem Statement
-
-Solution
-
-Key Features
-
-System Architecture
-
-Technology Stack
-
-Repository Structure
-
-Core Workflows
-
-AI and Data Intelligence
-
-Prerequisites
-
-Environment Configuration
-
-Database Setup
-
-Backend Setup
-
-Mobile Application Setup
-
-AI Engine Setup
-
-Spark Analytics Setup
-
-Running the Complete System
-
-API Overview
-
-Security and Verification
-
-Pricing and Revenue Model
-
-Troubleshooting
-
-Development Notes
-
-Future Enhancements
-
-Project Status
-
-Project Overview
-
-ShramSaathi is a digital platform for connecting customers with skilled and verified workers.
-
-Supported service areas include:
-
-Electrician
-
-Plumber
-
-Carpenter
-
-Painter
-
-Domestic Helper
-
-Caregiver
-
-Technician
-
-Elder Care
-
-Child Care
-
-The application supports both normal bookings and emergency bookings.
-
-High-level flow
-
-Customer
-   |
-   v
-Select Service
-   |
-   +---- Normal Booking
-   |
-   +---- Emergency Booking
-              |
-              v
-       Nearby Worker Matching
-              |
-              v
-        Worker Accepts
-              |
-              v
-         Service Started
-              |
-              v
-        Service Completed
-              |
-              v
-            Payment
-              |
-              v
-            Rating
-
-The intelligence layer operates alongside the marketplace:
-
-Demand Data
-    |
-    v
-Apache Spark / PySpark
-    |
-    v
-Demand Analytics
-    |
-    v
-Machine Learning
-    |
-    +---- Demand Intelligence
-    |
-    +---- Fair Price Prediction
-
-Problem Statement
-
-Traditional local labour/service discovery can suffer from:
-
-Difficulty finding reliable workers quickly
-
-Lack of worker verification
-
-Unclear or inconsistent pricing
-
-Limited visibility into worker availability
-
-Slow response during emergencies
-
-Lack of structured worker profiles
-
-Poor visibility of worker movement after assignment
-
-Limited data-driven demand planning
-
-Weak mechanisms for worker welfare and fair revenue distribution
-
-ShramSaathi addresses these problems through a unified digital platform.
-
-Solution
-
-Customer
-
-Customers can:
-
-Create an account
-
-Maintain a profile and service address
-
-Select a required service
-
-Request normal or emergency service
-
-Receive an assigned worker
-
-View the latest worker location for supported emergency jobs
-
-Complete payment
-
-Rate the worker
-
-Raise disputes when required
-
-Worker
-
-Workers can:
-
-Create an account
-
-Build a professional profile
-
-Select primary and additional skills
-
-Add experience and availability
-
-Provide service radius and service location
-
-Upload verification documents
-
-Receive booking requests
-
-Accept or reject jobs
-
-Start and complete services
-
-Share location during an active emergency booking
-
-View work and earning information
-
-Administrator
-
-Administrators can:
-
-Review worker registrations
-
-Verify submitted worker information
-
-Approve or reject workers
-
-Suspend workers when necessary
-
-Review marketplace intelligence
-
-Review demand and pricing analytics
-
-Manage platform-level operational information
-
-Key Features
-
-Multi-role Authentication
-
-The platform separates:
-
-Customer
-
-Worker
-
-Administrator
-
-Authentication uses JWT-based sessions and bcrypt password hashing.
-
-Worker Verification
-
-Worker onboarding captures:
-
-Full name
-
-Phone
-
-Profile photo
-
-Bio
-
-Primary skill
-
-Additional skills
-
-Experience
-
-Service radius
-
-Hourly rate
-
-Working days/hours
-
-Service address
-
-Coordinates
-
-Verification documents
-
-Worker statuses:
-
-pending_verification
-verified
-suspended
-rejected
-
-Service Marketplace
-
-Customers select database-backed services/skills and request workers according to their requirements.
-
-Normal Booking
-
-Customer -> Service -> Date/Time -> Booking
-         -> Worker Assignment -> Accept
-         -> Start -> Complete -> Payment -> Rating
-
-Emergency Booking
-
-Emergency service is a major differentiating feature:
-
-Customer
-   |
-   v
-Emergency Request
-   |
-   v
-Eligible Nearby Workers
-   |
-   v
-Offer / Assignment Attempts
-   |
-   v
-Worker Accepts
-   |
-   v
-Live Location
-   |
-   v
-Service
-
-Matching can consider worker verification, availability, service skill, and location.
-
-Live Worker Location
-
-Redis stores recent worker coordinates using keys such as:
-
-worker:location:<workerId>
-
-The worker app can obtain foreground GPS coordinates and send them to the backend. The customer app can request the latest location for an assigned emergency worker.
-
-The MVP uses polling rather than a permanent WebSocket connection.
-
-AI-assisted Pricing
-
-The platform includes a Random Forest regression model for pricing/demand intelligence.
-
-Model inputs include:
-
-City
-
-Service category
-
-Date
-
-Weather
-
-Event context
-
-Current/base price
-
-The backend requests a prediction from the AI engine and uses the suggested price for emergency bookings.
-
-Demand Intelligence
-
-A PySpark pipeline processes demand data and produces:
-
-Total jobs
-
-Average daily jobs
-
-City-wise demand
-
-Category-wise demand
-
-Peak day
-
-Peak month
-
-Allocation insights
-
-The current demand dataset is synthetic and is intended for development/demo purposes.
-
-Payments
-
-The MVP contains payment status and distribution handling for:
-
-Customer payment
-
-Worker share
-
-Welfare share
-
-Platform share
-
-A production payment provider can be integrated later.
-
-Ratings and Disputes
-
-Backend modules support worker ratings/reviews and dispute records.
-
-Cloudinary
-
-Cloudinary is used for media such as:
-
-Avatar/profile images
-
-Worker verification documents
-
-System Architecture
-
-                    +----------------------+
-                    |   React Native +     |
-                    |        Expo          |
-                    | Customer / Worker UI |
-                    +----------+-----------+
-                               |
-                               | REST API
-                               v
-                    +----------------------+
-                    |   Node.js + Express  |
-                    |        Port 8000      |
-                    +----+--------+----+----+
-                         |        |    |
-              +----------+        |    +------------+
-              v                   v                 v
-      +---------------+   +-------------+   +---------------+
-      | PostgreSQL    |   |    Redis    |   | FastAPI AI    |
-      | + PostGIS     |   |             |   | Engine :8001  |
-      |               |   | Location /  |   | Random Forest |
-      | Users/Skills/ |   | Matching    |   | Inference     |
-      | Bookings/etc. |   |             |   |               |
-      +---------------+   +-------------+   +---------------+
-              |
-              v
-      +---------------+
-      |  Cloudinary   |
-      | Images / Docs |
-      +---------------+
-
-Data Intelligence:
-
-Demand Data -> PySpark -> Analytics -> ML Model -> Backend Pricing
-
-Technology Stack
-
-Layer
-
-Technology
-
-Purpose
-
-Mobile
-
-React Native
-
-Cross-platform mobile app
-
-Mobile Runtime
-
-Expo SDK 57
-
-Development/runtime
-
-Language
-
-TypeScript
-
-Type-safe mobile development
-
-Navigation
-
-React Navigation
-
-Screen navigation
-
-Location
-
-Expo Location
-
-GPS services
-
-Backend
-
-Node.js
-
-Server runtime
-
-API
-
-Express 5
-
-REST API
-
-ORM/DB Tooling
-
-Prisma 7
-
-Database access/tooling
-
-Database
-
-PostgreSQL
-
-Relational data
-
-Geospatial
-
-PostGIS
-
-Location queries/data
-
-Cache
-
-Redis
-
-Worker location/matching
-
-Authentication
-
-JWT
-
-API authentication
-
-Password Security
-
-bcrypt
-
-Password hashing
-
-Uploads
-
-Multer
-
-Multipart file handling
-
-Media
-
-Cloudinary
-
-Image/document storage
-
-AI API
-
-FastAPI
-
-ML inference API
-
-ML
-
-scikit-learn
-
-Machine learning
-
-Model
-
-Random Forest Regressor
-
-Price/demand prediction
-
-Data
-
-pandas / NumPy
-
-Data processing
-
-Data Engineering
-
-Apache Spark / PySpark
-
-Demand analytics
-
-Model Serialization
-
-joblib
-
-Model persistence
-
-Repository Structure
-
-A representative structure is:
-
-shramsaathi/
-|
-+-- MobileApp/
-|   +-- src/
-|   |   +-- api.ts
-|   |   +-- app/
-|   |   |   +-- auth/
-|   |   |   +-- userdashboard/
-|   |   |   +-- worker/
-|   |   |   +-- workerdetails/
-|   |   |   +-- ...
-|   |   +-- components/
-|   |   +-- ...
-|   +-- app.json
-|   +-- package.json
-|   +-- ...
-|
-+-- backend/
-|   +-- backend/
-|       +-- src/
-|       |   +-- controllers/
-|       |   +-- routes/
-|       |   +-- services/
-|       |   +-- middleware/
-|       |   +-- config/
-|       |   +-- ...
-|       +-- prisma/
-|       +-- package.json
-|       +-- ...
-|
-+-- admin/
-    +-- ai-engine/
-        +-- main.py
-        +-- model/
-        +-- data/
-        +-- spark_pipeline.py
-        +-- requirements.txt
-        +-- spark-requirements.txt
-        +-- ...
-
-Core Workflows
-
-Customer Registration
-
-Create Account
-      |
-      v
-Customer Profile
-      |
-      v
-Address / Location
-      |
-      v
-Customer Dashboard
-
-Worker Registration
-
-Create Worker Account
-        |
-        v
-Worker Details
-        |
-        v
-Skills + Experience
-        |
-        v
-Availability + Service Radius
-        |
-        v
-Address + Coordinates
-        |
-        v
-Documents
-        |
-        v
-Admin Verification
-
-Normal Booking
-
+# ShramSaathi
+
+> **A smart labour-cooperative service marketplace that connects customers with verified workers while using data engineering and machine learning to support demand forecasting and fair pricing.**
+
+ShramSaathi is a full-stack platform designed around the workflow of a labour cooperative federation. Customers can discover services, request workers, make normal or emergency bookings, and track accepted emergency workers. Workers can manage their profiles, availability, bookings, and live location. A federation/admin layer provides operational visibility and an AI/data pipeline for demand analysis and pricing intelligence.
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [How ShramSaathi Works](#how-shramsaathi-works)
+- [System Architecture](#system-architecture)
+- [Technology Stack](#technology-stack)
+- [Project Structure](#project-structure)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Running the Project](#running-the-project)
+- [Spark Data Pipeline](#spark-data-pipeline)
+- [Environment Configuration](#environment-configuration)
+- [AI Engine](#ai-engine)
+- [Admin Frontend](#admin-frontend)
+- [Database and Redis](#database-and-redis)
+- [API Overview](#api-overview)
+- [Emergency Booking Flow](#emergency-booking-flow)
+- [ML and Data Intelligence](#ml-and-data-intelligence)
+- [Troubleshooting](#troubleshooting)
+- [Future Enhancements](#future-enhancements)
+- [Project Status](#project-status)
+
+---
+
+## Overview
+
+ShramSaathi combines a **service marketplace**, **labour-cooperative workflow**, and **data-driven intelligence layer**.
+
+The platform has four major runtime components:
+
+1. **Mobile Application** — React Native + Expo application used by customers and workers.
+2. **Backend API** — Node.js + Express API responsible for authentication, users, workers, bookings, matching, pricing, payments, and location services.
+3. **AI Engine** — FastAPI service that exposes the trained demand-forecasting model and pricing intelligence.
+4. **Admin Frontend** — Static HTML/CSS/JavaScript federation dashboard served locally through Python's built-in HTTP server.
+
+A separate **Apache Spark / PySpark pipeline** processes synthetic demand data and produces aggregated demand insights. Spark is a data-processing pipeline, **not a continuously running server**.
+
+---
+
+## Key Features
+
+### Customer
+
+- User registration and authentication
+- Customer profile and service requirements
+- Browse available services and subcategories
+- Select normal or emergency service
+- Create and manage bookings
+- View booking status
+- Worker assignment for accepted requests
+- Emergency worker tracking through live location
+- Open the worker's location in maps
+- Mock payment flow for the MVP
+
+### Worker
+
+- Worker registration and profile setup
+- Skill/service selection
+- Worker verification workflow
+- Online/offline availability
+- Accept or reject booking requests
+- Booking status management
+- Emergency booking participation
+- Live GPS location updates during active emergency jobs
+
+### Emergency Service
+
+- Emergency booking request
+- Search for suitable verified/online workers
+- Offer-based worker assignment
+- Worker response timeout handling
+- Escalation to additional workers when required
+- Dynamic emergency pricing support
+- Live worker location after confirmation
+
+### Federation/Admin Intelligence
+
+- Worker and operational visibility
+- Demand analytics
+- City/category demand aggregation
+- Demand forecasting through Random Forest Regression
+- Fair-price recommendation logic
+- Spark-generated demand insights
+- Synthetic demand data pipeline for demonstration and experimentation
+
+---
+
+## How ShramSaathi Works
+
+### Marketplace Flow
+
+```text
 Customer
    |
    v
 Select Service
    |
    v
-Select Date / Time
+Select Subcategory / Requirement
    |
-   v
-Create Booking
-   |
-   v
-Worker Assignment
-   |
-   v
-Worker Accepts
-   |
-   v
-Start Job
-   |
-   v
-Complete Job
-   |
-   v
-Payment
-   |
-   v
-Rating
+   +----------------------+
+   |                      |
+Normal Booking       Emergency Booking
+   |                      |
+   v                      v
+Worker Matching      Emergency Matching
+   |                      |
+   v                      v
+Worker Assigned      Worker Offer
+   |                      |
+   v                      v
+Booking Confirmed    Worker Accepts
+   |                      |
+   +----------+-----------+
+              |
+              v
+        Service Execution
+              |
+              v
+          Completion
+```
 
-Emergency Booking
+### Intelligence Flow
 
-Customer
-   |
-   v
-Emergency Request
-   |
-   v
-AI-assisted Price
-   |
-   v
-Emergency Booking
-   |
-   v
-Nearby Eligible Workers
-   |
-   v
-Worker Accepts
-   |
-   v
-Location Updates
-   |
-   v
-Service Completed
+```text
+Synthetic Demand Data
+          |
+          v
+      Apache Spark
+          |
+          v
+Demand Aggregation & Insights
+          |
+          +-------------------+
+          |                   |
+          v                   v
+   Demand Analytics      ML Forecasting
+                              |
+                              v
+                    Random Forest Model
+                              |
+                              v
+                     Demand Prediction
+                              |
+                              v
+                    Fair Price Suggestion
+```
 
-AI and Data Intelligence
+---
 
-Machine Learning Pricing
+## System Architecture
 
-The FastAPI AI engine provides inference for pricing/demand intelligence.
+```mermaid
+flowchart TB
 
-The backend sends values such as:
+    Customer["Customer Mobile App"]
+    Worker["Worker Mobile App"]
 
-{
-  "city": "Mumbai",
-  "category": "Plumber",
-  "date": "2026-09-15",
-  "currentPrice": 650,
-  "weather": "Clear",
-  "events": "Normal day"
-}
+    API["Node.js + Express Backend"]
+    DB[("PostgreSQL + PostGIS")]
+    Redis[("Redis")]
 
-The model returns a suggested price and model information.
+    AI["FastAPI AI Engine"]
+    ML["Random Forest Demand Model"]
+    Spark["Apache Spark / PySpark Pipeline"]
+    Data[("Synthetic Demand Dataset")]
 
-Current development model metadata:
+    Admin["Federation Admin Frontend"]
 
-Model: RandomForestRegressor
-Model version: 1.0.0-rf
-MAE: approximately 10.016
-R²: approximately 0.687
-Holdout fraction: 0.20
+    Customer --> API
+    Worker --> API
+    Admin --> API
 
-These are development metrics and should be regenerated when the training data or model changes.
+    API --> DB
+    API --> Redis
+    API --> AI
 
-Spark Demand Pipeline
+    AI --> ML
 
-The Spark pipeline aggregates demand data for marketplace intelligence.
+    Data --> Spark
+    Spark --> AI
 
-Current development output has included:
+    Redis --> API
+```
 
-Total jobs: 1,276,491
-Average daily jobs: 106.37
+> The diagram represents the logical architecture. Spark is executed as a data-processing job and does not need to remain running alongside the other services.
 
-Example city totals from the current synthetic dataset:
+---
 
-Mumbai      343,910
-Delhi       327,323
-Bengaluru   304,998
-Hyderabad   300,260
+## Technology Stack
 
-These figures are synthetic development/demo data, not real ShramSaathi production statistics.
+| Layer | Technology |
+|---|---|
+| Mobile application | React Native |
+| Mobile tooling | Expo SDK 57 |
+| Backend runtime | Node.js |
+| Backend framework | Express 5 |
+| Database | PostgreSQL |
+| Geospatial database support | PostGIS |
+| ORM | Prisma 7 |
+| Caching / location store | Redis |
+| Authentication | JWT + bcrypt |
+| Image/file storage | Cloudinary |
+| AI API | FastAPI |
+| AI server | Uvicorn |
+| ML | scikit-learn |
+| Data processing | Apache Spark / PySpark |
+| ML data handling | Pandas / NumPy |
+| Admin frontend | HTML + CSS + JavaScript |
+| Admin local server | Python `http.server` |
 
-Prerequisites
+---
 
-Install:
+## Project Structure
 
-Node.js
+The important parts of the repository are organized approximately as follows:
 
-npm
+```text
+ShramSaathi/
+│
+├── backend/
+│   └── backend/
+│       ├── src/
+│       ├── prisma/
+│       ├── package.json
+│       └── ...
+│
+├── MobileApp/
+│   ├── src/
+│   ├── assets/
+│   ├── package.json
+│   └── ...
+│
+└── admin/
+    │
+    ├── ai-engine/
+    │   ├── data/
+    │   │   └── synthetic_demand.csv
+    │   ├── model/
+    │   │   ├── demand_forecaster.pkl
+    │   │   └── metadata.json
+    │   ├── features.py
+    │   ├── main.py
+    │   ├── train.py
+    │   ├── spark_pipeline.py
+    │   └── requirements.txt
+    │
+    └── frontend/
+        ├── index.html
+        ├── css/
+        │   └── style.css
+        └── js/
+            ├── config.js
+            ├── pricing.js
+            └── workers.js
+```
 
-Python 3.x
+> The admin frontend is intentionally a **plain static frontend**. It is not a Vite/React application and therefore does not use `npm run dev`.
 
-Java 17
+---
 
-PostgreSQL
+# Prerequisites
 
-PostGIS
+Install the following before running the project:
 
-Redis
+- **Node.js**
+- **npm**
+- **Python 3.13.x** (or a compatible Python version supported by the installed dependencies)
+- **Java 17** — required by the current PySpark setup
+- **PostgreSQL**
+- **PostGIS** extension
+- **Redis**
+- **Expo-compatible mobile development environment**
 
-Git
+For Android development, you can use:
 
-Expo-compatible Android/iOS environment
+- Android Studio + Android Emulator, or
+- a physical Android device with Expo Go
 
-Recommended:
+---
 
-VS Code
+# Installation
 
-Android Studio
+## 1. Clone the Repository
 
-Android emulator or physical Android device
+```bash
+git clone <YOUR_REPOSITORY_URL>
+cd ShramSaathi
+```
 
-Postman or Insomnia
+---
 
-Environment Configuration
+## 2. Install Backend Dependencies
 
-Never commit secrets to Git.
-
-Backend
-
-Typical configuration:
-
-PORT=8000
-
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE
-
-JWT_SECRET=replace_with_a_strong_secret
-
-REDIS_URL=redis://127.0.0.1:6379
-
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
-
-AI_ENGINE_BASE_URL=http://127.0.0.1:8001
-
-Use the exact variable names required by the current backend configuration.
-
-Mobile API
-
-For a physical Android phone, use the development PC's LAN address rather than localhost:
-
-http://<YOUR-LAN-IP>:8000
-
-The phone and PC must normally be connected to the same network.
-
-AI Engine
-
-Default development URL:
-
-http://127.0.0.1:8001
-
-Database Setup
-
-1. Create PostgreSQL Database
-
-Create a database for ShramSaathi.
-
-Enable PostGIS:
-
-CREATE EXTENSION IF NOT EXISTS postgis;
-
-2. Configure DATABASE_URL
-
-Example:
-
-DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/shramsaathi"
-
-3. Prisma
-
-From the backend directory:
-
+```powershell
+cd .\backend\backend
 npm install
-npx prisma generate
+```
 
-If using existing migrations:
+---
 
-npx prisma migrate deploy
+## 3. Install Mobile Dependencies
 
-For a development database where schema synchronization is intended:
+Open a new terminal:
 
-npx prisma db push
-
-Use the command matching the repository's migration workflow.
-
-4. Required Skills
-
-The database should contain:
-
-Electrician
-Plumber
-Carpenter
-Painter
-Domestic Helper
-Caregiver
-Technician
-Elder Care
-Child Care
-
-Elder Care and Child Care require actual database skill records; frontend fallback labels alone are not sufficient for backend profile persistence.
-
-Backend Setup
-
-Open a terminal:
-
-cd backendackend
-
-Install dependencies:
-
+```powershell
+cd .\MobileApp
 npm install
+```
 
-Generate Prisma client:
+---
 
-npx prisma generate
-
-Start development server:
-
-npm run dev
-
-Backend:
-
-http://localhost:8000
-
-Health check:
-
-GET /health
-
-If the project uses a different script:
-
-npm run
-
-Mobile Application Setup
+## 4. Set Up the AI Engine
 
 Open another terminal:
 
-cd MobileApp
-
-Install dependencies:
-
-npm install
-
-Start Expo:
-
-npx expo start
-
-For a clean Metro cache:
-
-npx expo start -c
-
-Run using an Android emulator or physical device.
-
-Physical Android Device
-
-Verify:
-
-Phone and PC are on the same network.
-
-Backend is running.
-
-Mobile API URL points to the PC LAN IP.
-
-Windows Firewall permits port 8000.
-
-Expo can reach the development machine.
-
-AI Engine Setup
-
-Navigate to:
-
-cd admini-engine
-
-Create a virtual environment:
-
+```powershell
+cd .\admin\ai-engine
 python -m venv venv
-
-Activate:
-
-.env\Scripts\Activate.ps1
-
-Install dependencies:
-
+.\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+```
 
-Start the FastAPI server:
+If PowerShell blocks activation, you can run the environment's Python directly:
 
-uvicorn main:app --host 0.0.0.0 --port 8001
+```powershell
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
+```
 
-The AI engine should be available at:
+---
 
-http://127.0.0.1:8001
+# Running the Project
 
-AI Endpoints
+ShramSaathi uses **four terminals** during normal local development.
 
-GET  /health
-GET  /options
-POST /predict
+## Terminal 1 — Backend API
 
-Spark Analytics Setup
-
-The current development environment uses:
-
-Python 3.13.x
-Java 17
-PySpark 4.0.x
-
-Navigate to:
-
-cd admini-engine
-
-Activate the environment:
-
-.env\Scripts\Activate.ps1
-
-Install Spark requirements:
-
-pip install -r spark-requirements.txt
-
-Verify Java:
-
-java -version
-
-Run the pipeline:
-
-python spark_pipeline.py
-
-The pipeline generates analytics output such as:
-
-data/spark_output.json
-
-For the current development setup, running the Python script directly is preferred over spark-submit unless a standalone Spark distribution is separately configured.
-
-Running the Complete System
-
-Use separate terminals.
-
-Terminal 1 — Redis
-
-Start Redis using the installation appropriate to your operating system.
-
-Terminal 2 — Backend
-
-cd backendackend
-npm install
+```powershell
+cd .\backend\backend
 npm run dev
+```
 
-Runs on:
+Backend:
 
+```text
 http://localhost:8000
+```
 
-Terminal 3 — AI Engine
+The backend development script uses Nodemon and starts:
 
-cd admini-engine
-.env\Scripts\Activate.ps1
+```text
+src/server.js
+```
+
+---
+
+## Terminal 2 — Mobile Application
+
+```powershell
+cd .\MobileApp
+npx expo start
+```
+
+If you need to clear Expo's cache:
+
+```powershell
+npx expo start -c
+```
+
+Expo will display the available development options for an emulator or physical device.
+
+---
+
+## Terminal 3 — FastAPI AI Engine
+
+This is the AI server running from the `admin/ai-engine` directory.
+
+```powershell
+cd .\admin\ai-engine
+.\venv\Scripts\Activate.ps1
 uvicorn main:app --host 0.0.0.0 --port 8001
+```
 
-Terminal 4 — Spark
+AI engine:
 
-cd admini-engine
-.env\Scripts\Activate.ps1
-python spark_pipeline.py
+```text
+http://localhost:8001
+```
 
-Terminal 5 — Mobile
+Health check:
 
-cd MobileApp
-npx expo start -c
+```text
+http://localhost:8001/health
+```
 
-Runtime
+> **Important:** Do not use `npm run dev` or a Vite command here. The AI engine is a Python FastAPI application.
 
-React Native / Expo
-        |
-        v
-Node.js + Express :8000
-        |
-        +------ PostgreSQL + PostGIS
-        |
-        +------ Redis
-        |
-        +------ Cloudinary
-        |
-        +------ FastAPI AI Engine :8001
-                         |
-                         v
-                   ML Model
+---
 
-API Overview
+## Terminal 4 — Admin Frontend
 
-Major backend modules include:
+The admin frontend is plain HTML/CSS/JavaScript.
 
-/auth
-/api/auth
+```powershell
+cd .\admin\frontend
+python -m http.server 5500
+```
 
-/api/customer
-/api/worker
-/api/skills
+Open:
 
-/api/bookings
-/api/emergency
+```text
+http://localhost:5500
+```
 
-/api/pricing
-/api/payments
-/api/invoices
+> **Important:** There is no `package.json`, Vite configuration, or npm development script in the current admin frontend. Python's built-in HTTP server is the correct local server for it.
 
-/api/location
-/api/avatar
+---
 
-/api/ratings
-/api/disputes
-/api/welfare
+# Quick Start — All Four Commands
 
-Location
+After installing everything, the four runtime terminals are:
 
-Worker location update:
+### 1. Backend
 
-PATCH /api/worker/location
+```powershell
+cd .\backend\backend
+npm run dev
+```
 
-Worker location retrieval:
+### 2. Mobile
 
-GET /api/worker/:workerId/location
+```powershell
+cd .\MobileApp
+npx expo start
+```
 
-Pricing
+### 3. AI Engine
 
-Standard pricing:
+```powershell
+cd .\admin\ai-engine
+.\venv\Scripts\Activate.ps1
+uvicorn main:app --host 0.0.0.0 --port 8001
+```
 
-POST /api/pricing/calculate
+### 4. Admin Frontend
 
-AI-assisted pricing:
+```powershell
+cd .\admin\frontend
+python -m http.server 5500
+```
 
-POST /api/pricing/predict
+---
 
-The backend remains authoritative for important business rules and emergency booking pricing.
+# Spark Data Pipeline
 
-Security and Verification
+The Spark pipeline is run separately when demand data needs to be processed.
 
-Authentication
-
-Password
-   |
-   v
-bcrypt
-   |
-   v
-JWT
-   |
-   v
-Authenticated API Request
-
-Role-based access
-
-Customer, worker, and administrator actions are protected according to role.
-
-Worker verification
-
-Worker documents are uploaded for review.
-
-Worker states:
-
-pending_verification
-verified
-suspended
-rejected
-
-The application should not treat an unverified worker as a fully trusted service provider.
-
-Pricing and Revenue Model
-
-The current cooperative-oriented MVP distribution is:
-
-Customer Payment
-       |
-       +---- 80% -> Worker
-       |
-       +---- 10% -> Welfare Fund
-       |
-       +---- 10% -> Platform
-
-Emergency prices can be generated using the AI pricing service.
-
-The backend should remain authoritative rather than trusting a price supplied only by the mobile client.
-
-Troubleshooting
-
-Expo bundling error
-
-Try:
-
-npx expo start -c
-
-Then inspect the exact file/line reported by Babel.
-
-Mobile cannot connect to backend
-
-Do not use localhost on a physical phone.
-
-Use:
-
-http://192.168.x.x:8000
-
-Also check:
-
-Same Wi-Fi/network
-
-Backend is running
-
-Firewall
-
-Correct mobile API URL
-
-AI pricing fails
-
-Check:
-
-http://127.0.0.1:8001/health
-
-and:
-
-AI_ENGINE_BASE_URL=http://127.0.0.1:8001
-
-Live location unavailable
-
-Check:
-
-Redis is running.
-
-Worker granted foreground location permission.
-
-Worker dashboard is active.
-
-Worker has an accepted/active emergency booking.
-
-Backend location endpoint is reachable.
-
-Worker profile ID is being used correctly.
-
-Elder Care / Child Care registration fails
-
-Verify that the database contains real skill rows for:
-
-elder-care
-child-care
-
-The backend resolves worker skills against database records.
-
-Prisma errors
+It is **not a fifth server**.
 
 Run:
 
-npx prisma generate
+```powershell
+cd .\admin\ai-engine
+.\venv\Scripts\Activate.ps1
+python spark_pipeline.py
+```
 
-Then verify DATABASE_URL, PostgreSQL availability, and database connectivity.
+The pipeline reads the synthetic demand dataset and produces aggregated demand insights.
 
-Spark errors
+The generated output is:
 
-Verify:
+```text
+data/spark_output.json
+```
 
-python --version
-java -version
+### Current Spark pipeline summary
 
-Expected development configuration:
+The existing generated analysis includes:
 
-Python 3.13.x
-Java 17
-PySpark 4.0.x
+- Total jobs: **1,276,491**
+- Average daily jobs: **106.37**
+- Highest-demand day: **Saturday**
+- Highest-demand month: **July**
+- Highest city total: **Mumbai**
+- Highest category total: **Plumber**
+- Allocation insight: prioritize **Plumber demand in Mumbai**
+
+These values are based on the project's current synthetic dataset and generated Spark output.
+
+### Why synthetic data?
+
+ShramSaathi does not yet have a large historical production booking dataset. Synthetic demand data is therefore used to demonstrate the data-engineering and forecasting workflow without claiming that the numbers represent real-world labour demand.
+
+---
+
+# Environment Configuration
+
+## Backend
+
+Configure the backend environment according to the variables expected by the backend implementation.
+
+Typical development configuration includes:
+
+```env
+PORT=8000
+DATABASE_URL=<POSTGRESQL_CONNECTION_STRING>
+JWT_SECRET=<YOUR_JWT_SECRET>
+REDIS_URL=<YOUR_REDIS_CONNECTION>
+CLOUDINARY_CLOUD_NAME=<YOUR_CLOUDINARY_NAME>
+CLOUDINARY_API_KEY=<YOUR_CLOUDINARY_KEY>
+CLOUDINARY_API_SECRET=<YOUR_CLOUDINARY_SECRET>
+AI_ENGINE_BASE_URL=http://127.0.0.1:8001
+```
+
+Use the project's actual backend `.env` template/configuration when available rather than copying placeholder values directly into production.
+
+---
+
+## Admin Frontend
+
+The current admin frontend keeps its service endpoints in:
+
+```text
+admin/frontend/js/config.js
+```
+
+The local configuration is:
+
+```javascript
+const CONFIG = {
+  BACKEND_API_BASE: 'http://localhost:8000/api',
+  AI_ENGINE_BASE: 'http://localhost:8001'
+};
+```
+
+If the services are hosted on another machine, update these addresses accordingly.
+
+---
+
+# AI Engine
+
+The AI engine is a **FastAPI service** responsible for exposing the trained ML model through HTTP endpoints.
+
+### Model
+
+Current model:
+
+```text
+RandomForestRegressor
+```
+
+The trained model is stored under:
+
+```text
+admin/ai-engine/model/demand_forecaster.pkl
+```
+
+Model metadata is stored in:
+
+```text
+admin/ai-engine/model/metadata.json
+```
+
+### Supported prediction inputs
+
+The current model supports the following categories:
+
+- Electrician
+- Plumber
+- Carpenter
+- Painter
+- Domestic Helper
+- Caregiver
+- Technician
+
+Supported cities:
+
+- Bengaluru
+- Mumbai
+- Delhi
+- Hyderabad
+
+Supported weather conditions:
+
+- Clear
+- Rain
+- Extreme heat
+
+Supported event conditions:
+
+- Normal day
+- Holiday
+- Major event
+
+### Current model metadata
+
+The current model metadata reports:
+
+| Metric | Value |
+|---|---:|
+| Model | RandomForestRegressor |
+| Model version | `1.0.0-rf` |
+| MAE | `10.016` |
+| R² | `0.6868` |
+| Holdout fraction | `0.2` |
+
+These metrics describe the current trained model and should be treated as experimental/MVP results rather than production performance guarantees.
+
+---
+
+# Fair Pricing Logic
+
+ShramSaathi uses the demand prediction to support fair-price recommendations.
+
+The current pricing logic calculates a demand-based multiplier using the predicted demand relative to a reference level:
+
+```text
+multiplier =
+    clamp(
+        0.82 + (demand_ratio - 0.75) × 0.54,
+        0.82,
+        1.18
+    )
+```
+
+The suggested price is then calculated as:
+
+```text
+suggested_price = current_price × multiplier
+```
+
+The multiplier is bounded so that the recommendation does not move outside the configured pricing range.
+
+This approach is intended to support **demand-aware pricing while keeping prices within controlled limits**.
+
+---
+
+# Database and Redis
+
+## PostgreSQL + PostGIS
+
+PostgreSQL stores persistent application data such as:
+
+- Users
+- Worker profiles
+- Customer profiles
+- Skills/services
+- Bookings
+- Booking states
+- Worker-related records
+
+PostGIS provides geospatial database support for location-related functionality.
+
+Make sure PostgreSQL is running before starting the backend.
+
+---
+
+## Redis
+
+Redis is used for fast-changing worker location information and matching-related operations.
+
+The current worker location implementation uses keys in the form:
+
+```text
+worker:location:${workerId}
+```
+
+Worker location entries use an expiry so stale locations do not remain indefinitely.
+
+The current implementation refreshes location information while relevant emergency work is active.
+
+Make sure Redis is running before using features that depend on it.
+
+---
+
+# API Overview
+
+The backend exposes REST APIs under:
+
+```text
+http://localhost:8000/api
+```
+
+Major functional areas include:
+
+| Area | Purpose |
+|---|---|
+| Authentication | Registration, login and identity |
+| Users | Customer/user profile operations |
+| Workers | Worker profile and worker operations |
+| Skills | Service and skill resolution |
+| Bookings | Normal and emergency bookings |
+| Matching | Worker discovery and assignment |
+| Pricing | Demand-aware pricing support |
+| Location | Worker location updates and retrieval |
+| Payments | MVP/mock payment workflow |
+
+The exact request/response schemas are defined by the backend source code.
+
+---
+
+# Emergency Booking Flow
+
+Emergency service is one of the important differentiators of ShramSaathi.
+
+The simplified flow is:
+
+```text
+Customer requests emergency service
+              |
+              v
+      Backend validates request
+              |
+              v
+     Find eligible workers
+              |
+              v
+   Send worker booking offer
+              |
+        +-----+-----+
+        |           |
+      Accept      Reject/Timeout
+        |           |
+        v           v
+   Confirm job    Try next worker
+        |           |
+        +-----+-----+
+              |
+              v
+       Service execution
+              |
+              v
+      Live location updates
+```
+
+Workers are considered according to the eligibility and availability logic implemented by the backend.
+
+When an emergency booking is confirmed, the worker application can send location updates and the customer application can retrieve the current worker location.
+
+---
+
+# Worker Location Tracking
+
+The emergency workflow supports live worker location.
+
+### Worker side
+
+The Worker Dashboard can:
+
+1. Obtain the worker's GPS location.
+2. Send updated coordinates to the backend.
+3. Continue refreshing location while the relevant emergency job is active.
+
+### Customer side
+
+The User Dashboard can:
+
+1. Poll the worker's current location.
+2. Display the latest available location.
+3. Provide an option to open the location in maps.
+
+The location layer uses Redis for fast access to the latest worker position.
+
+---
+
+# ML + Data Engineering Layer
+
+The intelligence layer is intentionally split into two responsibilities.
+
+## Apache Spark
+
+Spark handles the **data-engineering and aggregation stage**:
+
+```text
+Synthetic Records
+       ↓
+Spark Processing
+       ↓
+Cleaning / Aggregation
+       ↓
+City + Category + Time Insights
+       ↓
+Demand Analytics Output
+```
+
+Spark is therefore not presented as another prediction model.
+
+## Machine Learning
+
+The Random Forest model handles the **prediction stage**:
+
+```text
+Category
+City
+Weather
+Day / Time Features
+Event Context
+       ↓
+Random Forest Regressor
+       ↓
+Predicted Demand
+```
+
+The predicted demand can then contribute to the pricing recommendation layer.
+
+This separation makes the architecture easier to explain:
+
+> **Spark processes the data; ML predicts demand; the application uses the prediction to support operational and pricing decisions.**
+
+---
+
+# Development Workflow
+
+A recommended development workflow is:
+
+```text
+1. Start PostgreSQL + PostGIS
+2. Start Redis
+3. Start Backend
+4. Start AI Engine
+5. Start Admin Frontend
+6. Start Expo Mobile App
+7. Run Spark pipeline when demand data needs regeneration
+```
+
+For normal application testing, Spark does not need to be running continuously.
+
+---
+
+# Troubleshooting
+
+## Backend does not start
+
+Check:
+
+```powershell
+node --version
+npm --version
+```
+
+Then reinstall dependencies if required:
+
+```powershell
+cd .\backend\backend
+npm install
+npm run dev
+```
+
+Also verify PostgreSQL and Redis are running.
+
+---
+
+## AI Engine does not start
+
+Make sure the virtual environment is activated:
+
+```powershell
+cd .\admin\ai-engine
+.\venv\Scripts\Activate.ps1
+```
 
 Then:
 
+```powershell
+uvicorn main:app --host 0.0.0.0 --port 8001
+```
+
+If Uvicorn is not found:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+Then retry.
+
+---
+
+## AI health check
+
+Open:
+
+```text
+http://localhost:8001/health
+```
+
+The service should return a successful health response containing the loaded model information.
+
+---
+
+## Admin frontend does not open
+
+Do **not** run:
+
+```text
+npm run dev
+```
+
+The current admin frontend is static.
+
+Use:
+
+```powershell
+cd .\admin\frontend
+python -m http.server 5500
+```
+
+Then open:
+
+```text
+http://localhost:5500
+```
+
+---
+
+## Spark fails on Windows
+
+The current project setup is intended to run the pipeline directly through Python:
+
+```powershell
+cd .\admin\ai-engine
+.\venv\Scripts\Activate.ps1
 python spark_pipeline.py
+```
 
-Development Notes
+Do not assume `spark-submit` is configured in the current Windows environment.
 
-Source of Truth
+The project has been tested with the current PySpark setup using Java 17.
 
-Always use the current repository files as the source of truth. Avoid copying older versions of the same file from previous iterations.
+---
 
-Backend Authority
+## Mobile app cannot reach localhost
 
-Business-critical decisions should be enforced on the backend, including:
+When the mobile application runs on a physical phone, `localhost` refers to the phone itself, not your development PC.
 
-Worker eligibility
+Use the computer's local network IP for backend/AI URLs where required, and make sure:
 
-Skill resolution
+- PC and phone are on the same network
+- Windows Firewall permits the required ports
+- Backend is reachable from the phone
+- AI engine is reachable if the mobile workflow calls it directly
 
-Booking creation
+For Android Emulator, the networking address may differ from a physical device.
 
-Emergency pricing
+---
 
-Booking state transitions
+# Ports
 
-Authentication/authorization
+| Component | Port |
+|---|---:|
+| Backend API | `8000` |
+| AI Engine | `8001` |
+| Admin Frontend | `5500` |
+| PostgreSQL | `5432` |
+| Redis | `6379` |
+| Expo | Managed by Expo |
 
-Emergency Pricing
+---
 
-The mobile application may display a predicted emergency price before confirmation, but the backend re-evaluates the price when creating the emergency booking.
+# Security Notes
 
-Location Privacy
+The current project is an MVP/SIH implementation.
 
-Worker location is intended to be temporary operational data. The MVP uses Redis with expiry rather than permanent storage of live GPS coordinates.
+Before production deployment, additional work should be done around:
 
-Synthetic Data
+- Secret management
+- HTTPS/TLS
+- Strong production JWT configuration
+- API rate limiting
+- Input validation and sanitization
+- Role/permission hardening
+- Secure CORS configuration
+- Production database security
+- Redis authentication/network isolation
+- Payment gateway integration
+- Audit logging
+- Monitoring and observability
 
-The current Spark demand dataset is synthetic because the MVP does not have a production history of ShramSaathi bookings. It should be presented as demonstration/development data, not as real marketplace statistics.
+Never commit real API keys, database passwords, JWT secrets, or Cloudinary credentials to the repository.
 
-Future Enhancements
+---
 
-Real-time Communication
+# Future Enhancements
 
-Replace polling with:
+Planned or natural future improvements include:
 
-WebSockets
+- Real Razorpay payment integration
+- Production deployment
+- Stronger worker verification
+- Improved worker matching using distance and availability
+- Better real-time location delivery using WebSockets
+- More historical demand data
+- Improved ML models and continuous retraining
+- Automated Spark data ingestion
+- Federation-level analytics dashboards
+- Notifications for booking offers and status changes
+- Ratings and reviews
+- Service completion verification
+- More robust emergency escalation policies
 
-Socket.IO
+---
 
-Server-Sent Events
+# Project Differentiators
 
-for real-time booking and location updates.
+ShramSaathi is more than a basic service-booking application.
 
-Push Notifications
+Its core differentiators are:
 
-Add notifications for:
+### 1. Labour Cooperative Model
 
-New booking
+The system is designed around a federation/cooperative structure rather than only a conventional gig-marketplace model.
 
-Emergency request
+### 2. Emergency Worker Matching
 
-Worker acceptance
+Emergency requests use a faster worker-offer and escalation workflow.
 
-Worker arrival
+### 3. Data Engineering + AI
 
-Booking completion
+The project demonstrates an end-to-end intelligence pipeline:
 
-Payment status
-
-Verification status
-
-Production Payments
-
-Integrate a production payment gateway such as Razorpay.
-
-Advanced Worker Matching
-
-Future matching can combine:
-
-PostGIS distance
-
-Worker reliability
-
-Historical acceptance rate
-
-Current workload
-
-ETA
-
-Service radius
-
-Availability
-
-Demand density
-
-Production ML
-
-Replace synthetic data with anonymized production data and introduce:
-
-Scheduled retraining
-
-Model versioning
-
-Drift monitoring
-
-Feature monitoring
-
-Performance tracking
-
-Advanced Demand Forecasting
-
-The intelligence layer can evolve toward:
-
-Time-series forecasting
-
-City-level forecasts
-
-Service-level forecasts
-
-Worker capacity planning
-
-Staffing recommendations
-
-Cooperative Features
-
-Future releases can expand:
-
-Welfare fund management
-
-Worker benefits
-
-Cooperative governance
-
-Transparent earnings
-
-Worker incentives
-
-Dispute resolution
-
-Project Status
-
-Area
-
-Status
-
-React Native mobile application
-
-Implemented
-
-Customer registration/profile
-
-Implemented
-
-Worker registration/profile
-
-Implemented
-
-Skill management
-
-Implemented
-
-Worker verification workflow
-
-Implemented
-
-Node/Express backend
-
-Implemented
-
-PostgreSQL/PostGIS
-
-Implemented
-
-Redis integration
-
-Implemented
-
-Normal booking
-
-Implemented
-
-Emergency booking
-
-Implemented
-
-Worker accept/reject
-
-Implemented
-
-Worker location service
-
-Implemented
-
-Customer live-location UI
-
-Implemented
-
-AI pricing service
-
-Implemented
-
-Random Forest model
-
-Implemented
-
-Spark demand pipeline
-
-Implemented
-
-Cloudinary uploads
-
-Implemented
-
-Payment workflow
-
-MVP implementation
-
-Ratings
-
-Backend capability
-
-Disputes
-
-Backend capability
-
-Production payment gateway
-
-Future
-
-Production-scale deployment
-
-Future
-
-WebSocket live tracking
-
-Future
-
-Project Architecture at a Glance
-
-Marketplace Layer
-
-Customer
-   |
-   v
-Service
-   |
-   v
-Booking
-   |
-   v
-Worker Matching
-   |
-   v
-Worker
-   |
-   v
-Service
-   |
-   v
-Payment
-   |
-   v
-Rating
-
-Intelligence Layer
-
-Demand Data
-   |
-   v
-PySpark
-   |
-   v
+```text
+Data
+  ↓
+Apache Spark
+  ↓
 Demand Analytics
-   |
-   v
+  ↓
 Machine Learning
-   |
-   v
-Price / Demand Intelligence
-   |
-   v
-Marketplace Decisions
+  ↓
+Demand Prediction
+  ↓
+Fair Pricing
+  ↓
+Marketplace Decision Support
+```
 
-ShramSaathi therefore combines verified labour access, emergency response, geospatial matching, cooperative economics, and data-driven marketplace intelligence in a single full-stack platform.
+### 4. Live Emergency Tracking
 
-License
+Accepted emergency workers can share their live location so customers can monitor the worker's movement toward the job.
 
-Add the project's chosen license before public distribution.
+### 5. Controlled Pricing
 
-For competition or institutional submissions, retain all required ownership, attribution, and submission-specific information.
+Demand-aware pricing is bounded by configured limits instead of allowing unrestricted price changes.
+
+---
+
+# Local Development Checklist
+
+Before a full demo, verify:
+
+- [ ] PostgreSQL is running
+- [ ] PostGIS is available
+- [ ] Redis is running
+- [ ] Backend starts on port `8000`
+- [ ] AI engine starts on port `8001`
+- [ ] `http://localhost:8001/health` works
+- [ ] Admin frontend opens on port `5500`
+- [ ] Mobile app starts through Expo
+- [ ] Customer registration/login works
+- [ ] Worker registration/profile works
+- [ ] Normal booking works
+- [ ] Emergency booking works
+- [ ] Worker accept/reject flow works
+- [ ] Worker location updates work for emergency jobs
+- [ ] Customer can retrieve/open worker location
+- [ ] AI pricing/demand endpoint works
+- [ ] Spark pipeline can regenerate `spark_output.json`
+
+---
+
+# Demo Sequence
+
+For an SIH/project demonstration, a strong end-to-end sequence is:
+
+```text
+Customer Login
+      ↓
+Select Service
+      ↓
+Choose Normal / Emergency
+      ↓
+Create Booking
+      ↓
+Worker Matching
+      ↓
+Worker Accepts
+      ↓
+Booking Confirmation
+      ↓
+Emergency → Live Worker Location
+      ↓
+AI Demand / Pricing Intelligence
+      ↓
+Federation Admin Dashboard
+```
+
+This demonstrates both sides of the project:
+
+**Operational Marketplace + Data/AI Intelligence**
+
+---
+
