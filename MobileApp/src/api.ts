@@ -17,7 +17,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 |
 */
 
-export const API_BASE_URL = 'http://192.168.137.1:8000';
+export const API_BASE_URL = 'http://192.168.65.125:8000';
 
 const TOKEN_KEY = '@shramsaathi_auth_token';
 

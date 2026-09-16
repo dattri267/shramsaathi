@@ -1007,44 +1007,102 @@ async function cancelBooking(
  * - requested jobs matching their skills
  * - but not requests this worker has previously rejected
  */
-async function getWorkerBookings(
-    workerId
-) {
-    const bookings =
-        await prisma.$queryRaw`
-      SELECT b.id
-      FROM bookings b
-      WHERE
-        b.worker_id = ${workerId}::uuid
-          OR (
-            b.status = 'requested'::booking_status
-            AND b.worker_id IS NULL
-            AND EXISTS (
-              SELECT 1
-              FROM worker_skills ws
-              WHERE ws.worker_id = ${workerId}::uuid
-                AND ws.skill_id = b.skill_id
+/**
+ * GET WORKER BOOKINGS
+ *
+ * Returns two categories of bookings for the logged-in worker:
+ *
+ * 1. Assigned bookings
+ *    - worker_id belongs to this worker
+ *    - includes accepted, in_progress, completed, etc.
+ *
+ * 2. Available requests
+ *    - status is requested
+ *    - worker_id is NULL
+ *    - worker has the required skill
+ *    - worker has not previously rejected the booking
+ *
+ * IMPORTANT:
+ * An accepted booking must remain visible to the worker.
+ * Once accepted, it moves from the "new requests" section
+ * to the "active jobs" section on the frontend.
+ */
+async function getWorkerBookings(workerId) {
+    if (!workerId) {
+        throw error(
+            'Worker profile ID is required',
+            400
+        );
+    }
+
+    /*
+     * First get every booking that is either:
+     *
+     * - already assigned to this worker
+     * OR
+     * - still available and matches one of the worker's skills.
+     *
+     * Keeping these conditions explicit makes the lifecycle easier
+     * to reason about and prevents an accepted booking from
+     * accidentally disappearing from the worker's feed.
+     */
+    const bookings = await prisma.$queryRaw`
+        SELECT
+            b.id
+        FROM bookings b
+        WHERE
+            (
+                b.worker_id = ${workerId}::uuid
             )
-            AND NOT EXISTS (
-              SELECT 1
-              FROM worker_booking_rejections r
-              WHERE r.worker_id = ${workerId}::uuid
-                AND r.booking_id = b.id
+
+            OR
+
+            (
+                b.status = 'requested'::booking_status
+                AND b.worker_id IS NULL
+
+                AND EXISTS (
+                    SELECT 1
+                    FROM worker_skills ws
+                    WHERE
+                        ws.worker_id = ${workerId}::uuid
+                        AND ws.skill_id = b.skill_id
+                )
+
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM worker_booking_rejections r
+                    WHERE
+                        r.worker_id = ${workerId}::uuid
+                        AND r.booking_id = b.id
+                )
             )
-          )
-            ORDER BY
-        CASE
-          WHEN b.booking_type = 'emergency'::booking_type THEN 0
-          ELSE 1
-        END,
-        b.created_at ASC
+
+        ORDER BY
+            /*
+             * Active/assigned jobs first.
+             */
+            CASE
+                WHEN b.worker_id = ${workerId}::uuid
+                    THEN 0
+                WHEN b.booking_type = 'emergency'::booking_type
+                    THEN 1
+                ELSE 2
+            END,
+
+            /*
+             * Within each group, newest activity first.
+             */
+            b.updated_at DESC,
+            b.created_at DESC
     `;
 
     const result = [];
 
     for (const booking of bookings) {
-        const formatted =
-            await formatBooking(booking.id);
+        const formatted = await formatBooking(
+            booking.id
+        );
 
         if (formatted) {
             result.push(formatted);
@@ -1130,90 +1188,188 @@ async function rejectBooking(
  * but only one UPDATE can change the requested/unassigned
  * booking.
  */
-async function acceptBooking(
-    id,
-    workerId
-) {
-    /*
-     * Verify worker has this booking's skill.
-     */
-    const workerSkill =
-        await prisma.$queryRaw`
-      SELECT
-        b.id
-
-      FROM bookings b
-
-      INNER JOIN worker_skills ws
-        ON ws.skill_id =
-           b.skill_id
-
-      WHERE
-        b.id =
-          ${id}::uuid
-
-        AND ws.worker_id =
-          ${workerId}::uuid
-
-      LIMIT 1
-    `;
-
-
-    if (
-        workerSkill.length === 0
-    ) {
+/**
+ * ACCEPT BOOKING
+ *
+ * Only a qualified worker can accept a booking.
+ *
+ * The UPDATE is atomic:
+ *
+ * requested + unassigned
+ *        ↓
+ * assigned to this worker + accepted
+ *
+ * This prevents two workers from accepting the same request.
+ */
+async function acceptBooking(id, workerId) {
+    if (!id) {
         throw error(
-            'You are not qualified for this service',
-            403
+            'Booking ID is required',
+            400
         );
     }
 
+    if (!workerId) {
+        throw error(
+            'Worker profile ID is required',
+            400
+        );
+    }
 
     /*
-     * Atomic update.
+     * Check that the booking exists and determine
+     * which skill it requires.
      */
-    const updated =
-        await prisma.$executeRaw`
-      UPDATE bookings
+    const booking = await prisma.bookings.findUnique({
+        where: {
+            id
+        },
+        select: {
+            id: true,
+            worker_id: true,
+            skill_id: true,
+            status: true
+        }
+    });
 
-      SET
-        worker_id =
-          ${workerId}::uuid,
-
-        status =
-          'accepted'::booking_status,
-
-        updated_at =
-          NOW()
-
-      WHERE
-        id =
-          ${id}::uuid
-
-        AND status =
-          'requested'::booking_status
-
-        AND worker_id IS NULL
-    `;
-
+    if (!booking) {
+        throw error(
+            'Booking not found',
+            404
+        );
+    }
 
     /*
-     * Zero rows means another worker already accepted it,
-     * or it was changed/cancelled.
+     * A worker cannot accept an already assigned booking.
      */
-    if (
-        updated !== 1
-    ) {
+    if (booking.worker_id !== null) {
+        if (booking.worker_id === workerId) {
+            /*
+             * This makes the endpoint safely idempotent.
+             *
+             * If the mobile app accidentally sends the accept
+             * request twice, don't turn that into an error.
+             */
+            return formatBooking(id);
+        }
+
+        throw error(
+            'Booking is already assigned to another worker',
+            409
+        );
+    }
+
+    /*
+     * Only requested bookings can be accepted.
+     */
+    if (booking.status !== 'requested') {
         throw error(
             'Booking is no longer available',
             409
         );
     }
 
+    /*
+     * A booking must have a service/skill.
+     */
+    if (!booking.skill_id) {
+        throw error(
+            'Booking does not have a service assigned',
+            400
+        );
+    }
 
-    return formatBooking(
-        id
-    );
+    /*
+     * Verify that this worker has the required skill.
+     */
+    const qualified = await prisma.$queryRaw`
+        SELECT 1
+        FROM worker_skills ws
+        WHERE
+            ws.worker_id = ${workerId}::uuid
+            AND ws.skill_id = ${booking.skill_id}::uuid
+        LIMIT 1
+    `;
+
+    if (qualified.length === 0) {
+        throw error(
+            'You are not qualified for this service',
+            403
+        );
+    }
+
+    /*
+     * ATOMIC ACCEPTANCE
+     *
+     * The database itself guarantees that only one worker
+     * can transition this booking from requested/unassigned
+     * to accepted/assigned.
+     */
+    const updated = await prisma.$executeRaw`
+        UPDATE bookings
+        SET
+            worker_id = ${workerId}::uuid,
+            status = 'accepted'::booking_status,
+            updated_at = NOW()
+        WHERE
+            id = ${id}::uuid
+            AND status = 'requested'::booking_status
+            AND worker_id IS NULL
+    `;
+
+    /*
+     * If no row was updated, another request won the race
+     * or the booking changed state.
+     */
+    if (updated !== 1) {
+        throw error(
+            'Booking is no longer available',
+            409
+        );
+    }
+
+    /*
+     * Read the booking back from the database.
+     *
+     * This is important because the mobile app should receive
+     * the authoritative post-acceptance state.
+     */
+    const acceptedBooking = await formatBooking(id);
+
+    if (!acceptedBooking) {
+        throw error(
+            'Booking was accepted but could not be loaded',
+            500
+        );
+    }
+
+    /*
+     * Defensive verification.
+     *
+     * If the DB somehow returned an unexpected state, fail loudly
+     * instead of telling the mobile app that acceptance succeeded.
+     */
+    if (
+        acceptedBooking.worker_id !== workerId ||
+        acceptedBooking.status !== 'accepted'
+    ) {
+        console.error(
+            'BOOKING ACCEPTANCE STATE MISMATCH',
+            {
+                bookingId: id,
+                expectedWorkerId: workerId,
+                actualWorkerId: acceptedBooking.worker_id,
+                actualStatus: acceptedBooking.status
+            }
+        );
+
+        throw error(
+            'Booking acceptance state could not be verified',
+            500
+        );
+    }
+
+    return acceptedBooking;
 }
 /**
  * START BOOKING
