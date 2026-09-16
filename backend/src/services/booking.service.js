@@ -187,6 +187,8 @@ async function formatBooking(
         wp.completed_jobs AS worker_completed_jobs,
         wp.hourly_rate AS worker_hourly_rate,
 
+        customer_rating.rating AS customer_rating,
+
         pay.id AS payment_id,
         pay.amount AS payment_amount,
         pay.currency AS payment_currency,
@@ -208,6 +210,11 @@ async function formatBooking(
 
       LEFT JOIN profiles wp_profile
         ON wp_profile.id = wp.user_id
+
+      LEFT JOIN ratings customer_rating
+        ON customer_rating.booking_id = b.id
+       AND customer_rating.rated_by = cp.user_id
+       AND customer_rating.rated_user = wp.user_id
 
       LEFT JOIN payments pay
         ON pay.booking_id = b.id
@@ -276,6 +283,10 @@ async function formatBooking(
                     ? Number(row.worker_hourly_rate)
                     : null
             }
+            : null,
+
+        customer_rating: row.customer_rating !== null && row.customer_rating !== undefined
+            ? Number(row.customer_rating)
             : null,
 
         worker_id:

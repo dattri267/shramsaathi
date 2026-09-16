@@ -38,6 +38,7 @@ import {
   completeMockCustomerPayment,
   getPredictedServicePrice,
   getWorkerLocation,
+  submitWorkerRating,
 } from "../../api";
 
 
@@ -96,6 +97,7 @@ type Booking = {
     completedJobs?: number;
     hourlyRate?: number | null;
   } | null;
+  customerRating?: number | null;
   price?: {
     estimatedAmount?: number | null;
     finalAmount?: number | null;
@@ -288,6 +290,15 @@ export default function UserDashboard({
   const [paymentSubmitting, setPaymentSubmitting] =
     useState(false);
 
+  const [ratingModalVisible, setRatingModalVisible] =
+    useState(false);
+  const [ratingBooking, setRatingBooking] =
+    useState<Booking | null>(null);
+  const [selectedRating, setSelectedRating] =
+    useState(0);
+  const [ratingSubmitting, setRatingSubmitting] =
+    useState(false);
+
   // Add/update service address
   const [addressModalVisible, setAddressModalVisible] = useState(false);
   const [addressSaving, setAddressSaving] = useState(false);
@@ -444,6 +455,9 @@ export default function UserDashboard({
             ? Number(item.worker.hourly_rate)
             : null,
         }
+        : null,
+      customerRating: item?.customer_rating !== null && item?.customer_rating !== undefined
+        ? Number(item.customer_rating)
         : null,
       price: item?.price
         ? {
@@ -1148,6 +1162,76 @@ export default function UserDashboard({
       setBookingSubmitting(false);
     }
   };
+
+  /* =======================================================
+     WORKER RATING
+  ======================================================= */
+
+  const openRatingModal = (booking: Booking) => {
+    if (booking.status !== "Completed" || !booking.worker?.id) {
+      return;
+    }
+
+    if (booking.customerRating) {
+      Alert.alert(
+        "Already rated",
+        "You have already rated this worker for this booking."
+      );
+      return;
+    }
+
+    setRatingBooking(booking);
+    setSelectedRating(0);
+    setRatingModalVisible(true);
+  };
+
+  const closeRatingModal = () => {
+    if (ratingSubmitting) return;
+
+    setRatingModalVisible(false);
+    setRatingBooking(null);
+    setSelectedRating(0);
+  };
+
+  const handleSubmitRating = async () => {
+    if (!ratingBooking?.id || !ratingBooking.worker?.id) {
+      return;
+    }
+
+    if (selectedRating < 1 || selectedRating > 5) {
+      Alert.alert("Select a rating", "Please select between 1 and 5 stars.");
+      return;
+    }
+
+    try {
+      setRatingSubmitting(true);
+
+      await submitWorkerRating({
+        booking_id: ratingBooking.id,
+        rating: selectedRating,
+      });
+
+      setRatingModalVisible(false);
+      setRatingBooking(null);
+      setSelectedRating(0);
+
+      await loadDashboardData();
+
+      Alert.alert(
+        "Thank you!",
+        "Your rating has been submitted successfully."
+      );
+    } catch (error) {
+      console.error("Failed to submit worker rating:", error);
+      Alert.alert(
+        "Rating failed",
+        error instanceof Error ? error.message : "Unable to submit your rating."
+      );
+    } finally {
+      setRatingSubmitting(false);
+    }
+  };
+
 
   /* =======================================================
      LOGOUT
@@ -2389,12 +2473,116 @@ export default function UserDashboard({
                           <Text style={styles.paymentPaidText}>Payment completed</Text>
                         </View>
                       )}
+
+                      {booking.status === "Completed" && booking.worker && (
+                        booking.customerRating ? (
+                          <View style={styles.ratingSubmittedRow}>
+                            <View style={styles.ratingSubmittedStars}>
+                              {[1, 2, 3, 4, 5].map(star => (
+                                <Ionicons
+                                  key={star}
+                                  name={star <= booking.customerRating! ? "star" : "star-outline"}
+                                  size={16}
+                                  color="#F59E0B"
+                                />
+                              ))}
+                            </View>
+                            <Text style={styles.ratingSubmittedText}>Your rating</Text>
+                          </View>
+                        ) : (
+                          <Pressable
+                            style={styles.rateWorkerButton}
+                            onPress={() => openRatingModal(booking)}
+                          >
+                            <Ionicons name="star-outline" size={19} color="#FFFFFF" />
+                            <Text style={styles.rateWorkerButtonText}>Rate Worker</Text>
+                          </Pressable>
+                        )
+                      )}
                     </View>
                   </View>
                 ))}
               </ScrollView>
             )}
           </SafeAreaView>
+        </Modal>
+
+        {/* =================================================
+            WORKER RATING MODAL
+        ================================================= */}
+
+        <Modal
+          visible={ratingModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={closeRatingModal}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.ratingModalContainer}>
+              <View style={styles.ratingModalHeader}>
+                <View>
+                  <Text style={styles.ratingModalTitle}>Rate your worker</Text>
+                  <Text style={styles.ratingModalSubtitle}>
+                    How was your experience with {ratingBooking?.worker?.name || "the worker"}?
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={closeRatingModal}
+                  disabled={ratingSubmitting}
+                  style={styles.ratingModalClose}
+                >
+                  <Ionicons name="close" size={22} color="#555555" />
+                </Pressable>
+              </View>
+
+              <View style={styles.ratingStarsRow}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <Pressable
+                    key={star}
+                    onPress={() => setSelectedRating(star)}
+                    disabled={ratingSubmitting}
+                    style={styles.ratingStarButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Rate ${star} star${star === 1 ? "" : "s"}`}
+                  >
+                    <Ionicons
+                      name={star <= selectedRating ? "star" : "star-outline"}
+                      size={43}
+                      color="#F59E0B"
+                    />
+                  </Pressable>
+                ))}
+              </View>
+
+              <Text style={styles.ratingSelectedText}>
+                {selectedRating === 0
+                  ? "Tap a star to rate"
+                  : `${selectedRating} out of 5 stars`}
+              </Text>
+
+              <Pressable
+                style={[
+                  styles.submitRatingButton,
+                  (selectedRating === 0 || ratingSubmitting) && styles.submitRatingButtonDisabled,
+                ]}
+                onPress={handleSubmitRating}
+                disabled={selectedRating === 0 || ratingSubmitting}
+              >
+                {ratingSubmitting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle-outline" size={19} color="#FFFFFF" />
+                    <Text style={styles.submitRatingButtonText}>Submit Rating</Text>
+                  </>
+                )}
+              </Pressable>
+
+              <Text style={styles.ratingHint}>
+                Your rating helps maintain service quality on ShramSaathi.
+              </Text>
+            </View>
+          </View>
         </Modal>
 
         {/* =================================================
@@ -4051,6 +4239,144 @@ const styles = StyleSheet.create({
     color: "#666666",
     marginRight: 6,
   },
+
+  rateWorkerButton: {
+    height: 45,
+    borderRadius: 13,
+    backgroundColor: "#F59E0B",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+    gap: 8,
+  },
+
+  rateWorkerButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+
+  ratingSubmittedRow: {
+    marginTop: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 11,
+    borderRadius: 11,
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+
+  ratingSubmittedStars: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 1,
+  },
+
+  ratingSubmittedText: {
+    color: "#92400E",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+ratingModalContainer: {
+  width: "100%",
+  maxWidth: 430,
+  borderRadius: 24,
+  backgroundColor: "#FFFFFF",
+  paddingHorizontal: 22,
+  paddingTop: 22,
+  paddingBottom: 20,
+  alignSelf: "center",
+},
+
+ratingModalHeader: {
+  width: "100%",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+},
+
+ratingModalTitle: {
+  fontSize: 20,
+  fontWeight: "800",
+  color: "#222222",
+},
+
+ratingModalSubtitle: {
+  marginTop: 5,
+  paddingRight: 8,
+  fontSize: 13,
+  lineHeight: 19,
+  color: "#777777",
+},
+
+ratingModalClose: {
+  width: 38,
+  height: 38,
+  borderRadius: 19,
+  backgroundColor: "#F3F4F6",
+  alignItems: "center",
+  justifyContent: "center",
+  marginLeft: 12,
+},
+
+ratingStarsRow: {
+  width: "100%",
+  marginTop: 26,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+},
+
+ratingStarButton: {
+  padding: 3,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+ratingSelectedText: {
+  marginTop: 13,
+  textAlign: "center",
+  fontSize: 13,
+  fontWeight: "700",
+  color: "#6B7280",
+},
+
+submitRatingButton: {
+  width: "100%",
+  height: 50,
+  borderRadius: 14,
+  marginTop: 22,
+  backgroundColor: "#7047E8",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+},
+
+submitRatingButtonDisabled: {
+  opacity: 0.45,
+},
+
+submitRatingButtonText: {
+  color: "#FFFFFF",
+  fontSize: 13,
+  fontWeight: "800",
+},
+
+ratingHint: {
+  marginTop: 12,
+  textAlign: "center",
+  fontSize: 10,
+  lineHeight: 15,
+  color: "#9CA3AF",
+},
 
   customerPaymentCard: {
     marginTop: 13,

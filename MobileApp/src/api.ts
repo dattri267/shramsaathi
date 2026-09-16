@@ -17,7 +17,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 |
 */
 
-export const API_BASE_URL = 'http://192.168.65.125:8000';
+export const API_BASE_URL = 'http://192.168.1.8:8000';
 
 const TOKEN_KEY = '@shramsaathi_auth_token';
 
@@ -856,6 +856,31 @@ export async function getCustomerBookings() {
   return apiRequest<{
     bookings: any[];
   }>('/api/customer/bookings');
+}
+
+/**
+ * Submit a 1-5 star rating for a completed customer booking.
+ *
+ * The backend resolves the worker from the booking, so the mobile app
+ * does not send a worker/user id that could be tampered with.
+ */
+export async function submitWorkerRating(data: {
+  booking_id: string;
+  rating: number;
+  feedback?: string;
+}) {
+  return apiRequest<{
+    success: boolean;
+    message: string;
+    rating: any;
+    worker?: {
+      id: string;
+      average_rating: number;
+    };
+  }>('/api/ratings/create', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 /**

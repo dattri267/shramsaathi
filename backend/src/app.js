@@ -51,7 +51,7 @@ app.use('/api', skillRoutes);
 app.use('/api', avatarRoutes);
 app.use('/api', adminRoutes);
 // Other existing modules from main
-app.use('/api', ratingRoutes);
+app.use('/api/ratings', ratingRoutes);
 app.use('/api', disputeRoutes);
 app.use('/api', welfareRoutes);
 
