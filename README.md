@@ -1,8 +1,8 @@
 # ShramSaathi
 
-> **A smart labour-cooperative service marketplace that connects customers with verified workers while using data engineering and machine learning to support demand forecasting and fair pricing.**
+> **A smart labour-cooperative service marketplace connecting customers with verified workers, supported by data engineering, machine learning, fair-pricing logic, and emergency worker tracking.**
 
-ShramSaathi is a full-stack platform designed around the workflow of a labour cooperative federation. Customers can discover services, request workers, make normal or emergency bookings, and track accepted emergency workers. Workers can manage their profiles, availability, bookings, and live location. A federation/admin layer provides operational visibility and an AI/data pipeline for demand analysis and pricing intelligence.
+ShramSaathi is a full-stack platform designed around a labour-cooperative federation model. Customers can discover services, create normal or emergency bookings, and track accepted emergency workers. Workers can manage their profiles, skills, availability, bookings, earnings, and live location. A federation/admin layer provides operational visibility and data-driven demand and pricing intelligence.
 
 ---
 
@@ -20,29 +20,41 @@ ShramSaathi is a full-stack platform designed around the workflow of a labour co
 - [Spark Data Pipeline](#spark-data-pipeline)
 - [Environment Configuration](#environment-configuration)
 - [AI Engine](#ai-engine)
-- [Admin Frontend](#admin-frontend)
+- [Fair Pricing](#fair-pricing)
 - [Database and Redis](#database-and-redis)
 - [API Overview](#api-overview)
 - [Emergency Booking Flow](#emergency-booking-flow)
-- [ML and Data Intelligence](#ml-and-data-intelligence)
+- [Worker Location Tracking](#worker-location-tracking)
+- [ML + Data Engineering Layer](#ml--data-engineering-layer)
+- [Development Workflow](#development-workflow)
 - [Troubleshooting](#troubleshooting)
+- [Ports](#ports)
+- [Security Notes](#security-notes)
 - [Future Enhancements](#future-enhancements)
-- [Project Status](#project-status)
+- [Project Differentiators](#project-differentiators)
+- [Local Development Checklist](#local-development-checklist)
+- [Demo Sequence](#demo-sequence)
 
 ---
 
 ## Overview
 
-ShramSaathi combines a **service marketplace**, **labour-cooperative workflow**, and **data-driven intelligence layer**.
+ShramSaathi combines three core ideas:
 
-The platform has four major runtime components:
+1. **Service marketplace** — customers can request services from available workers.
+2. **Labour-cooperative workflow** — workers are represented through profiles, skills, verification, availability, and federation-level administration.
+3. **Data and AI intelligence** — demand data is processed with Apache Spark and used by a Random Forest model to support demand forecasting and fair-price recommendations.
 
-1. **Mobile Application** — React Native + Expo application used by customers and workers.
-2. **Backend API** — Node.js + Express API responsible for authentication, users, workers, bookings, matching, pricing, payments, and location services.
-3. **AI Engine** — FastAPI service that exposes the trained demand-forecasting model and pricing intelligence.
-4. **Admin Frontend** — Static HTML/CSS/JavaScript federation dashboard served locally through Python's built-in HTTP server.
+The platform consists of four main runtime components:
 
-A separate **Apache Spark / PySpark pipeline** processes synthetic demand data and produces aggregated demand insights. Spark is a data-processing pipeline, **not a continuously running server**.
+| Component | Responsibility |
+|---|---|
+| Mobile Application | Customer and worker workflows |
+| Backend API | Authentication, profiles, skills, bookings, matching, pricing, payments, and location |
+| AI Engine | Demand forecasting and intelligence APIs |
+| Admin Frontend | Federation/admin operations and analytics |
+
+Apache Spark is used separately as a data-processing pipeline. It is a job, not a continuously running server.
 
 ---
 
@@ -50,47 +62,48 @@ A separate **Apache Spark / PySpark pipeline** processes synthetic demand data a
 
 ### Customer
 
-- User registration and authentication
-- Customer profile and service requirements
-- Browse available services and subcategories
-- Select normal or emergency service
-- Create and manage bookings
-- View booking status
-- Worker assignment for accepted requests
-- Emergency worker tracking through live location
-- Open the worker's location in maps
-- Mock payment flow for the MVP
+- Registration and authentication
+- Customer profile management
+- Browse service categories and subcategories
+- Normal and emergency service requests
+- AI-backed price estimation
+- Booking creation and status tracking
+- Worker assignment
+- Emergency worker location tracking
+- Open worker location in maps
+- MVP/mock payment workflow
 
 ### Worker
 
-- Worker registration and profile setup
-- Skill/service selection
+- Registration and profile setup
+- Primary and additional skill selection
 - Worker verification workflow
 - Online/offline availability
 - Accept or reject booking requests
 - Booking status management
+- Earnings calculation
 - Emergency booking participation
 - Live GPS location updates during active emergency jobs
 
 ### Emergency Service
 
-- Emergency booking request
-- Search for suitable verified/online workers
-- Offer-based worker assignment
-- Worker response timeout handling
-- Escalation to additional workers when required
-- Dynamic emergency pricing support
-- Live worker location after confirmation
+- Immediate emergency booking requests
+- Matching with eligible verified/online workers
+- Worker offer and response workflow
+- Response timeout handling
+- Escalation to additional workers
+- Emergency pricing using demand and contextual inputs
+- Live worker tracking after confirmation
 
 ### Federation/Admin Intelligence
 
 - Worker and operational visibility
 - Demand analytics
 - City/category demand aggregation
-- Demand forecasting through Random Forest Regression
-- Fair-price recommendation logic
+- Random Forest demand forecasting
+- Bounded fair-price recommendation logic
 - Spark-generated demand insights
-- Synthetic demand data pipeline for demonstration and experimentation
+- Synthetic demand-data pipeline
 
 ---
 
@@ -109,6 +122,7 @@ Select Subcategory / Requirement
    |
    +----------------------+
    |                      |
+   v                      v
 Normal Booking       Emergency Booking
    |                      |
    v                      v
@@ -123,7 +137,7 @@ Booking Confirmed    Worker Accepts
    +----------+-----------+
               |
               v
-        Service Execution
+       Service Execution
               |
               v
           Completion
@@ -133,26 +147,26 @@ Booking Confirmed    Worker Accepts
 
 ```text
 Synthetic Demand Data
-          |
-          v
-      Apache Spark
-          |
-          v
-Demand Aggregation & Insights
-          |
-          +-------------------+
-          |                   |
-          v                   v
-   Demand Analytics      ML Forecasting
-                              |
-                              v
+        |
+        v
+Apache Spark
+        |
+        v
+Demand Aggregation
+        |
+        +-------------------+
+        |                   |
+        v                   v
+Demand Analytics      ML Forecasting
+                            |
+                            v
                     Random Forest Model
-                              |
-                              v
+                            |
+                            v
                      Demand Prediction
-                              |
-                              v
-                    Fair Price Suggestion
+                            |
+                            v
+                     Price Recommendation
 ```
 
 ---
@@ -192,7 +206,8 @@ flowchart TB
     Redis --> API
 ```
 
-> The diagram represents the logical architecture. Spark is executed as a data-processing job and does not need to remain running alongside the other services.
+
+> Spark is executed as a data-processing job and does not need to remain running alongside the application services.
 
 ---
 
@@ -205,43 +220,50 @@ flowchart TB
 | Backend runtime | Node.js |
 | Backend framework | Express 5 |
 | Database | PostgreSQL |
-| Geospatial database support | PostGIS |
+| Geospatial support | PostGIS |
 | ORM | Prisma 7 |
 | Caching / location store | Redis |
 | Authentication | JWT + bcrypt |
 | Image/file storage | Cloudinary |
 | AI API | FastAPI |
 | AI server | Uvicorn |
-| ML | scikit-learn |
+| Machine Learning | scikit-learn |
 | Data processing | Apache Spark / PySpark |
-| ML data handling | Pandas / NumPy |
+| Data handling | Pandas / NumPy |
 | Admin frontend | HTML + CSS + JavaScript |
-| Admin local server | Python `http.server` |
+| Admin local server | `http-server` or Python `http.server` |
 
 ---
 
 ## Project Structure
 
-The important parts of the repository are organized approximately as follows:
-
 ```text
 ShramSaathi/
 │
 ├── backend/
-│   └── backend/
-│       ├── src/
-│       ├── prisma/
-│       ├── package.json
-│       └── ...
+│   ├── src/
+│   │   ├── config/
+│   │   ├── controllers/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   └── server.js
+│   ├── prisma/
+│   │   └── schema.prisma
+│   ├── package.json
+│   └── .env
 │
 ├── MobileApp/
 │   ├── src/
+│   │   ├── api.ts
+│   │   └── app/
+│   │       ├── userdashboard/
+│   │       ├── worker/
+│   │       └── workerdetails/
 │   ├── assets/
 │   ├── package.json
 │   └── ...
 │
 └── admin/
-    │
     ├── ai-engine/
     │   ├── data/
     │   │   └── synthetic_demand.csv
@@ -264,51 +286,47 @@ ShramSaathi/
             └── workers.js
 ```
 
-> The admin frontend is intentionally a **plain static frontend**. It is not a Vite/React application and therefore does not use `npm run dev`.
+> The admin frontend is a plain static frontend. It is not a Vite/React application.
 
 ---
 
-# Prerequisites
+## Prerequisites
 
-Install the following before running the project:
+Install the following:
 
-- **Node.js**
-- **npm**
-- **Python 3.13.x** (or a compatible Python version supported by the installed dependencies)
-- **Java 17** — required by the current PySpark setup
-- **PostgreSQL**
-- **PostGIS** extension
-- **Redis**
-- **Expo-compatible mobile development environment**
+- Node.js
+- npm
+- Python 3.13.x or a compatible Python version supported by the project dependencies
+- Java 17 for the current PySpark setup
+- PostgreSQL
+- PostGIS extension
+- Redis
+- Expo-compatible mobile development environment
 
-For Android development, you can use:
+For Android development, use either:
 
-- Android Studio + Android Emulator, or
-- a physical Android device with Expo Go
+- Android Studio + Android Emulator
+- A physical Android device with Expo Go
 
 ---
 
-# Installation
+## Installation
 
-## 1. Clone the Repository
+### 1. Clone the Repository
 
-```bash
+```powershell
 git clone <YOUR_REPOSITORY_URL>
 cd ShramSaathi
 ```
 
----
-
-## 2. Install Backend Dependencies
+### 2. Install Backend Dependencies
 
 ```powershell
-cd .\backend\backend
+cd .\backend
 npm install
 ```
 
----
-
-## 3. Install Mobile Dependencies
+### 3. Install Mobile Dependencies
 
 Open a new terminal:
 
@@ -317,80 +335,69 @@ cd .\MobileApp
 npm install
 ```
 
----
-
-## 4. Set Up the AI Engine
+### 4. Set Up the AI Engine
 
 Open another terminal:
 
 ```powershell
 cd .\admin\ai-engine
-python -m venv venv
-.\venv\Scripts\Activate.ps1
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-If PowerShell blocks activation, you can run the environment's Python directly:
+If PowerShell blocks activation:
 
 ```powershell
-.\venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
 ---
 
-# Running the Project
+## Running the Project
 
-ShramSaathi uses **four terminals** during normal local development.
+ShramSaathi normally uses four terminals.
 
-## Terminal 1 — Backend API
+### Terminal 1 — Backend API
 
 ```powershell
-cd .\backend\backend
-npm run dev
+cd .\backend
+npm start
 ```
 
 Backend:
 
 ```text
-http://localhost:8000
+http://localhost:5000
 ```
 
-The backend development script uses Nodemon and starts:
-
-```text
-src/server.js
-```
-
----
-
-## Terminal 2 — Mobile Application
+### Terminal 2 — Mobile Application
 
 ```powershell
 cd .\MobileApp
 npx expo start
 ```
 
-If you need to clear Expo's cache:
+To clear Expo cache:
 
 ```powershell
 npx expo start -c
 ```
 
-Expo will display the available development options for an emulator or physical device.
-
----
-
-## Terminal 3 — FastAPI AI Engine
-
-This is the AI server running from the `admin/ai-engine` directory.
+### Terminal 3 — FastAPI AI Engine
 
 ```powershell
 cd .\admin\ai-engine
-.\venv\Scripts\Activate.ps1
-uvicorn main:app --host 0.0.0.0 --port 8001
+py main.py
 ```
 
-AI engine:
+Or:
+
+```powershell
+.\.venv\Scripts\python.exe main.py
+```
+
+AI Engine:
 
 ```text
 http://localhost:8001
@@ -402,153 +409,142 @@ Health check:
 http://localhost:8001/health
 ```
 
-> **Important:** Do not use `npm run dev` or a Vite command here. The AI engine is a Python FastAPI application.
+> Do not use `npm run dev` for the AI engine. It is a Python FastAPI application.
 
----
-
-## Terminal 4 — Admin Frontend
-
-The admin frontend is plain HTML/CSS/JavaScript.
+### Terminal 4 — Admin Frontend
 
 ```powershell
 cd .\admin\frontend
+npx http-server -p 3000
+```
+
+Alternatively:
+
+```powershell
 python -m http.server 5500
 ```
 
 Open:
 
 ```text
-http://localhost:5500
+http://localhost:3000
 ```
 
-> **Important:** There is no `package.json`, Vite configuration, or npm development script in the current admin frontend. Python's built-in HTTP server is the correct local server for it.
+> The admin frontend does not use Vite or `npm run dev`.
 
----
+### Quick Start
 
-# Quick Start — All Four Commands
+```text
+Terminal 1:
+cd .\backend
+npm start
 
-After installing everything, the four runtime terminals are:
-
-### 1. Backend
-
-```powershell
-cd .\backend\backend
-npm run dev
-```
-
-### 2. Mobile
-
-```powershell
+Terminal 2:
 cd .\MobileApp
 npx expo start
-```
 
-### 3. AI Engine
-
-```powershell
+Terminal 3:
 cd .\admin\ai-engine
-.\venv\Scripts\Activate.ps1
-uvicorn main:app --host 0.0.0.0 --port 8001
-```
+py main.py
 
-### 4. Admin Frontend
-
-```powershell
+Terminal 4:
 cd .\admin\frontend
-python -m http.server 5500
+npx http-server -p 3000
 ```
 
 ---
 
-# Spark Data Pipeline
+## Spark Data Pipeline
 
-The Spark pipeline is run separately when demand data needs to be processed.
-
-It is **not a fifth server**.
-
-Run:
+Spark is run separately when demand data needs to be processed.
 
 ```powershell
 cd .\admin\ai-engine
-.\venv\Scripts\Activate.ps1
 python spark_pipeline.py
 ```
 
 The pipeline reads the synthetic demand dataset and produces aggregated demand insights.
 
-The generated output is:
+Output:
 
 ```text
 data/spark_output.json
 ```
 
-### Current Spark pipeline summary
+### Important
 
-The existing generated analysis includes:
+Spark is **not a fifth server**. It does not need to remain running during normal application usage.
 
-- Total jobs: **1,276,491**
-- Average daily jobs: **106.37**
-- Highest-demand day: **Saturday**
-- Highest-demand month: **July**
-- Highest city total: **Mumbai**
-- Highest category total: **Plumber**
-- Allocation insight: prioritize **Plumber demand in Mumbai**
+### Synthetic Data
 
-These values are based on the project's current synthetic dataset and generated Spark output.
+The current project uses synthetic demand data because it does not yet have a large historical production booking dataset.
 
-### Why synthetic data?
+Therefore, generated demand statistics are intended for:
 
-ShramSaathi does not yet have a large historical production booking dataset. Synthetic demand data is therefore used to demonstrate the data-engineering and forecasting workflow without claiming that the numbers represent real-world labour demand.
+- Demonstration
+- Data-engineering experimentation
+- ML experimentation
+- SIH/project presentation
+
+They should not be interpreted as real-world labour-demand measurements.
 
 ---
 
-# Environment Configuration
+## Environment Configuration
 
-## Backend
+### Backend
 
-Configure the backend environment according to the variables expected by the backend implementation.
+Create/configure:
 
-Typical development configuration includes:
+```text
+backend/.env
+```
+
+Example structure:
 
 ```env
-PORT=8000
-DATABASE_URL=<POSTGRESQL_CONNECTION_STRING>
+PORT=5000
+DATABASE_URL=<YOUR_DATABASE_URL>
 JWT_SECRET=<YOUR_JWT_SECRET>
-REDIS_URL=<YOUR_REDIS_CONNECTION>
+REDIS_URL=redis://localhost:6379
+
 CLOUDINARY_CLOUD_NAME=<YOUR_CLOUDINARY_NAME>
 CLOUDINARY_API_KEY=<YOUR_CLOUDINARY_KEY>
 CLOUDINARY_API_SECRET=<YOUR_CLOUDINARY_SECRET>
+
 AI_ENGINE_BASE_URL=http://127.0.0.1:8001
+
+WORKER_SHARE_PERCENT=80
+WELFARE_SHARE_PERCENT=10
+PLATFORM_SHARE_PERCENT=10
 ```
 
-Use the project's actual backend `.env` template/configuration when available rather than copying placeholder values directly into production.
+Use your actual environment configuration locally. Never commit real credentials.
 
----
+### Admin Frontend
 
-## Admin Frontend
-
-The current admin frontend keeps its service endpoints in:
+The API configuration is located at:
 
 ```text
 admin/frontend/js/config.js
 ```
 
-The local configuration is:
+Local development configuration:
 
 ```javascript
 const CONFIG = {
-  BACKEND_API_BASE: 'http://localhost:8000/api',
+  BACKEND_API_BASE: 'http://localhost:5000/api',
   AI_ENGINE_BASE: 'http://localhost:8001'
 };
 ```
 
-If the services are hosted on another machine, update these addresses accordingly.
+If the services run on another machine, update these addresses accordingly.
 
 ---
 
-# AI Engine
+## AI Engine
 
-The AI engine is a **FastAPI service** responsible for exposing the trained ML model through HTTP endpoints.
+The AI engine is a FastAPI service exposing the trained ML model through HTTP endpoints.
 
 ### Model
 
@@ -558,21 +554,21 @@ Current model:
 RandomForestRegressor
 ```
 
-The trained model is stored under:
+Model file:
 
 ```text
 admin/ai-engine/model/demand_forecaster.pkl
 ```
 
-Model metadata is stored in:
+Metadata:
 
 ```text
 admin/ai-engine/model/metadata.json
 ```
 
-### Supported prediction inputs
+### Current Model Inputs
 
-The current model supports the following categories:
+The current model supports service categories including:
 
 - Electrician
 - Plumber
@@ -582,46 +578,44 @@ The current model supports the following categories:
 - Caregiver
 - Technician
 
-Supported cities:
+Current city categories include:
 
 - Bengaluru
 - Mumbai
 - Delhi
 - Hyderabad
 
-Supported weather conditions:
+Current weather conditions include:
 
 - Clear
 - Rain
 - Extreme heat
 
-Supported event conditions:
+Current event conditions include:
 
 - Normal day
 - Holiday
 - Major event
 
-### Current model metadata
-
-The current model metadata reports:
+### Model Metadata
 
 | Metric | Value |
 |---|---:|
 | Model | RandomForestRegressor |
-| Model version | `1.0.0-rf` |
+| Version | `1.0.0-rf` |
 | MAE | `10.016` |
 | R² | `0.6868` |
 | Holdout fraction | `0.2` |
 
-These metrics describe the current trained model and should be treated as experimental/MVP results rather than production performance guarantees.
+These are current MVP/experimental model metrics, not production performance guarantees.
 
 ---
 
-# Fair Pricing Logic
+## Fair Pricing
 
-ShramSaathi uses the demand prediction to support fair-price recommendations.
+ShramSaathi uses demand predictions to support demand-aware price recommendations.
 
-The current pricing logic calculates a demand-based multiplier using the predicted demand relative to a reference level:
+The current demand multiplier is bounded between `0.82×` and `1.18×`:
 
 ```text
 multiplier =
@@ -632,171 +626,157 @@ multiplier =
     )
 ```
 
-The suggested price is then calculated as:
+The suggested price is then:
 
 ```text
 suggested_price = current_price × multiplier
 ```
 
-The multiplier is bounded so that the recommendation does not move outside the configured pricing range.
-
-This approach is intended to support **demand-aware pricing while keeping prices within controlled limits**.
+The configured bounds are intended to prevent the recommendation from moving outside the controlled pricing range.
 
 ---
 
-# Database and Redis
+## Database and Redis
 
-## PostgreSQL + PostGIS
+### PostgreSQL + PostGIS
 
 PostgreSQL stores persistent application data such as:
 
-- Users
+- User profiles
 - Worker profiles
 - Customer profiles
-- Skills/services
+- Worker skills
+- Primary skill information
+- Service categories
 - Bookings
 - Booking states
-- Worker-related records
+- Worker documents
 
-PostGIS provides geospatial database support for location-related functionality.
+PostGIS provides geospatial database capabilities for location-related functionality.
 
-Make sure PostgreSQL is running before starting the backend.
+### Redis
 
----
+Redis is used for fast-changing worker location data and matching-related operations.
 
-## Redis
-
-Redis is used for fast-changing worker location information and matching-related operations.
-
-The current worker location implementation uses keys in the form:
+Worker location keys follow the pattern:
 
 ```text
 worker:location:${workerId}
 ```
 
-Worker location entries use an expiry so stale locations do not remain indefinitely.
-
-The current implementation refreshes location information while relevant emergency work is active.
-
-Make sure Redis is running before using features that depend on it.
+Location entries use expiry so stale locations do not remain indefinitely.
 
 ---
 
-# API Overview
+## API Overview
 
-The backend exposes REST APIs under:
+The backend API is available under:
 
 ```text
-http://localhost:8000/api
+http://localhost:5000/api
 ```
 
 Major functional areas include:
 
 | Area | Purpose |
 |---|---|
-| Authentication | Registration, login and identity |
-| Users | Customer/user profile operations |
-| Workers | Worker profile and worker operations |
-| Skills | Service and skill resolution |
+| Authentication | Registration and login |
+| Customer | Customer profile operations |
+| Workers | Worker profile and skill resolution |
+| Skills | Service and skill categories |
 | Bookings | Normal and emergency bookings |
 | Matching | Worker discovery and assignment |
-| Pricing | Demand-aware pricing support |
-| Location | Worker location updates and retrieval |
+| Pricing | Dynamic pricing and prediction |
+| Location | Worker location updates/retrieval |
 | Payments | MVP/mock payment workflow |
 
-The exact request/response schemas are defined by the backend source code.
+The exact request and response schemas are defined by the backend source code.
 
 ---
 
-# Emergency Booking Flow
-
-Emergency service is one of the important differentiators of ShramSaathi.
-
-The simplified flow is:
+## Emergency Booking Flow
 
 ```text
 Customer requests emergency service
-              |
-              v
-      Backend validates request
-              |
-              v
-     Find eligible workers
-              |
-              v
-   Send worker booking offer
-              |
-        +-----+-----+
-        |           |
-      Accept      Reject/Timeout
-        |           |
-        v           v
-   Confirm job    Try next worker
-        |           |
-        +-----+-----+
-              |
-              v
-       Service execution
-              |
-              v
-      Live location updates
+                |
+                v
+       Backend validates request
+                |
+                v
+        Find eligible workers
+                |
+                v
+       Send worker booking offer
+                |
+          +-----+-----+
+          |           |
+        Accept    Reject/Timeout
+          |           |
+          v           v
+    Confirm job   Try next worker
+          |           |
+          +-----+-----+
+                |
+                v
+         Service execution
+                |
+                v
+       Live location updates
 ```
 
-Workers are considered according to the eligibility and availability logic implemented by the backend.
-
-When an emergency booking is confirmed, the worker application can send location updates and the customer application can retrieve the current worker location.
+Workers are selected according to the eligibility, skill, verification, and availability logic implemented by the backend.
 
 ---
 
-# Worker Location Tracking
+## Worker Location Tracking
 
-The emergency workflow supports live worker location.
+### Worker Side
 
-### Worker side
+During an active emergency job, the worker application can:
 
-The Worker Dashboard can:
-
-1. Obtain the worker's GPS location.
+1. Obtain GPS coordinates.
 2. Send updated coordinates to the backend.
-3. Continue refreshing location while the relevant emergency job is active.
+3. Continue refreshing location while the relevant job is active.
 
-### Customer side
+### Customer Side
 
-The User Dashboard can:
+The customer application can:
 
-1. Poll the worker's current location.
-2. Display the latest available location.
-3. Provide an option to open the location in maps.
+1. Retrieve the worker's latest location.
+2. Display the available location.
+3. Open the location in maps.
 
-The location layer uses Redis for fast access to the latest worker position.
+Redis is used for fast access to the latest worker position.
 
 ---
 
-# ML + Data Engineering Layer
+## ML + Data Engineering Layer
 
-The intelligence layer is intentionally split into two responsibilities.
+The intelligence layer separates **data processing** from **machine learning prediction**.
 
-## Apache Spark
+### Apache Spark
 
-Spark handles the **data-engineering and aggregation stage**:
+Spark handles data engineering and aggregation:
 
 ```text
 Synthetic Records
-       ↓
+       |
+       v
 Spark Processing
-       ↓
+       |
+       v
 Cleaning / Aggregation
-       ↓
+       |
+       v
 City + Category + Time Insights
-       ↓
+       |
+       v
 Demand Analytics Output
 ```
 
-Spark is therefore not presented as another prediction model.
+### Machine Learning
 
-## Machine Learning
-
-The Random Forest model handles the **prediction stage**:
+The Random Forest model handles demand prediction:
 
 ```text
 Category
@@ -804,41 +784,44 @@ City
 Weather
 Day / Time Features
 Event Context
-       ↓
+       |
+       v
 Random Forest Regressor
-       ↓
+       |
+       v
 Predicted Demand
+       |
+       v
+Price Recommendation
 ```
 
-The predicted demand can then contribute to the pricing recommendation layer.
+In simple terms:
 
-This separation makes the architecture easier to explain:
-
-> **Spark processes the data; ML predicts demand; the application uses the prediction to support operational and pricing decisions.**
+> **Spark processes the data. ML predicts demand. The application uses the prediction to support operational and pricing decisions.**
 
 ---
 
-# Development Workflow
+## Development Workflow
 
-A recommended development workflow is:
+Recommended startup order:
 
 ```text
 1. Start PostgreSQL + PostGIS
 2. Start Redis
-3. Start Backend
+3. Start Backend API
 4. Start AI Engine
 5. Start Admin Frontend
 6. Start Expo Mobile App
 7. Run Spark pipeline when demand data needs regeneration
 ```
 
-For normal application testing, Spark does not need to be running continuously.
+Spark does not need to run continuously.
 
 ---
 
-# Troubleshooting
+## Troubleshooting
 
-## Backend does not start
+### Backend Does Not Start
 
 Check:
 
@@ -847,44 +830,36 @@ node --version
 npm --version
 ```
 
-Then reinstall dependencies if required:
+Then:
 
 ```powershell
-cd .\backend\backend
+cd .\backend
 npm install
-npm run dev
+npm start
 ```
 
 Also verify PostgreSQL and Redis are running.
 
----
-
-## AI Engine does not start
-
-Make sure the virtual environment is activated:
+### AI Engine Does Not Start
 
 ```powershell
 cd .\admin\ai-engine
-.\venv\Scripts\Activate.ps1
+py main.py
 ```
 
-Then:
+Or:
 
 ```powershell
-uvicorn main:app --host 0.0.0.0 --port 8001
+.\.venv\Scripts\python.exe main.py
 ```
 
-If Uvicorn is not found:
+If packages are missing:
 
 ```powershell
-python -m pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
-Then retry.
-
----
-
-## AI health check
+### AI Health Check
 
 Open:
 
@@ -892,91 +867,82 @@ Open:
 http://localhost:8001/health
 ```
 
-The service should return a successful health response containing the loaded model information.
+The endpoint should return a successful health response.
 
----
+### Admin Frontend Does Not Open
 
-## Admin frontend does not open
-
-Do **not** run:
+Do not use:
 
 ```text
 npm run dev
 ```
 
-The current admin frontend is static.
-
 Use:
 
 ```powershell
 cd .\admin\frontend
-python -m http.server 5500
+npx http-server -p 3000
 ```
 
-Then open:
+Then:
 
 ```text
-http://localhost:5500
+http://localhost:3000
 ```
 
----
+### Spark Fails on Windows
 
-## Spark fails on Windows
-
-The current project setup is intended to run the pipeline directly through Python:
+Run the pipeline directly through Python:
 
 ```powershell
 cd .\admin\ai-engine
-.\venv\Scripts\Activate.ps1
 python spark_pipeline.py
 ```
 
-Do not assume `spark-submit` is configured in the current Windows environment.
+The current setup uses Java 17 with PySpark.
 
-The project has been tested with the current PySpark setup using Java 17.
+### Mobile App Cannot Reach Localhost
 
----
+On a physical phone, `localhost` refers to the phone itself, not your development PC.
 
-## Mobile app cannot reach localhost
+Use your computer's local network IP for backend/AI URLs when necessary.
 
-When the mobile application runs on a physical phone, `localhost` refers to the phone itself, not your development PC.
-
-Use the computer's local network IP for backend/AI URLs where required, and make sure:
+Make sure:
 
 - PC and phone are on the same network
-- Windows Firewall permits the required ports
+- Windows Firewall allows the required ports
 - Backend is reachable from the phone
-- AI engine is reachable if the mobile workflow calls it directly
+- AI Engine is reachable if the mobile workflow calls it directly
 
-For Android Emulator, the networking address may differ from a physical device.
+For Android Emulator, networking addresses may differ from a physical device.
 
 ---
 
-# Ports
+## Ports
 
 | Component | Port |
 |---|---:|
-| Backend API | `8000` |
+| Backend API | `5000` |
 | AI Engine | `8001` |
-| Admin Frontend | `5500` |
+| Admin Frontend | `3000` |
 | PostgreSQL | `5432` |
 | Redis | `6379` |
 | Expo | Managed by Expo |
 
 ---
 
-# Security Notes
+## Security Notes
 
-The current project is an MVP/SIH implementation.
+ShramSaathi is currently an MVP/SIH implementation.
 
-Before production deployment, additional work should be done around:
+Before production deployment, additional work is required around:
 
 - Secret management
 - HTTPS/TLS
-- Strong production JWT configuration
+- Production JWT configuration
 - API rate limiting
 - Input validation and sanitization
-- Role/permission hardening
+- Role and permission hardening
 - Secure CORS configuration
 - Production database security
 - Redis authentication/network isolation
@@ -984,39 +950,35 @@ Before production deployment, additional work should be done around:
 - Audit logging
 - Monitoring and observability
 
-Never commit real API keys, database passwords, JWT secrets, or Cloudinary credentials to the repository.
+**Never commit real API keys, database passwords, JWT secrets, Cloudinary credentials, or other secrets to Git.**
 
 ---
 
-# Future Enhancements
+## Future Enhancements
 
-Planned or natural future improvements include:
+Potential future improvements include:
 
-- Real Razorpay payment integration
+- Real Razorpay/payment gateway integration
 - Production deployment
 - Stronger worker verification
-- Improved worker matching using distance and availability
-- Better real-time location delivery using WebSockets
-- More historical demand data
+- Improved distance- and availability-aware worker matching
+- WebSocket-based real-time location delivery
+- Larger historical demand datasets
 - Improved ML models and continuous retraining
 - Automated Spark data ingestion
-- Federation-level analytics dashboards
-- Notifications for booking offers and status changes
+- Federation-level analytics
+- Booking notifications
 - Ratings and reviews
-- Service completion verification
+- Service-completion verification
 - More robust emergency escalation policies
 
 ---
 
-# Project Differentiators
-
-ShramSaathi is more than a basic service-booking application.
-
-Its core differentiators are:
+## Project Differentiators
 
 ### 1. Labour Cooperative Model
 
-The system is designed around a federation/cooperative structure rather than only a conventional gig-marketplace model.
+The platform is designed around a federation/cooperative structure rather than only a conventional gig-marketplace workflow.
 
 ### 2. Emergency Worker Matching
 
@@ -1024,7 +986,7 @@ Emergency requests use a faster worker-offer and escalation workflow.
 
 ### 3. Data Engineering + AI
 
-The project demonstrates an end-to-end intelligence pipeline:
+The project demonstrates an end-to-end pipeline:
 
 ```text
 Data
@@ -1037,35 +999,36 @@ Machine Learning
   ↓
 Demand Prediction
   ↓
-Fair Pricing
+Price Recommendation
   ↓
 Marketplace Decision Support
 ```
 
 ### 4. Live Emergency Tracking
 
-Accepted emergency workers can share their live location so customers can monitor the worker's movement toward the job.
+Accepted emergency workers can share their live location so customers can monitor their movement toward the job.
 
 ### 5. Controlled Pricing
 
-Demand-aware pricing is bounded by configured limits instead of allowing unrestricted price changes.
+Demand-aware pricing is bounded by configured limits, while worker earnings and platform/welfare shares are calculated explicitly.
 
 ---
 
-# Local Development Checklist
+## Local Development Checklist
 
 Before a full demo, verify:
 
 - [ ] PostgreSQL is running
 - [ ] PostGIS is available
 - [ ] Redis is running
-- [ ] Backend starts on port `8000`
-- [ ] AI engine starts on port `8001`
+- [ ] Backend starts on port `5000`
+- [ ] AI Engine starts on port `8001`
 - [ ] `http://localhost:8001/health` works
-- [ ] Admin frontend opens on port `5500`
+- [ ] Admin frontend opens on port `3000`
 - [ ] Mobile app starts through Expo
 - [ ] Customer registration/login works
-- [ ] Worker registration/profile works
+- [ ] Worker registration works
+- [ ] Worker primary-skill resolution works
 - [ ] Normal booking works
 - [ ] Emergency booking works
 - [ ] Worker accept/reject flow works
@@ -1076,9 +1039,9 @@ Before a full demo, verify:
 
 ---
 
-# Demo Sequence
+## Demo Sequence
 
-For an SIH/project demonstration, a strong end-to-end sequence is:
+For an SIH/project demonstration:
 
 ```text
 Customer Login
@@ -1108,3 +1071,10 @@ This demonstrates both sides of the project:
 
 ---
 
+## License
+
+Add the project's chosen license here before publishing the repository publicly.
+
+## Contributors
+
+Add the ShramSaathi team members and their roles here.
