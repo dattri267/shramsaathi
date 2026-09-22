@@ -568,16 +568,23 @@ export default function UserDashboard({
 
         const result = await getPredictedServicePrice({
           skill_slug:
-            selectedService.id === "caregiver"
-              ? "caregiver"
-              : selectedService.id,
+            selectedService?.slug ||
+            selectedService?.id ||
+            selectedService?.name ||
+            "carpenter",
           city: address?.city || "",
           date: new Date().toISOString().slice(0, 10),
           weather: "Clear",
           events: "Normal day",
         });
 
-        const price = Number(result?.suggestedPrice);
+        const rawPrice =
+          result?.suggestedPrice ??
+          result?.estimated_price ??
+          result?.estimatedPrice ??
+          selectedService?.basePrice ??
+          900;
+        const price = Number(rawPrice);
 
         if (!cancelled && Number.isFinite(price) && price > 0) {
           setEmergencyPrice(price);

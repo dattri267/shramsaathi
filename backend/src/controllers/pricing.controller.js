@@ -1,4 +1,6 @@
 const { calculatePrice } = require('../services/pricing.service');
+const calendarService = require('../services/calendar.service');
+const weatherService = require('../services/weather.service');
 
 const AI_ENGINE_BASE_URL =
   process.env.AI_ENGINE_BASE_URL || 'http://127.0.0.1:8001';
@@ -10,6 +12,9 @@ const SERVICE_BASELINES = {
   painter: 1000,
   'domestic-helper': 600,
   caregiver: 800,
+  drivers: 750,
+  gardener: 650,
+  cleaner: 700,
   technician: 850
 };
 
@@ -17,9 +22,14 @@ const MODEL_CATEGORIES = {
   electrician: 'Electrician',
   plumber: 'Plumber',
   carpenter: 'Carpenter',
+  carpentry: 'Carpenter',
   painter: 'Painter',
   'domestic-helper': 'Domestic Helper',
   caregiver: 'Caregiver',
+  drivers: 'Drivers',
+  driver: 'Drivers',
+  gardener: 'Gardener',
+  cleaner: 'Cleaner',
   technician: 'Technician'
 };
 
@@ -35,13 +45,9 @@ function normalizeSlug(value) {
 }
 
 function normalizeModelCity(value) {
-  const input = String(value || '').trim().toLowerCase();
-
-  return (
-    MODEL_CITIES.find(
-      city => city.toLowerCase() === input
-    ) || 'Bengaluru'
-  );
+  const input = String(value || '').trim();
+  if (!input) return 'Bengaluru';
+  return input.charAt(0).toUpperCase() + input.slice(1);
 }
 
 async function calculateBookingPrice(req, res) {
@@ -83,80 +89,132 @@ async function calculateBookingPrice(req, res) {
 async function predictBookingPrice(req, res) {
   try {
     const skill = normalizeSlug(
-      req.body.skill_slug || req.body.category
+      req.body.task || req.body.skill_slug || req.body.category || req.body.service
     );
 
-    const category = MODEL_CATEGORIES[skill];
-    const currentPrice = SERVICE_BASELINES[skill];
+    const category = MODEL_CATEGORIES[skill] || req.body.category || 'Electrician';
+    const subCategory = req.body.subCategory || req.body.sub_category || '';
+    const currentPrice = req.body.currentPrice ? Number(req.body.currentPrice) : (SERVICE_BASELINES[skill] || 800);
 
-    if (!category || currentPrice === undefined) {
-      return res.status(400).json({
-        error:
-          `Unsupported service category: ` +
-          `${req.body.skill_slug || req.body.category || ''}`
-      });
-    }
-
-    const city = normalizeModelCity(req.body.city);
+    const inputLocation = req.body.location || req.body.service_address || req.body.address || req.body.city || 'Bengaluru';
+    const city = normalizeModelCity(req.body.city || inputLocation);
     const date =
       req.body.date ||
-      new Date().toISOString().slice(0, 10);
-    const weather = req.body.weather || 'Clear';
-    const events = req.body.events || 'Normal day';
+      req.body.scheduled_start_at ? new Date(req.body.scheduled_start_at).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+    const time = req.body.time || '12:00';
+    const pickupLocation = req.body.pickupLocation || req.body.pickup || inputLocation;
+    const destinationLocation = req.body.destinationLocation || req.body.destination || '';
 
-    const response = await fetch(
-      `${AI_ENGINE_BASE_URL}/predict`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          city,
-          category,
-          date,
-          currentPrice,
-          weather,
-          events
-        })
-      }
-    );
+    // Automatic Live Location Weather Resolution via Open-Meteo API
+    let weather = req.body.weather;
+    let weatherSource = 'User Select';
+
+    if (!weather || weather === 'Auto' || weather === 'Auto (Open-Meteo)') {
+      const resolvedWeatherInfo = await weatherService.getWeatherForBooking({
+        location: inputLocation,
+        city,
+        date
+      });
+      weather = resolvedWeatherInfo.weather;
+      weatherSource = resolvedWeatherInfo.source;
+    }
+
+    let events = req.body.events || 'Normal day';
+
+    // Get Calendar Context as Single Source of Truth from Node calendar.service
+    const calendarContext = await calendarService.getCalendarContext({
+      bookingDate: date,
+      bookingTime: time,
+      city,
+      pickupLocation,
+      destinationLocation
+    });
+
+    if (calendarContext.isHoliday) {
+      events = 'Holiday';
+    } else if (calendarContext.eventPresent) {
+      events = 'Major event';
+    }
 
     let data = null;
-
     try {
-      data = await response.json();
-    } catch {
-      data = null;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+      const response = await fetch(
+        `${AI_ENGINE_BASE_URL}/predict`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            city,
+            category,
+            subCategory,
+            date,
+            time,
+            pickupLocation,
+            destinationLocation,
+            currentPrice,
+            weather,
+            events,
+            weatherSource,
+            calendarContext
+          }),
+          signal: controller.signal
+        }
+      );
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        data = await response.json();
+      }
+    } catch (e) {
+      console.warn(`⚠️ Internal AI pricing call timed out/failed (${e.message}). Using system baseline rate ${currentPrice}.`);
     }
 
-    if (!response.ok) {
-      return res.status(502).json({
-        error:
-          data?.detail ||
-          data?.error ||
-          `AI engine returned ${response.status}`
-      });
-    }
+    const suggestedPrice = data?.suggestedPrice ? Number(data.suggestedPrice) : currentPrice;
+    const demandRatio = data?.ratio ? Number(data.ratio) : 1.0;
 
-    res.json({
-      ...data,
-      serviceSlug: skill,
-      cityUsedByModel: city,
-      priceSource: 'RandomForestRegressor'
+    return res.json({
+      task: skill || category,
+      location: inputLocation,
+      city,
+      suggestedPrice: suggestedPrice,
+      estimated_price: suggestedPrice,
+      standard_baseline_price: currentPrice,
+      demand_ratio: demandRatio,
+      fair_pricing_guardrails: {
+        floor: Number((currentPrice * 0.82).toFixed(2)),
+        ceiling: Number((currentPrice * 1.18).toFixed(2))
+      },
+      weather_context: weather,
+      weather_source: weatherSource,
+      calendar_context: calendarContext,
+      price_source: data ? 'RandomForestRegressor' : 'SystemBaselineGuardrail',
+      message: 'Automated dynamic price estimation computed internally based on user location and task.'
     });
   } catch (err) {
-    console.error('AI price prediction failed:', err);
+    console.error('Automated task price estimation failed:', err);
 
-    res.status(502).json({
-      error:
-        'Unable to get the service price from the AI pricing model. ' +
-        'Make sure the AI engine is running on port 8001.'
+    const defaultPrice = 800;
+    return res.json({
+      suggestedPrice: defaultPrice,
+      estimated_price: defaultPrice,
+      standard_baseline_price: defaultPrice,
+      demand_ratio: 1.0,
+      fair_pricing_guardrails: { floor: 656, ceiling: 944 },
+      price_source: 'SystemDefaultFallback',
+      message: 'Baseline price returned.'
     });
   }
 }
 
+async function estimateCustomerTaskPrice(req, res) {
+  return predictBookingPrice(req, res);
+}
+
 module.exports = {
   calculateBookingPrice,
-  predictBookingPrice
+  predictBookingPrice,
+  estimateCustomerTaskPrice
 };

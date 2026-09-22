@@ -57,7 +57,7 @@ async function createRating(req, res, next) {
       });
     }
 
-    if (booking.customer_id !== customerProfileId) {
+    if (booking.customer_id !== customerProfileId && booking.customer_id !== req.user.id) {
       return res.status(403).json({
         error: 'You can only rate your own bookings'
       });

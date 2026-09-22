@@ -12,7 +12,8 @@
   <h1>ShramSaathi · Federation Admin</h1>
   <nav class="tabs">
     <button id="tabBtnWorkers" class="active">Worker Verification</button>
-    <button id="tabBtnPricing">Demand &amp; Pricing Model</button>
+    <button id="tabBtnPricing">Automated Pricing Policy</button>
+    <button id="tabBtnCalendar">Calendar &amp; Events</button>
     <button id="tabBtnAnalytics">Demand Intelligence</button>
   </nav>
 </header>
@@ -39,53 +40,123 @@
 
   <!-- ===================== PRICING PANEL ===================== -->
   <section id="panelPricing" class="panel">
+    <div class="card" style="margin-bottom:20px; border-left: 4px solid #10b981; background: #f0fdf4;">
+      <div class="eyebrow" style="color: #059669;">AUTOMATED INTERNAL PRICING SYSTEM</div>
+      <h2 style="margin:6px 0 10px; color:#065f46;">System-Managed Demand Pricing</h2>
+      <p style="color:#047857; margin:0; line-height:1.5; font-size:14px;">
+        Demand pricing is <strong>100% automated internally</strong>. When an end-user selects a task and enters their location, the system automatically computes and displays estimated dynamic prices directly on the user's screen using live weather, local events, and AI demand forecasting. Admins do not manually calculate or override pricing.
+      </p>
+    </div>
+
     <div class="pricing-grid">
 
       <div class="card">
-        <div class="eyebrow">01 / INPUT SIGNALS</div>
-        <h2 style="margin:6px 0 18px;">Set a scenario</h2>
+        <div class="eyebrow">AUTOMATED PRICING GUARDRAILS</div>
+        <h3 style="margin:6px 0 14px;">Service Baseline Rates</h3>
+        <p class="hint-text" style="margin-bottom:14px;">
+          Prices automatically adjust dynamically between <strong>82% (Floor)</strong> and <strong>118% (Ceiling)</strong> of standard base rates to protect worker compensation and customer trust.
+        </p>
 
-        <label class="field-label">City</label>
-        <select id="citySelect"></select>
+        <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
+          <thead>
+            <tr style="border-bottom:1px solid #e5e7eb; color:#6b7280;">
+              <th style="padding:8px 4px;">Service Task</th>
+              <th style="padding:8px 4px;">Standard Rate (₹)</th>
+              <th style="padding:8px 4px;">Fair Floor (0.82x)</th>
+              <th style="padding:8px 4px;">Fair Ceiling (1.18x)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid #f3f4f6;">
+              <td style="padding:8px 4px;"><strong>Electrician</strong></td>
+              <td style="padding:8px 4px;">₹800</td>
+              <td style="padding:8px 4px; color:#059669;">₹656</td>
+              <td style="padding:8px 4px; color:#d97706;">₹944</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f3f4f6;">
+              <td style="padding:8px 4px;"><strong>Plumber</strong></td>
+              <td style="padding:8px 4px;">₹650</td>
+              <td style="padding:8px 4px; color:#059669;">₹533</td>
+              <td style="padding:8px 4px; color:#d97706;">₹767</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f3f4f6;">
+              <td style="padding:8px 4px;"><strong>Carpenter</strong></td>
+              <td style="padding:8px 4px;">₹900</td>
+              <td style="padding:8px 4px; color:#059669;">₹738</td>
+              <td style="padding:8px 4px; color:#d97706;">₹1,062</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f3f4f6;">
+              <td style="padding:8px 4px;"><strong>Painter</strong></td>
+              <td style="padding:8px 4px;">₹1,000</td>
+              <td style="padding:8px 4px; color:#059669;">₹820</td>
+              <td style="padding:8px 4px; color:#d97706;">₹1,180</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f3f4f6;">
+              <td style="padding:8px 4px;"><strong>Domestic Helper</strong></td>
+              <td style="padding:8px 4px;">₹600</td>
+              <td style="padding:8px 4px; color:#059669;">₹492</td>
+              <td style="padding:8px 4px; color:#d97706;">₹708</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f3f4f6;">
+              <td style="padding:8px 4px;"><strong>Caregiver</strong></td>
+              <td style="padding:8px 4px;">₹800</td>
+              <td style="padding:8px 4px; color:#059669;">₹656</td>
+              <td style="padding:8px 4px; color:#d97706;">₹944</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 4px;"><strong>Technician</strong></td>
+              <td style="padding:8px 4px;">₹850</td>
+              <td style="padding:8px 4px; color:#059669;">₹697</td>
+              <td style="padding:8px 4px; color:#d97706;">₹1,003</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-        <label class="field-label">Service category</label>
-        <select id="categorySelect"></select>
+      <div class="card">
+        <div class="eyebrow">AUTOMATED PRICING FLOW</div>
+        <h3 style="margin:6px 0 14px;">How Customer Pricing Works</h3>
+        <ol style="padding-left:18px; margin:0; font-size:13px; color:#374151; line-height:1.8;">
+          <li><strong>User Input</strong>: Customer enters their task (e.g. Electrician) and location/address.</li>
+          <li><strong>Context Resolution</strong>: System automatically fetches live local weather (Open-Meteo) and calendar events/holidays for that location.</li>
+          <li><strong>AI Demand Forecast</strong>: The internal AI Engine calculates demand pressure and suggests an estimated price.</li>
+          <li><strong>Guardrail Enforcement</strong>: Backend enforces 82%–118% safety boundaries.</li>
+          <li><strong>Instant Estimate</strong>: Estimated price is directly rendered on the customer screen.</li>
+        </ol>
+      </div>
 
-        <div class="two-col">
-          <div>
-            <label class="field-label">Forecast date</label>
-            <input id="forecastDate" type="date" />
-          </div>
-          <div>
-            <label class="field-label">Current price (₹)</label>
-            <input id="currentPrice" type="number" min="1" value="559" />
-          </div>
-        </div>
+    </div>
+  </section>
 
-        <div class="two-col">
-          <div>
-            <label class="field-label">Weather</label>
-            <select id="weatherSelect"></select>
-          </div>
-          <div>
-            <label class="field-label">Local activity</label>
-            <select id="eventsSelect"></select>
-          </div>
-        </div>
-
-        <button id="runModelBtn" class="run-btn">Run pricing model →</button>
-        <p class="hint-text">
-          Prices are bounded between 82% and 118% to protect worker access and customer trust.
+  <!-- ===================== CALENDAR & EVENTS PANEL ===================== -->
+  <section id="panelCalendar" class="panel">
+    <div class="analytics-header" style="margin-bottom:16px;">
+      <div>
+        <h2>Calendar &amp; Event Context Manager</h2>
+        <p>
+          Manage holidays, festivals, major city events, and traffic restrictions that feed into AI demand prediction.
         </p>
       </div>
+      <button id="addEventBtn" class="run-btn" style="width:auto; margin:0;">+ Add Event</button>
+    </div>
 
-      <div>
-        <div id="outputEmpty" class="card placeholder-note">
-          Set a scenario and run the model to see the demand forecast and suggested price.
-        </div>
-        <div id="outputResults" style="display:none;"></div>
+    <div class="card" style="padding:16px;">
+      <div id="calendarLoading" class="loading-state">Loading calendar events…</div>
+      <div id="calendarTableWrapper" style="display:none; overflow-x:auto;">
+        <table class="event-table" style="width:100%; border-collapse:collapse; text-align:left;">
+          <thead>
+            <tr style="border-bottom:2px solid #e5e7eb; font-size:13px; text-transform:uppercase; color:#6b7280;">
+              <th style="padding:10px;">Event Name</th>
+              <th style="padding:10px;">Dates &amp; Hours</th>
+              <th style="padding:10px;">Location (City / State / Area)</th>
+              <th style="padding:10px;">System Analysis &amp; Estimated Impact</th>
+              <th style="padding:10px;">Source</th>
+              <th style="padding:10px; text-align:right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="eventTableBody"></tbody>
+        </table>
       </div>
-
     </div>
   </section>
 
@@ -144,48 +215,110 @@
   </div>
 </div>
 
+<!-- ===================== EVENT ADD / EDIT MODAL ===================== -->
+<div id="eventModal" class="modal-overlay">
+  <div class="modal card" style="max-width:550px; width:90%; padding:24px;">
+    <h2 id="eventModalTitle" style="margin-top:0;">Add Calendar Event</h2>
+    <p style="font-size:12px; color:#6b7280; margin-top:-8px; margin-bottom:12px;">
+      Enter event facts. Event classification, system context, and estimated impact multipliers are derived automatically by the system.
+    </p>
+    <form id="eventForm" style="display:flex; flex-direction:column; gap:12px;">
+      <input type="hidden" id="eventId" />
+      <div>
+        <label class="field-label">Event Name</label>
+        <input type="text" id="eventName" required placeholder="e.g. BRICS Summit 2026" style="width:100%;" />
+      </div>
+      <div class="two-col">
+        <div>
+          <label class="field-label">City</label>
+          <input type="text" id="eventCity" required placeholder="e.g. Noida or Delhi" style="width:100%; padding:8px; border-radius:6px; border:1px solid #d1d5db;" />
+        </div>
+        <div>
+          <label class="field-label">State</label>
+          <input type="text" id="eventState" placeholder="e.g. Uttar Pradesh" style="width:100%; padding:8px; border-radius:6px; border:1px solid #d1d5db;" />
+        </div>
+      </div>
+      <div>
+        <label class="field-label">Affected Area</label>
+        <input type="text" id="eventAffectedArea" placeholder="e.g. Central Delhi or Sector 62" style="width:100%;" />
+      </div>
+      <div class="two-col">
+        <div>
+          <label class="field-label">Start Date</label>
+          <input type="date" id="eventStartDate" required style="width:100%;" />
+        </div>
+        <div>
+          <label class="field-label">End Date</label>
+          <input type="date" id="eventEndDate" required style="width:100%;" />
+        </div>
+      </div>
+      <div class="two-col">
+        <div>
+          <label class="field-label">Start Time</label>
+          <input type="time" id="eventStartTime" value="08:00" style="width:100%;" />
+        </div>
+        <div>
+          <label class="field-label">End Time</label>
+          <input type="time" id="eventEndTime" value="20:00" style="width:100%;" />
+        </div>
+      </div>
+      <div>
+        <label class="field-label">Description / Context Details</label>
+        <textarea id="eventDescription" rows="3" placeholder="Describe the event, scale, expected footfall, VIP movement, or road closures..." style="width:100%; padding:8px; border-radius:6px; border:1px solid #d1d5db;"></textarea>
+      </div>
+      <div style="display:flex; justify:flex-end; gap:12px; margin-top:12px;">
+        <button type="button" id="closeEventModalBtn" style="padding:8px 16px; background:#f3f4f6; border:1px solid #d1d5db; border-radius:6px; cursor:pointer;">Cancel</button>
+        <button type="submit" class="run-btn" style="width:auto; margin:0;">Save Event</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script src="js/config.js"></script>
 <script>
   const tabBtnWorkers = document.getElementById('tabBtnWorkers');
   const tabBtnPricing = document.getElementById('tabBtnPricing');
+  const tabBtnCalendar = document.getElementById('tabBtnCalendar');
   const tabBtnAnalytics = document.getElementById('tabBtnAnalytics');
 
   const panelWorkers = document.getElementById('panelWorkers');
   const panelPricing = document.getElementById('panelPricing');
+  const panelCalendar = document.getElementById('panelCalendar');
   const panelAnalytics = document.getElementById('panelAnalytics');
 
-  tabBtnWorkers.addEventListener('click', () => {
-    tabBtnWorkers.classList.add('active');
-    tabBtnPricing.classList.remove('active');
-    tabBtnAnalytics.classList.remove('active');
+  function deactivateAll() {
+    [tabBtnWorkers, tabBtnPricing, tabBtnCalendar, tabBtnAnalytics].forEach(btn => btn.classList.remove('active'));
+    [panelWorkers, panelPricing, panelCalendar, panelAnalytics].forEach(p => p.classList.remove('active'));
+  }
 
+  tabBtnWorkers.addEventListener('click', () => {
+    deactivateAll();
+    tabBtnWorkers.classList.add('active');
     panelWorkers.classList.add('active');
-    panelPricing.classList.remove('active');
-    panelAnalytics.classList.remove('active');
   });
 
   tabBtnPricing.addEventListener('click', () => {
+    deactivateAll();
     tabBtnPricing.classList.add('active');
-    tabBtnWorkers.classList.remove('active');
-    tabBtnAnalytics.classList.remove('active');
-
     panelPricing.classList.add('active');
-    panelWorkers.classList.remove('active');
-    panelAnalytics.classList.remove('active');
+  });
+
+  tabBtnCalendar.addEventListener('click', () => {
+    deactivateAll();
+    tabBtnCalendar.classList.add('active');
+    panelCalendar.classList.add('active');
+    if (window.loadCalendarEvents) window.loadCalendarEvents();
   });
 
   tabBtnAnalytics.addEventListener('click', () => {
+    deactivateAll();
     tabBtnAnalytics.classList.add('active');
-    tabBtnWorkers.classList.remove('active');
-    tabBtnPricing.classList.remove('active');
-
     panelAnalytics.classList.add('active');
-    panelWorkers.classList.remove('active');
-    panelPricing.classList.remove('active');
   });
 </script>
 <script src="js/workers.js"></script>
 <script src="js/pricing.js"></script>
+<script src="js/calendar.js"></script>
 <script src="js/analytics.js"></script>
 </body>
 </html>

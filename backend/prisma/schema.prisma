@@ -543,6 +543,7 @@ model bookings {
   payments                  payments?
   ratings                   ratings[]
   welfare_fund_transactions welfare_fund_transactions[]
+  worker_booking_rejections worker_booking_rejections[]
 
   @@index([customer_id, status, created_at(sort: Desc)], map: "idx_bookings_customer_status")
   @@index([service_location], map: "idx_bookings_location", type: Gist)
@@ -556,7 +557,7 @@ model customer_profiles {
   user_id          String                    @unique @db.Uuid
   default_address  String?
   default_location Unsupported("geography")?
-   address_details  Json?
+  address_details  Json?
   created_at       DateTime                  @default(now()) @db.Timestamptz(6)
   updated_at       DateTime                  @default(now()) @db.Timestamptz(6)
   bookings         bookings[]
@@ -805,6 +806,7 @@ model worker_profiles {
   bookings                 bookings[]
   emergency_match_attempts emergency_match_attempts[]
   welfare_claims           welfare_claims[]
+  worker_booking_rejections worker_booking_rejections[]
   worker_documents         worker_documents[]
   profiles                 profiles                   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   worker_skills            worker_skills[]
@@ -837,6 +839,19 @@ model notifications {
   created_at DateTime @default(now()) @db.Timestamptz(6)
   profiles   profiles @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model worker_booking_rejections {
+  booking_id      String          @db.Uuid
+  worker_id       String          @db.Uuid
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  bookings        bookings        @relation(fields: [booking_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  worker_profiles worker_profiles @relation(fields: [worker_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([booking_id, worker_id])
+  @@index([worker_id, created_at], map: "idx_worker_booking_rejections_worker_created")
   @@schema("public")
 }
 
@@ -1007,5 +1022,61 @@ enum worker_status {
   suspended
   rejected
 
+  @@schema("public")
+}
+
+enum calendar_event_type {
+  WEEKEND
+  PUBLIC_HOLIDAY
+  GOVERNMENT_HOLIDAY
+  FESTIVAL
+  LOCAL_EVENT
+  MAJOR_EVENT
+  SPORTS_EVENT
+  CONCERT
+  STRIKE
+  ROAD_DISRUPTION
+  TRAFFIC_RESTRICTION
+  OTHER
+
+  @@schema("public")
+}
+
+enum impact_level {
+  LOW
+  MEDIUM
+  HIGH
+  VERY_HIGH
+
+  @@schema("public")
+}
+
+model calendar_events {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                String
+  type                calendar_event_type @default(LOCAL_EVENT)
+  start_date          String              @db.VarChar(10)
+  end_date            String              @db.VarChar(10)
+  start_time          String?             @db.VarChar(8)
+  end_time            String?             @db.VarChar(8)
+  city                String              @db.VarChar(80)
+  state               String?             @db.VarChar(80)
+  affected_area       String?             @db.VarChar(120)
+  latitude            Float?
+  longitude           Float?
+  impact_level        impact_level        @default(MEDIUM)
+  demand_impact       Float               @default(1.0)
+  availability_impact Float               @default(1.0)
+  traffic_impact      Float               @default(1.0)
+  description         String?
+  source              String              @default("ADMIN") @db.VarChar(30)
+  status              String              @default("ACTIVE") @db.VarChar(30)
+  analysis_reasons     Json?               @default("[]")
+  active              Boolean             @default(true)
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime            @default(now()) @db.Timestamptz(6)
+
+  @@index([start_date, end_date], map: "idx_calendar_events_dates")
+  @@index([city, active], map: "idx_calendar_events_city")
   @@schema("public")
 }

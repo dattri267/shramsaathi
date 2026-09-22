@@ -6,9 +6,11 @@ const {
   getSkills
 } = require('../controllers/skill.controller');
 
-router.get(
-  '/skills',
-  getSkills
-);
+router.get('/skills', getSkills);
+router.get('/v1/skills', getSkills);
+router.get('/api/skills', getSkills);
+router.get('/api/v1/skills', getSkills);
+router.get('/services', getSkills);
+router.get('/api/services', getSkills);
 
 module.exports = router;

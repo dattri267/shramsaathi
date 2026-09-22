@@ -84,16 +84,22 @@ type Booking = {
   status: BookingStatus;
 };
 
+const formatMoney = (val: number | string | undefined | null): string => {
+  const n = Number(val ?? 0);
+  if (isNaN(n)) return '0';
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+};
+
 
 /* =========================================================
    WORKER INFORMATION
 ========================================================= */
 
 const DEFAULT_WORKER = {
-  name: 'Ramesh Kumar',
-  skill: 'Electrician',
+  name: 'Worker',
+  skill: 'Not specified',
   rating: 4.8,
-  completedJobs: 47,
+  completedJobs: 0,
 };
 
 
@@ -205,8 +211,8 @@ export default function WorkerDashboard({
       latitude: typeof item?.location?.latitude === 'number' ? item.location.latitude : undefined,
       longitude: typeof item?.location?.longitude === 'number' ? item.location.longitude : undefined,
       amount,
-      commission: amount * 0.10,
-      workerEarning: amount * 0.80,
+      commission: Number((amount * 0.10).toFixed(2)),
+      workerEarning: Number((amount * 0.80).toFixed(2)),
       status,
     };
   };
@@ -856,7 +862,7 @@ export default function WorkerDashboard({
             </Text>
 
             <Text style={styles.moneyAmount}>
-              ₹{booking.amount}
+              ₹{formatMoney(booking.amount)}
             </Text>
 
           </View>
@@ -872,7 +878,7 @@ export default function WorkerDashboard({
             </Text>
 
             <Text style={styles.workerAmount}>
-              ₹{booking.workerEarning}
+              ₹{formatMoney(booking.workerEarning)}
             </Text>
 
           </View>
@@ -913,7 +919,7 @@ export default function WorkerDashboard({
             />
 
             <Text style={styles.paymentReceivedText}>
-              Payment received • ₹{booking.workerEarning}
+              Payment received • ₹{formatMoney(booking.workerEarning)}
             </Text>
 
           </View>
@@ -1228,7 +1234,7 @@ export default function WorkerDashboard({
             </View>
 
             <Text style={styles.statValue}>
-              ₹{totalEarnings}
+              ₹{formatMoney(totalEarnings)}
             </Text>
 
             <Text style={styles.statLabel}>
@@ -1543,7 +1549,7 @@ export default function WorkerDashboard({
           </Text>
 
           <Text style={styles.totalEarningsAmount}>
-            ₹{totalEarnings}
+            ₹{formatMoney(totalEarnings)}
           </Text>
 
           <Text style={styles.totalEarningsSubtext}>
@@ -1577,7 +1583,7 @@ export default function WorkerDashboard({
             </Text>
 
             <Text style={styles.pendingEarningsAmount}>
-              ₹{pendingEarnings}
+              ₹{formatMoney(pendingEarnings)}
             </Text>
 
             <Text style={styles.pendingEarningsSubtitle}>
@@ -1697,7 +1703,7 @@ export default function WorkerDashboard({
                 <View style={styles.historyAmountContainer}>
 
                   <Text style={styles.historyAmount}>
-                    +₹{booking.workerEarning}
+                    +₹{formatMoney(booking.workerEarning)}
                   </Text>
 
                   <Text style={styles.paidText}>
@@ -2299,7 +2305,7 @@ export default function WorkerDashboard({
                 </Text>
 
                 <Text style={styles.paymentLineValue}>
-                  ₹{booking.amount}
+                  ₹{formatMoney(booking.amount)}
                 </Text>
 
               </View>
@@ -2312,7 +2318,7 @@ export default function WorkerDashboard({
                 </Text>
 
                 <Text style={styles.commissionValue}>
-                  - ₹{booking.commission}
+                  - ₹{formatMoney(booking.commission)}
                 </Text>
 
               </View>
@@ -2328,7 +2334,7 @@ export default function WorkerDashboard({
                 </Text>
 
                 <Text style={styles.finalEarningValue}>
-                  ₹{booking.workerEarning}
+                  ₹{formatMoney(booking.workerEarning)}
                 </Text>
 
               </View>
@@ -2377,7 +2383,7 @@ export default function WorkerDashboard({
                 />
 
                 <Text style={styles.modalPaymentReceivedText}>
-                  Payment received. ₹{booking.workerEarning}
+                  Payment received. ₹{formatMoney(booking.workerEarning)}
                   {' '}is now available as your earning.
                 </Text>
 

@@ -1,14 +1,5 @@
 """
-Generate synthetic demand history and train the ShramSaathi Random Forest.
-
-Usage (from the `backend/` folder):
-
-    python train.py                 # 3 years of synthetic data, writes model/demand_forecaster.pkl
-    python train.py --rows 20000    # custom sample size
-    python train.py --seed 7        # different synthetic draw
-
-The resulting pickle is a full scikit-learn Pipeline (one-hot encoder + RandomForest),
-so inference only needs `pipeline.predict(features_df)`.
+Generate synthetic demand history and train the ShramSaathi Random Forest Forecaster.
 """
 
 from __future__ import annotations
@@ -41,6 +32,8 @@ from features import (
     FEATURE_COLUMNS,
     MODEL_VERSION,
     NUMERIC_FEATURES,
+    SUBCATEGORIES,
+    SUBCATEGORY_FACTOR,
     WEATHER_FACTOR,
     WEATHERS,
 )
@@ -49,14 +42,12 @@ HERE = Path(__file__).resolve().parent
 MODEL_DIR = HERE / "model"
 DATA_DIR = HERE / "data"
 
-# Seasonal demand shape by month (monsoon + festival season are busier).
 MONTH_FACTOR = {1: 0.98, 2: 0.97, 3: 1.00, 4: 1.03, 5: 1.05, 6: 1.08,
                 7: 1.12, 8: 1.10, 9: 1.04, 10: 1.09, 11: 1.07, 12: 1.02}
 WEEKDAY_FACTOR = [0.96, 0.97, 0.98, 1.00, 1.05, 1.14, 1.10]  # Mon..Sun
 
 
 def _sample_weather(month: int, rng: random.Random) -> str:
-    """Rain is more likely in monsoon months, heat in Apr-Jun."""
     if month in (6, 7, 8, 9):
         weights = [0.45, 0.50, 0.05]
     elif month in (4, 5):
@@ -67,7 +58,6 @@ def _sample_weather(month: int, rng: random.Random) -> str:
 
 
 def _sample_event(d: date, rng: random.Random) -> str:
-    """Holidays cluster around festival months; major events are rare."""
     holiday_p = 0.16 if d.month in (10, 11, 12, 1, 8) else 0.07
     roll = rng.random()
     if roll < 0.04:
@@ -88,23 +78,43 @@ def generate_synthetic_history(rows: int, seed: int) -> pd.DataFrame:
         d = start + timedelta(days=rng.randrange(span_days))
         city = rng.choice(CITIES)
         category = rng.choice(CATEGORIES)
+        sub_category = rng.choice(SUBCATEGORIES)
         weather = _sample_weather(d.month, rng)
         events = _sample_event(d, rng)
+        hour_of_day = rng.choice([8, 10, 12, 14, 16, 18, 20, 22])
+
+        demand_impact = 1.0
+        availability_impact = 1.0
+        traffic_impact = 1.0
+        location_affected = 0
+
+        if events == "Holiday":
+            demand_impact = float(rng.uniform(1.10, 1.35))
+            availability_impact = float(rng.uniform(0.60, 0.85))
+            traffic_impact = float(rng.uniform(1.05, 1.25))
+        elif events == "Major event":
+            demand_impact = float(rng.uniform(1.20, 1.50))
+            availability_impact = float(rng.uniform(0.50, 0.75))
+            traffic_impact = float(rng.uniform(1.25, 1.60))
+            location_affected = 1 if rng.random() < 0.7 else 0
+
+        sub_mult = SUBCATEGORY_FACTOR.get(sub_category, 1.0)
 
         expected = (
             BASE_JOBS
             * CITY_FACTOR[city]
             * CATEGORY_FACTOR[category]
+            * sub_mult
             * WEATHER_FACTOR[weather]
             * EVENT_FACTOR[events]
             * MONTH_FACTOR[d.month]
             * WEEKDAY_FACTOR[d.weekday()]
-            * (1.06 if d.day >= 26 else 1.0)  # salary-week bump
+            * (1.06 if d.day >= 26 else 1.0)
+            * (demand_impact / max(0.4, availability_impact))**0.3
         )
-        # Interaction: rain during a major event is worse than multiplicative.
         if weather == "Rain" and events == "Major event":
             expected *= 1.08
-        # Real-world noise: Poisson-ish count noise plus mild heteroscedastic jitter.
+
         jobs = np_rng.poisson(expected) * np_rng.normal(1.0, 0.04)
         jobs = max(5, int(round(jobs)))
 
@@ -113,12 +123,18 @@ def generate_synthetic_history(rows: int, seed: int) -> pd.DataFrame:
                 "date": d.isoformat(),
                 "city": city,
                 "category": category,
+                "sub_category": sub_category,
                 "weather": weather,
                 "events": events,
                 "day_of_week": d.weekday(),
                 "month": d.month,
                 "is_weekend": int(d.weekday() >= 5),
                 "is_month_end": int(d.day >= 26),
+                "hour_of_day": hour_of_day,
+                "demand_impact": demand_impact,
+                "availability_impact": availability_impact,
+                "traffic_impact": traffic_impact,
+                "location_affected": location_affected,
                 "jobs": jobs,
             }
         )
@@ -132,12 +148,10 @@ def build_pipeline(seed: int) -> Pipeline:
             ("num", "passthrough", NUMERIC_FEATURES),
         ]
     )
-    # Sized to stay git-friendly (~2 MB pickle) while matching the noise ceiling
-    # of the synthetic data; more trees/depth adds bytes but not accuracy.
     model = RandomForestRegressor(
         n_estimators=80,
-        max_depth=9,
-        min_samples_leaf=12,
+        max_depth=10,
+        min_samples_leaf=10,
         n_jobs=-1,
         random_state=seed,
     )
@@ -146,9 +160,9 @@ def build_pipeline(seed: int) -> Pipeline:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the ShramSaathi demand forecaster")
-    parser.add_argument("--rows", type=int, default=12000)
+    parser.add_argument("--rows", type=int, default=15000)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--no-csv", action="store_true", help="Skip writing the synthetic CSV")
+    parser.add_argument("--no-csv", action="store_true", help="Skip writing synthetic CSV")
     args = parser.parse_args()
 
     print(f"[train] generating {args.rows} synthetic rows (seed={args.seed})")
@@ -171,7 +185,7 @@ def main() -> None:
     with model_path.open("wb") as fh:
         pickle.dump(pipeline, fh, protocol=pickle.HIGHEST_PROTOCOL)
 
-    import sklearn  # local import so the version is recorded exactly
+    import sklearn
 
     metadata = {
         "model_version": MODEL_VERSION,

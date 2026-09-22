@@ -1,100 +1,27 @@
+// backend/src/routes/worker.routes.js
 const express = require('express');
-const multer = require('multer');
-
 const router = express.Router();
-
 const {
-  requireAuth,
-  resolveRoleProfile
-} = require('../middleware/auth');
-
-const {
-  getProfile,
-  updateProfile,
-  updateAvailability,
-  getJobs,
-  uploadDocument
+  createWorkerProfile,
+  getWorkerProfile,
+  updateWorkerProfile,
+  updateWorkerAvailability
 } = require('../controllers/worker.controller');
+const { requireAuth } = require('../middleware/auth');
 
-// --------------------------------------------------
-// Multer configuration
-// --------------------------------------------------
+router.get('/worker/profile', requireAuth, getWorkerProfile);
+router.get('/api/worker/profile', requireAuth, getWorkerProfile);
+router.get('/profile', requireAuth, getWorkerProfile);
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = [
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-      'application/pdf'
-    ];
+router.post('/worker/profile', requireAuth, createWorkerProfile);
+router.post('/api/worker/profile', requireAuth, createWorkerProfile);
 
-    if (!allowedTypes.includes(file.mimetype)) {
-      return cb(
-        new Error(
-          'Only JPG, PNG, WEBP and PDF files are allowed'
-        )
-      );
-    }
+router.patch('/worker/profile', requireAuth, updateWorkerProfile);
+router.patch('/api/worker/profile', requireAuth, updateWorkerProfile);
+router.put('/worker/profile', requireAuth, updateWorkerProfile);
+router.put('/api/worker/profile', requireAuth, updateWorkerProfile);
 
-    cb(null, true);
-  }
-});
-
-// --------------------------------------------------
-// Worker Profile
-// --------------------------------------------------
-
-router.get(
-  '/worker/profile',
-  requireAuth,
-  resolveRoleProfile,
-  getProfile
-);
-
-router.patch(
-  '/worker/profile',
-  requireAuth,
-  resolveRoleProfile,
-  updateProfile
-);
-
-// --------------------------------------------------
-// Worker Availability
-// --------------------------------------------------
-
-router.patch(
-  '/worker/availability',
-  requireAuth,
-  resolveRoleProfile,
-  updateAvailability
-);
-
-// --------------------------------------------------
-// Worker Jobs
-// --------------------------------------------------
-
-router.get(
-  '/worker/jobs',
-  requireAuth,
-  resolveRoleProfile,
-  getJobs
-);
-
-// --------------------------------------------------
-// Worker Document Upload
-// --------------------------------------------------
-
-router.post(
-  '/worker/documents',
-  requireAuth,
-  resolveRoleProfile,
-  upload.single('file'),
-  uploadDocument
-);
+router.patch('/worker/availability', requireAuth, updateWorkerAvailability);
+router.patch('/api/worker/availability', requireAuth, updateWorkerAvailability);
 
 module.exports = router;

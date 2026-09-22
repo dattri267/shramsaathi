@@ -1,24 +1,30 @@
 {
-  "model_version": "1.0.0-rf",
+  "model_version": "1.2.0-rf-subcategories",
   "algorithm": "RandomForestRegressor",
   "sklearn_version": "1.7.2",
-  "trained_on": "2026-09-05",
-  "rows": 12000,
+  "trained_on": "2026-09-18",
+  "rows": 15000,
   "seed": 42,
   "features": [
     "city",
     "category",
+    "sub_category",
     "weather",
     "events",
     "day_of_week",
     "month",
     "is_weekend",
-    "is_month_end"
+    "is_month_end",
+    "hour_of_day",
+    "demand_impact",
+    "availability_impact",
+    "traffic_impact",
+    "location_affected"
   ],
   "target": "jobs",
   "metrics": {
-    "mae": 10.016,
-    "r2": 0.6868,
+    "mae": 15.144,
+    "r2": 0.643,
     "holdout_fraction": 0.2
   }
 }

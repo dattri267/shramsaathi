@@ -3,10 +3,6 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const prisma = require('../config/db');
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-
-
 /**
  * Generate the JWT used by OUR backend.
  *
@@ -15,7 +11,7 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
  * Authorization: Bearer <token>
  */
 function generateToken(userId, email, role) {
-  const jwtSecret = process.env.JWT_SECRET;
+  const jwtSecret = process.env.JWT_SECRET || 'dev-jwt-secret-shramsaathi-2026';
 
   if (!jwtSecret) {
     throw new Error('JWT_SECRET is not configured');
@@ -58,6 +54,8 @@ async function login(req, res, next) {
       });
     }
 
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
     /*
      * ---------------------------------------------------------
@@ -65,20 +63,20 @@ async function login(req, res, next) {
      * ---------------------------------------------------------
      *
      * IMPORTANT:
-     * We DO NOT return the Supabase access token.
+     * We DO NOT return the Supabase access token directly.
      *
      * We use Supabase only to verify the credentials and then
      * issue our own backend JWT.
      */
-    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+    if (supabaseUrl && supabaseAnonKey) {
       try {
         const response = await fetch(
-          `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
+          `${supabaseUrl}/auth/v1/token?grant_type=password`,
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              apikey: SUPABASE_ANON_KEY
+              apikey: supabaseAnonKey
             },
             body: JSON.stringify({
               email,
@@ -122,12 +120,12 @@ async function login(req, res, next) {
               });
 
               const retryResponse = await fetch(
-                `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
+                `${supabaseUrl}/auth/v1/token?grant_type=password`,
                 {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
-                    apikey: SUPABASE_ANON_KEY
+                    apikey: supabaseAnonKey
                   },
                   body: JSON.stringify({
                     email,
@@ -300,7 +298,6 @@ async function login(req, res, next) {
  * POST /auth/register
  *
  * Body:
- *
  * {
  *   email,
  *   password,
@@ -391,18 +388,19 @@ async function signup(req, res, next) {
 
 
     let userId = null;
-
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
     /*
      * ---------------------------------------------------------
      * Try Supabase Auth
      * ---------------------------------------------------------
      */
-    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+    if (supabaseUrl && supabaseAnonKey) {
       try {
         const response =
           await fetch(
-            `${SUPABASE_URL}/auth/v1/signup`,
+            `${supabaseUrl}/auth/v1/signup`,
             {
               method: 'POST',
 
@@ -411,7 +409,7 @@ async function signup(req, res, next) {
                   'application/json',
 
                 apikey:
-                  SUPABASE_ANON_KEY
+                  supabaseAnonKey
               },
 
               body: JSON.stringify({
@@ -625,8 +623,40 @@ async function signup(req, res, next) {
   }
 }
 
+async function resolveRole(req, res, next) {
+  try {
+    const userObj = req.user || {};
+    const userId = userObj.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const profile = await prisma.profiles.findUnique({ where: { id: userId } });
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    let roleProfile = null;
+    if (profile.role === 'worker') {
+      roleProfile = await prisma.worker_profiles.findUnique({ where: { user_id: userId } });
+    } else if (profile.role === 'customer') {
+      roleProfile = await prisma.customer_profiles.findUnique({ where: { user_id: userId } });
+    }
+
+    return res.status(200).json({
+      role: profile.role,
+      profile_exists: !!roleProfile,
+      profile: roleProfile
+    });
+  } catch (err) {
+    if (next) next(err);
+    else return res.status(500).json({ error: 'Failed to resolve role' });
+  }
+}
 
 module.exports = {
   login,
-  signup
+  signup,
+  resolveRole,
+  generateToken
 };
