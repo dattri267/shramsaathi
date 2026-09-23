@@ -345,6 +345,8 @@ export async function updateWorkerProfile(data: {
   bio?: string;
 
   primary_skill?: string;
+  primary_skill_id?: string;
+  primary_subskill_id?: string;
   additional_skills?: string[];
 
   years_experience?: number;

@@ -31,6 +31,7 @@ import {
   logout,
   getWorkerProfile,
   getWorkerBookings,
+  getSkillsWithSubskills,
   updateWorkerProfile,
   acceptBooking,
   startBooking,
@@ -148,7 +149,8 @@ export default function WorkerDashboard({
   const [workerEditPhone, setWorkerEditPhone] = useState("");
   const [workerEditBio, setWorkerEditBio] = useState("");
   const [workerEditPrimarySkill, setWorkerEditPrimarySkill] = useState("");
-  const [workerEditAdditionalSkills, setWorkerEditAdditionalSkills] = useState("");
+  const [workerEditSubskillId, setWorkerEditSubskillId] = useState("");
+  const [workerEditAvailableSubskills, setWorkerEditAvailableSubskills] = useState<any[]>([]);
   const [workerEditExperience, setWorkerEditExperience] = useState("");
   const [workerEditRadius, setWorkerEditRadius] = useState("");
   const [workerEditDays, setWorkerEditDays] = useState("");
@@ -1789,14 +1791,13 @@ export default function WorkerDashboard({
      EDIT WORKER PROFILE
   ======================================================= */
 
-  const openWorkerEdit = () => {
+  const openWorkerEdit = async () => {
     const backend = workerProfile?.worker_profile || {};
     const skills = Array.isArray(backend?.skills) ? backend.skills : [];
     const primary = skills.find((skill: any) => skill.is_primary) || skills[0] || {};
-    const additional = skills
-      .filter((skill: any) => skill !== primary)
-      .map((skill: any) => skill.name || skill.slug || "")
-      .filter(Boolean);
+    const currentSubskill = Array.isArray(backend?.subskills)
+      ? backend.subskills.find((subskill: any) => subskill.is_primary) || backend.subskills[0]
+      : null;
 
     const address = backend?.service_address || {};
     const location = backend?.location || {};
@@ -1805,7 +1806,11 @@ export default function WorkerDashboard({
     setWorkerEditPhone(workerProfile?.phone || workerFromRoute?.phone || "");
     setWorkerEditBio(backend?.bio || "");
     setWorkerEditPrimarySkill(primary?.slug || primary?.name || "");
-    setWorkerEditAdditionalSkills(additional.join(", "));
+    setWorkerEditSubskillId(
+      currentSubskill && String(currentSubskill.skill_id) === String(primary?.id)
+        ? currentSubskill.id
+        : ""
+    );
     setWorkerEditExperience(
       primary?.years_experience != null ? String(primary.years_experience) : ""
     );
@@ -1826,6 +1831,21 @@ export default function WorkerDashboard({
     setWorkerEditLandmark(address?.landmark || "");
     setWorkerEditLatitude(location?.latitude ?? address?.latitude ?? null);
     setWorkerEditLongitude(location?.longitude ?? address?.longitude ?? null);
+
+    try {
+      const catalog = await getSkillsWithSubskills();
+      const primarySkillId = primary?.id;
+      const primaryRecord = (Array.isArray(catalog) ? catalog : []).find(
+        (skill: any) => String(skill.id) === String(primarySkillId)
+      );
+      setWorkerEditAvailableSubskills(
+        Array.isArray(primaryRecord?.subskills) ? primaryRecord.subskills : []
+      );
+    } catch (error) {
+      console.error("Failed to load worker subskills:", error);
+      setWorkerEditAvailableSubskills([]);
+    }
+
     setWorkerEditVisible(true);
   };
 
@@ -1955,10 +1975,39 @@ export default function WorkerDashboard({
       pincode,
     ].filter(Boolean).join(", ");
 
-    const additionalSkills = workerEditAdditionalSkills
-      .split(",")
-      .map(value => value.trim())
-      .filter(Boolean);
+    // Primary skill is fixed after worker registration. Use the saved
+    // primary skill from the backend and never take it from editable input.
+    const primarySkillRecord = (Array.isArray(workerBackend?.skills) ? workerBackend.skills : []).find(
+      (skill: any) => skill.is_primary
+    ) || (Array.isArray(workerBackend?.skills) ? workerBackend.skills[0] : null);
+
+    if (!primarySkillRecord?.id) {
+      Alert.alert(
+        "Primary Skill Unavailable",
+        "Your saved primary skill could not be found. Please try again."
+      );
+      return;
+    }
+
+    if (!workerEditSubskillId) {
+      Alert.alert(
+        "Select Subskill",
+        "Please select a subskill under your primary skill."
+      );
+      return;
+    }
+
+    const selectedSubskill = workerEditAvailableSubskills.find(
+      (subskill: any) => subskill.id === workerEditSubskillId
+    );
+
+    if (workerEditSubskillId && (!selectedSubskill || String(selectedSubskill.skill_id) !== String(primarySkillRecord.id))) {
+      Alert.alert(
+        "Invalid Subskill",
+        "Please select a subskill that belongs to your primary skill."
+      );
+      return;
+    }
 
     const workingDays = workerEditDays
       .split(",")
@@ -1977,13 +2026,9 @@ export default function WorkerDashboard({
         full_name: name,
         phone,
         bio: workerEditBio.trim(),
-        ...(workerEditPrimarySkill.trim()
-          ? {
-              primary_skill: workerEditPrimarySkill.trim(),
-              additional_skills: additionalSkills,
-              years_experience: Number.isFinite(experience) ? experience : 0,
-            }
-          : {}),
+        primary_skill_id: primarySkillRecord.id,
+        primary_subskill_id: workerEditSubskillId,
+        years_experience: Number.isFinite(experience) ? experience : 0,
         ...(workerEditRadius.trim()
           ? { service_radius_km: radius }
           : {}),
@@ -2438,21 +2483,52 @@ export default function WorkerDashboard({
 
             <Text style={styles.workerEditLabel}>Primary Skill</Text>
             <TextInput
-              style={styles.workerEditInput}
+              style={[styles.workerEditInput, { backgroundColor: "#F3F4F6", color: "#6B7280" }]}
               value={workerEditPrimarySkill}
-              onChangeText={setWorkerEditPrimarySkill}
-              placeholder="e.g. electrician"
+              editable={false}
+              placeholder="Primary skill"
               placeholderTextColor="#9CA3AF"
             />
+            <Text style={{ color: "#6B7280", fontSize: 12, marginTop: -6, marginBottom: 12 }}>
+              Primary skill is fixed after registration. You can change your subskill below.
+            </Text>
 
-            <Text style={styles.workerEditLabel}>Additional Skills</Text>
-            <TextInput
-              style={styles.workerEditInput}
-              value={workerEditAdditionalSkills}
-              onChangeText={setWorkerEditAdditionalSkills}
-              placeholder="Comma-separated skills"
-              placeholderTextColor="#9CA3AF"
-            />
+            <Text style={styles.workerEditLabel}>Subskill</Text>
+            {workerEditAvailableSubskills.length > 0 ? (
+              <View style={styles.workerEditSubskillList}>
+                {workerEditAvailableSubskills.map((subskill: any) => {
+                  const selected = workerEditSubskillId === subskill.id;
+                  return (
+                    <Pressable
+                      key={subskill.id}
+                      style={[
+                        styles.workerEditSubskillOption,
+                        selected && styles.workerEditSubskillOptionSelected,
+                      ]}
+                      onPress={() => setWorkerEditSubskillId(subskill.id)}
+                    >
+                      <Text
+                        style={[
+                          styles.workerEditSubskillText,
+                          selected && styles.workerEditSubskillTextSelected,
+                        ]}
+                      >
+                        {subskill.name}
+                      </Text>
+                      {selected ? (
+                        <Ionicons name="checkmark-circle" size={18} color="#7047E8" />
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.workerEditSubskillEmpty}>
+                <Text style={styles.workerEditSubskillEmptyText}>
+                  No subskills are available for this primary skill.
+                </Text>
+              </View>
+            )}
 
             <Text style={styles.workerEditLabel}>Years of Experience</Text>
             <TextInput
@@ -4400,6 +4476,54 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 13,
     color: "#222222",
+  },
+
+  workerEditSubskillList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+
+  workerEditSubskillOption: {
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  workerEditSubskillOptionSelected: {
+    borderColor: "#7047E8",
+    backgroundColor: "#F3EEFF",
+  },
+
+  workerEditSubskillText: {
+    fontSize: 12,
+    color: "#4B5563",
+  },
+
+  workerEditSubskillTextSelected: {
+    color: "#7047E8",
+    fontWeight: "700",
+  },
+
+  workerEditSubskillEmpty: {
+    minHeight: 50,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 13,
+    backgroundColor: "#F9FAFB",
+    paddingHorizontal: 14,
+    justifyContent: "center",
+  },
+
+  workerEditSubskillEmptyText: {
+    fontSize: 12,
+    color: "#9CA3AF",
   },
 
   workerEditTextArea: {

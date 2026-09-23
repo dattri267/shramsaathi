@@ -19,6 +19,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
 import {
+  signup,
   updateWorkerProfile,
   uploadWorkerAvatar,
   uploadWorkerDocument,
@@ -753,12 +754,26 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
       };
 
       // ---------------------------------------------------------
-      // 1. Upload profile photo + worker documents
+      // 1. Create the worker account and obtain the backend JWT.
+      // The registration screen intentionally clears any old token,
+      // so the authenticated profile/upload requests below need the
+      // newly issued token first.
+      // ---------------------------------------------------------
+      await signup({
+        email: route.params?.email?.trim() || "",
+        password: route.params?.password || "",
+        phone: mobile.trim(),
+        full_name: fullName.trim(),
+        role: "worker",
+      });
+
+      // ---------------------------------------------------------
+      // 2. Upload profile photo + worker documents
       // ---------------------------------------------------------
       const { avatarUrl, uploadedDocuments } = await uploadWorkerFiles();
 
       // ---------------------------------------------------------
-      // 2. Save worker profile with uploaded file URLs
+      // 3. Save worker profile with uploaded file URLs
       // ---------------------------------------------------------
       await updateWorkerProfile({
         full_name: fullName.trim(),
@@ -791,7 +806,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
       });
 
       // ---------------------------------------------------------
-      // 3. Profile saved successfully
+      // 4. Profile saved successfully
       // ---------------------------------------------------------
       Alert.alert(
         "Profile Completed",

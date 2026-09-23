@@ -143,6 +143,31 @@ async function updateWorkerProfile(req, res) {
   }
 }
 
+async function uploadWorkerDocument(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const result = await workerService.uploadWorkerDocument(
+      userId,
+      req.file,
+      {
+        file_type: req.body?.file_type,
+        title: req.body?.title
+      }
+    );
+
+    return res.status(200).json({
+      message: 'Worker document uploaded successfully',
+      document: result
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 async function updateWorkerAvailability(req, res) {
   try {
     const userId = req.user?.id;
@@ -161,4 +186,4 @@ async function updateWorkerAvailability(req, res) {
   }
 }
 
-module.exports = { createWorkerProfile, getWorkerProfile, updateWorkerProfile, updateWorkerAvailability };
+module.exports = { createWorkerProfile, getWorkerProfile, updateWorkerProfile, updateWorkerAvailability, uploadWorkerDocument };

@@ -181,6 +181,21 @@ async function getWorkerProfile(userId) {
   const extra =
     extraRows[0] || {};
 
+  const workerSubskillRows = await prisma.$queryRaw`
+    SELECT
+      ws.subskill_id AS id,
+      ws.is_primary,
+      ws.years_experience,
+      s.skill_id,
+      s.name,
+      s.description
+    FROM worker_subskills ws
+    INNER JOIN subskills s
+      ON s.id = ws.subskill_id
+    WHERE ws.worker_id = ${workerProfile.id}::uuid
+    ORDER BY ws.is_primary DESC, s.name ASC
+  `;
+
 
   return {
     ...profile,
@@ -238,6 +253,19 @@ async function getWorkerProfile(userId) {
               ),
             is_primary:
               item.is_primary
+          })
+        ),
+
+      subskills:
+        workerSubskillRows.map(
+          (item) => ({
+            id: item.id,
+            skill_id: item.skill_id,
+            name: item.name,
+            description: item.description || null,
+            years_experience:
+              numberOrNull(item.years_experience),
+            is_primary: Boolean(item.is_primary)
           })
         )
     }
@@ -910,8 +938,7 @@ async function updateWorkerProfile(
 
     await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`
-        UPDATE worker_subskills
-        SET is_primary = false
+        DELETE FROM worker_subskills
         WHERE worker_id = ${workerProfile.id}::uuid
       `;
 
@@ -928,10 +955,6 @@ async function updateWorkerProfile(
           ${experience},
           true
         )
-        ON CONFLICT (worker_id, subskill_id)
-        DO UPDATE SET
-          years_experience = EXCLUDED.years_experience,
-          is_primary = true
       `;
     });
   }
