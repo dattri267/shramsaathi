@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import colors from "../../constants/colors";
-import { signup } from "../../api";
+import { clearToken } from "../../api";
 type Role = "customer" | "worker";
 type Props = NativeStackScreenProps<RootStackParamList, "Register">;
 
@@ -74,39 +74,27 @@ export default function RegisterScreen({ navigation }: Props) {
       setIsRegistering(true);
 
       /*
-       * Create the actual account in the backend.
+       * Do NOT create the backend account here.
        *
-       * We don't have the user's final name yet because
-       * that is collected on CustomerDetails / WorkerDetails.
-       *
-       * So we temporarily use the part before @ as full_name.
-       * The details screen will update the real name afterward.
+       * This button only completes the credentials step and opens
+       * the profile setup screen. The email/password are kept only
+       * in navigation state until the user completes that profile.
+       * The actual signup() call is made from the final profile
+       * submission handler.
        */
-      const response = await signup({
-        email: email.trim(),
-        password,
-        phone: mobile.trim(),
-        full_name: email.trim().split("@")[0],
-        role,
-      });
+      await clearToken();
 
-      console.log("Signup successful:", response);
-
-      /*
-       * signup() already saves the JWT token in AsyncStorage.
-       *
-       * Now move to the next step where the user enters
-       * their detailed profile information.
-       */
       if (role === "customer") {
         navigation.navigate("CustomerDetails", {
           email: email.trim(),
           mobile: mobile.trim(),
+          password,
         });
       } else {
         navigation.navigate("WorkerDetails", {
           email: email.trim(),
           mobile: mobile.trim(),
+          password,
         });
       }
     } catch (error) {

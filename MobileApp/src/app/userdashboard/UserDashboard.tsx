@@ -38,6 +38,7 @@ import {
   completeMockCustomerPayment,
   getPredictedServicePrice,
   getWorkerLocation,
+  getSkillsWithSubskills,
   submitWorkerRating,
 } from "../../api";
 
@@ -52,14 +53,23 @@ type Props = NativeStackScreenProps<
 >;
 
 
+type Subskill = {
+  id: string;
+  skill_id: string;
+  name: string;
+  description?: string | null;
+};
+
 type Service = {
   id: string;
   name: string;
   description: string;
+  slug?: string | null;
   icon: keyof typeof Ionicons.glyphMap;
-  basePrice: number;
+  subskills: Subskill[];
+  // Retained only for the existing UI/pricing display where a value exists.
+  basePrice?: number;
 };
-
 
 type User = {
   id: string;
@@ -82,6 +92,8 @@ type Booking = {
   bookingType?: "normal" | "emergency";
   serviceId: string;
   serviceName: string;
+  subskillId?: string | null;
+  subskillName?: string | null;
   serviceIcon: keyof typeof Ionicons.glyphMap;
   address: Address;
   date: string;
@@ -117,88 +129,41 @@ type Booking = {
 };
 
 
-type CaregiverSkill = {
-  slug: string;
-  name: string;
-  description: string;
-};
-
 /* =========================================================
-   SERVICES
+   SERVICE PRESENTATION
 ========================================================= */
 
-const CAREGIVER_SKILLS: CaregiverSkill[] = [
-  {
-    slug: "elder-care",
-    name: "Elder Care",
-    description: "Support and assistance for elderly family members",
-  },
-  {
-    slug: "child-care",
-    name: "Child Care",
-    description: "Safe and reliable care for children",
-  },
-];
+const SERVICE_BASE_PRICES: Record<string, number> = {
+  electrician: 800,
+  plumber: 650,
+  carpenter: 900,
+  painter: 1000,
+  "domestic-helper": 600,
+  caregiver: 800,
+  technician: 850,
+};
 
-const SERVICES: Service[] = [
+const serviceIconForSlug = (slug?: string | null, name?: string): keyof typeof Ionicons.glyphMap => {
+  const key = String(slug || name || "").trim().toLowerCase();
 
-  {
-    id: "electrician",
-    name: "Electrician",
-    description: "Electrical repairs & installation",
-    icon: "flash-outline",
-    basePrice: 800,
-  },
-
-  {
-    id: "plumber",
-    name: "Plumber",
-    description: "Plumbing repairs & fittings",
-    icon: "water-outline",
-    basePrice: 650,
-  },
-
-  {
-    id: "carpenter",
-    name: "Carpenter",
-    description: "Furniture & woodwork",
-    icon: "hammer-outline",
-    basePrice: 900,
-  },
-
-  {
-    id: "painter",
-    name: "Painter",
-    description: "Painting & wall services",
-    icon: "color-palette-outline",
-    basePrice: 1000,
-  },
-
-  {
-    id: "domestic-helper",
-    name: "Domestic Helper",
-    description: "Household assistance",
-    icon: "home-outline",
-    basePrice: 600,
-  },
-
-  {
-    id: "caregiver",
-    name: "Caregiver",
-    description: "Care & personal assistance",
-    icon: "heart-outline",
-    basePrice: 800,
-  },
-
-  {
-    id: "technician",
-    name: "Technician",
-    description: "Appliance & technical repairs",
-    icon: "construct-outline",
-    basePrice: 850,
-  },
-
-];
+  switch (key) {
+    case "electrician": return "flash-outline";
+    case "plumber": return "water-outline";
+    case "carpenter":
+    case "carpentry": return "hammer-outline";
+    case "painter": return "color-palette-outline";
+    case "domestic-helper":
+    case "domestic helper": return "home-outline";
+    case "caregiver": return "heart-outline";
+    case "driver":
+    case "drivers": return "car-outline";
+    case "gardener": return "leaf-outline";
+    case "cleaner": return "sparkles-outline";
+    case "technician": return "construct-outline";
+    case "ac-technician": return "snow-outline";
+    default: return "construct-outline";
+  }
+};
 
 
 /* =========================================================
@@ -251,12 +216,14 @@ export default function UserDashboard({
   const [bookingType, setBookingType] =
     useState<"normal" | "emergency">("normal");
 
-  const [selectedCaregiverSkill, setSelectedCaregiverSkill] =
-    useState<CaregiverSkill | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [selectedSubskill, setSelectedSubskill] = useState<Subskill | null>(null);
 
   const [profileVisible, setProfileVisible] =
     useState(false);
 
+  // Customer profile editing
   const [customerEditVisible, setCustomerEditVisible] = useState(false);
   const [customerEditSaving, setCustomerEditSaving] = useState(false);
   const [customerEditName, setCustomerEditName] = useState("");
@@ -394,22 +361,9 @@ export default function UserDashboard({
     return dates;
   }, []);
 
-  const serviceIconForSlug = (slug?: string): keyof typeof Ionicons.glyphMap => {
-    switch (slug) {
-      case "electrician": return "flash-outline";
-      case "plumber": return "water-outline";
-      case "carpenter": return "hammer-outline";
-      case "painter": return "color-palette-outline";
-      case "domestic-helper": return "home-outline";
-      case "caregiver": return "heart-outline";
-      case "technician": return "construct-outline";
-      default: return "construct-outline";
-    }
-  };
-
   const formatBackendBooking = (item: any): Booking => {
     const scheduled = item?.scheduled_start_at ? new Date(item.scheduled_start_at) : null;
-    const serviceId = item?.service?.slug || item?.service?.id || "";
+    const serviceId = item?.service?.id || item?.service?.slug || "";
     const serviceName = item?.service?.name || "Service";
     const addressText = item?.service_address || "Service address";
 
@@ -436,6 +390,8 @@ export default function UserDashboard({
         item?.booking_type === "emergency" ? "emergency" : "normal",
       serviceId,
       serviceName,
+      subskillId: item?.subskill?.id || item?.subskill_id || null,
+      subskillName: item?.subskill?.name || null,
       serviceIcon: serviceIconForSlug(item?.service?.slug),
       address: { id: "backend", title: "Service Address", address: addressText },
       date: scheduled ? scheduled.toISOString().split("T")[0] : "",
@@ -540,6 +496,42 @@ export default function UserDashboard({
   };
 
   useEffect(() => {
+    const loadServices = async () => {
+      try {
+        setLoadingServices(true);
+        const rows = await getSkillsWithSubskills();
+        const normalized: Service[] = (Array.isArray(rows) ? rows : []).map((skill: any) => ({
+          id: String(skill.id),
+          name: String(skill.name || "Service"),
+          description: String(skill.description || ""),
+          slug: skill.slug || null,
+          icon: serviceIconForSlug(skill.slug, skill.name),
+          subskills: Array.isArray(skill.subskills)
+            ? skill.subskills.map((subskill: any) => ({
+                id: String(subskill.id),
+                skill_id: String(subskill.skill_id),
+                name: String(subskill.name || "Subskill"),
+                description: subskill.description ?? null,
+              }))
+            : [],
+          basePrice: skill.slug && SERVICE_BASE_PRICES[String(skill.slug).toLowerCase()]
+            ? SERVICE_BASE_PRICES[String(skill.slug).toLowerCase()]
+            : undefined,
+        }));
+        setServices(normalized);
+      } catch (error) {
+        console.error("Failed to load services:", error);
+        setServices([]);
+        Alert.alert("Unable to load services", "Please try again.");
+      } finally {
+        setLoadingServices(false);
+      }
+    };
+
+    loadServices();
+  }, []);
+
+  useEffect(() => {
     loadDashboardData();
 
     const refreshInterval = setInterval(() => {
@@ -573,7 +565,7 @@ export default function UserDashboard({
 
         const result = await getPredictedServicePrice({
           skill_slug:
-            selectedService?.id ||
+            selectedService?.slug ||
             selectedService?.name ||
             "carpenter",
           city: address?.city || "",
@@ -673,14 +665,14 @@ export default function UserDashboard({
     const query = search.trim().toLowerCase();
 
     if (!query) {
-      return SERVICES;
+      return services;
     }
 
-    return SERVICES.filter(service =>
+    return services.filter(service =>
       service.name.toLowerCase().includes(query)
     );
 
-  }, [search]);
+  }, [search, services]);
 
 
   /* =======================================================
@@ -688,9 +680,8 @@ export default function UserDashboard({
   ======================================================= */
 
   const handleServicePress = (service: Service) => {
-
     setSelectedService(service);
-
+    setSelectedSubskill(null);
   };
 
 
@@ -979,7 +970,7 @@ export default function UserDashboard({
     setSelectedDate(null);
     setSelectedTime(null);
     setBookingType("normal");
-    setSelectedCaregiverSkill(null);
+    setSelectedSubskill(null);
     setBookingSuccess(false);
   };
 
@@ -990,7 +981,7 @@ export default function UserDashboard({
     setSelectedDate(null);
     setSelectedTime(null);
     setBookingType("normal");
-    setSelectedCaregiverSkill(null);
+    setSelectedSubskill(null);
     setBookingSuccess(false);
     setLatestBookingId(null);
   };
@@ -999,10 +990,10 @@ export default function UserDashboard({
     if (bookingStep === 1) {
       if (!selectedService) return;
 
-      if (selectedService.id === "caregiver" && !selectedCaregiverSkill) {
+      if (!selectedSubskill) {
         Alert.alert(
-          "Select Care Type",
-          "Please select whether you need Elder Care or Child Care."
+          "Select Subskill",
+          "Please select the specific service you need."
         );
         return;
       }
@@ -1055,10 +1046,10 @@ export default function UserDashboard({
       return;
     }
 
-    if (selectedService.id === "caregiver" && !selectedCaregiverSkill) {
+    if (!selectedSubskill) {
       Alert.alert(
-        "Select Care Type",
-        "Please select whether you need Elder Care or Child Care."
+        "Select Subskill",
+        "Please select the specific service you need."
       );
       return;
     }
@@ -1170,16 +1161,12 @@ export default function UserDashboard({
       }
     }
 
-    const selectedSkillSlug =
-      selectedService.id === "caregiver"
-        ? selectedCaregiverSkill!.slug
-        : selectedService.id;
-
     try {
       setBookingSubmitting(true);
 
       const createdBooking = await createBackendBooking({
-        skill_slug: selectedSkillSlug,
+        skill_id: selectedService.id,
+        subskill_id: selectedSubskill.id,
         booking_type: bookingType,
         service_address: selectedAddress.address,
         latitude,
@@ -1646,6 +1633,12 @@ export default function UserDashboard({
                       </View>
                     </View>
 
+                    {!!booking.subskillName && (
+                      <Text style={styles.bookingCardInfo}>
+                        {booking.subskillName}
+                      </Text>
+                    )}
+
                     <Text style={styles.bookingCardInfo}>
                       {formatBookingDate(booking.date)}
                     </Text>
@@ -1867,60 +1860,59 @@ export default function UserDashboard({
                         Select the address where the professional should visit.
                       </Text>
 
-                      {selectedService?.id === "caregiver" && (
-                        <View style={styles.caregiverSkillSection}>
-                          <Text style={styles.bookingOptionLabel}>
-                            What type of care do you need?
-                          </Text>
+                      <View style={styles.caregiverSkillSection}>
+                        <Text style={styles.bookingOptionLabel}>
+                          Choose a subskill
+                        </Text>
+                        <Text style={styles.stepSubtitle}>
+                          Select the specific service you need under {selectedService?.name}.
+                        </Text>
 
-                          {CAREGIVER_SKILLS.map(skill => (
-                            <Pressable
-                              key={skill.slug}
-                              onPress={() => setSelectedCaregiverSkill(skill)}
-                              style={[
-                                styles.caregiverSkillCard,
-                                selectedCaregiverSkill?.slug === skill.slug &&
-                                styles.caregiverSkillCardSelected,
-                              ]}
-                            >
-                              <View style={styles.caregiverSkillIcon}>
-                                <Ionicons
-                                  name={
-                                    skill.slug === "elder-care"
-                                      ? "person-outline"
-                                      : "people-outline"
-                                  }
-                                  size={21}
-                                  color="#7047E8"
-                                />
-                              </View>
-
-                              <View style={styles.caregiverSkillContent}>
-                                <Text style={styles.caregiverSkillName}>
-                                  {skill.name}
-                                </Text>
-                                <Text style={styles.caregiverSkillDescription}>
-                                  {skill.description}
-                                </Text>
-                              </View>
-
+                        {(selectedService?.subskills || []).map(subskill => (
+                          <Pressable
+                            key={subskill.id}
+                            onPress={() => setSelectedSubskill(subskill)}
+                            style={[
+                              styles.caregiverSkillCard,
+                              selectedSubskill?.id === subskill.id &&
+                              styles.caregiverSkillCardSelected,
+                            ]}
+                          >
+                            <View style={styles.caregiverSkillIcon}>
                               <Ionicons
-                                name={
-                                  selectedCaregiverSkill?.slug === skill.slug
-                                    ? "radio-button-on"
-                                    : "radio-button-off"
-                                }
-                                size={22}
-                                color={
-                                  selectedCaregiverSkill?.slug === skill.slug
-                                    ? "#7047E8"
-                                    : "#AAAAAA"
-                                }
+                                name={selectedService?.icon || "construct-outline"}
+                                size={21}
+                                color="#7047E8"
                               />
-                            </Pressable>
-                          ))}
-                        </View>
-                      )}
+                            </View>
+
+                            <View style={styles.caregiverSkillContent}>
+                              <Text style={styles.caregiverSkillName}>
+                                {subskill.name}
+                              </Text>
+                              {!!subskill.description && (
+                                <Text style={styles.caregiverSkillDescription}>
+                                  {subskill.description}
+                                </Text>
+                              )}
+                            </View>
+
+                            <Ionicons
+                              name={
+                                selectedSubskill?.id === subskill.id
+                                  ? "radio-button-on"
+                                  : "radio-button-off"
+                              }
+                              size={22}
+                              color={
+                                selectedSubskill?.id === subskill.id
+                                  ? "#7047E8"
+                                  : "#AAAAAA"
+                              }
+                            />
+                          </Pressable>
+                        ))}
+                      </View>
 
                       <Text style={styles.bookingOptionLabel}>
                         Service type
@@ -2132,13 +2124,13 @@ export default function UserDashboard({
                         </View>
                       </View>
 
-                      {selectedService?.id === "caregiver" && selectedCaregiverSkill && (
+                      {selectedSubskill && (
                         <View style={styles.summaryRow}>
-                          <Ionicons name="heart-outline" size={21} color="#7047E8" />
+                          <Ionicons name={selectedService?.icon || "construct-outline"} size={21} color="#7047E8" />
                           <View style={styles.summaryRowContent}>
-                            <Text style={styles.summaryLabel}>Care type</Text>
+                            <Text style={styles.summaryLabel}>Subskill</Text>
                             <Text style={styles.summaryValue}>
-                              {selectedCaregiverSkill.name}
+                              {selectedSubskill.name}
                             </Text>
                           </View>
                         </View>
@@ -2201,15 +2193,15 @@ export default function UserDashboard({
                                 : "For the selected 2-hour service slot"}
                             </Text>
                           </View>
-                          <Text style={styles.bookingPriceTotal}>₹{(bookingType === "emergency" ? emergencyPrice : selectedService?.basePrice)?.toFixed(0) || "0"}</Text>
+                          <Text style={styles.bookingPriceTotal}>{bookingType === "emergency" ? (emergencyPrice ? `₹${emergencyPrice.toFixed(0)}` : "Calculating…") : (selectedService?.basePrice ? `₹${selectedService.basePrice.toFixed(0)}` : "Calculated by backend")}</Text>
                         </View>
                         <View style={styles.bookingPriceLine}>
                           <Text style={styles.bookingPriceLabel}>Customer pays</Text>
-                          <Text style={styles.bookingPriceValue}>₹{(bookingType === "emergency" ? emergencyPrice : selectedService?.basePrice)?.toFixed(0) || "0"}</Text>
+                          <Text style={styles.bookingPriceValue}>{bookingType === "emergency" ? (emergencyPrice ? `₹${emergencyPrice.toFixed(0)}` : "Calculating…") : (selectedService?.basePrice ? `₹${selectedService.basePrice.toFixed(0)}` : "Calculated by backend")}</Text>
                         </View>
                         <View style={styles.bookingPriceLine}>
                           <Text style={styles.bookingPriceLabel}>Worker share (80%)</Text>
-                          <Text style={styles.bookingWorkerValue}>₹{(bookingType === "emergency" ? emergencyPrice : selectedService?.basePrice) ? (((bookingType === "emergency" ? emergencyPrice : selectedService?.basePrice) || 0) * 0.8).toFixed(0) : "0"}</Text>
+                          <Text style={styles.bookingWorkerValue}>{bookingType === "emergency" ? (emergencyPrice ? `₹${(emergencyPrice * 0.8).toFixed(0)}` : "Calculating…") : (selectedService?.basePrice ? `₹${(selectedService.basePrice * 0.8).toFixed(0)}` : "Calculated by backend")}</Text>
                         </View>
                         <Text style={styles.bookingPriceNote}>10% supports the welfare fund and 10% covers platform operations. Final amount is fixed by the backend when the booking is created.</Text>
                       </View>
@@ -2278,7 +2270,7 @@ export default function UserDashboard({
                       {bookingType === "emergency" ? "Emergency request" : "Normal booking"}
                     </Text>
                     <Text style={styles.successAmountText}>
-                      Estimated amount: ₹{(bookingType === "emergency" ? emergencyPrice : selectedService?.basePrice)?.toFixed(0) || "0"}
+                      Estimated amount: {bookingType === "emergency" ? (emergencyPrice ? `₹${emergencyPrice.toFixed(0)}` : "being calculated") : (selectedService?.basePrice ? `₹${selectedService.basePrice.toFixed(0)}` : "calculated by the backend")}
                     </Text>
                     <Text style={styles.successPaymentNote}>Payment will be requested after the worker completes the service.</Text>
                   </View>
@@ -2383,6 +2375,15 @@ export default function UserDashboard({
                     </View>
 
                     <View style={styles.fullBookingDivider} />
+
+                    {!!booking.subskillName && (
+                      <View style={styles.fullBookingRow}>
+                        <Ionicons name="construct-outline" size={19} color="#7047E8" />
+                        <Text style={styles.fullBookingRowText}>
+                          {booking.subskillName}
+                        </Text>
+                      </View>
+                    )}
 
                     <View style={styles.fullBookingRow}>
                       <Ionicons name="calendar-outline" size={19} color="#7047E8" />
@@ -2957,7 +2958,20 @@ export default function UserDashboard({
 
               <Pressable
                 style={styles.profileOption}
-                onPress={openAddressModal}
+                onPress={() => {
+                  if (addresses.length === 0) {
+                    Alert.alert(
+                      "Addresses",
+                      "No saved address is available in your profile."
+                    );
+                    return;
+                  }
+
+                  Alert.alert(
+                    "Saved Addresses",
+                    addresses.map(item => `${item.title}:\n${item.address}`).join("\n\n")
+                  );
+                }}
               >
 
                 <View style={styles.optionIcon}>
@@ -3667,70 +3681,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     color: "#7047E8",
-  },
-
-  /* CUSTOMER PROFILE EDIT */
-
-  customerEditModal: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    paddingHorizontal: 20,
-    paddingBottom: 28,
-  },
-  customerEditLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#4B5563",
-    marginBottom: 7,
-    marginTop: 10,
-  },
-  customerEditInputContainer: {
-    height: 52,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#DDDDDD",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-  },
-  customerEditInput: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 13,
-    color: "#222222",
-  },
-  customerEditReadonly: {
-    backgroundColor: "#F9FAFB",
-  },
-  customerEditReadonlyText: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 13,
-    color: "#9CA3AF",
-  },
-  customerEditHint: {
-    fontSize: 10.5,
-    color: "#9CA3AF",
-    marginTop: 6,
-  },
-  customerSaveButton: {
-    height: 54,
-    borderRadius: 15,
-    backgroundColor: "#7047E8",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 20,
-  },
-  customerSaveButtonDisabled: {
-    opacity: 0.65,
-  },
-  customerSaveButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
   },
 
   /* BOOKING MODAL */
@@ -4979,6 +4929,70 @@ ratingHint: {
     fontWeight: "600",
     color: "#D93636",
     marginLeft: 8,
+  },
+
+  /* CUSTOMER PROFILE EDIT */
+
+  customerEditModal: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+  },
+  customerEditLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#4B5563",
+    marginBottom: 7,
+    marginTop: 10,
+  },
+  customerEditInputContainer: {
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#DDDDDD",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+  },
+  customerEditInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 13,
+    color: "#222222",
+  },
+  customerEditReadonly: {
+    backgroundColor: "#F9FAFB",
+  },
+  customerEditReadonlyText: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 13,
+    color: "#9CA3AF",
+  },
+  customerEditHint: {
+    fontSize: 10.5,
+    color: "#9CA3AF",
+    marginTop: 6,
+  },
+  customerSaveButton: {
+    height: 54,
+    borderRadius: 15,
+    backgroundColor: "#7047E8",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 20,
+  },
+  customerSaveButtonDisabled: {
+    opacity: 0.65,
+  },
+  customerSaveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 
 });

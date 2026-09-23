@@ -3,9 +3,11 @@ const express = require('express');
 const router = express.Router();
 
 const {
-  getSkills
+  getSkills,
+  getSkillsWithSubskills
 } = require('../controllers/skill.controller');
 
+router.get('/skills/with-subskills', getSkillsWithSubskills);
 router.get('/skills', getSkills);
 router.get('/v1/skills', getSkills);
 router.get('/api/skills', getSkills);

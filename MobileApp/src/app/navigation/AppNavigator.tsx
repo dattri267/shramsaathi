@@ -149,6 +149,7 @@ export type RootStackParamList = {
   WorkerDetails: {
     email?: string;
     mobile?: string;
+    password?: string;
   };
 
 
@@ -159,6 +160,7 @@ export type RootStackParamList = {
   CustomerDetails: {
     email?: string;
     mobile?: string;
+    password?: string;
   };
 
 

@@ -22,7 +22,7 @@ import {
   updateWorkerProfile,
   uploadWorkerAvatar,
   uploadWorkerDocument,
-  getSkills,
+  getSkillsWithSubskills,
 } from "../../api";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -53,13 +53,24 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
   // --------------------------------------------------
 
   const [primarySkill, setPrimarySkill] = useState("");
-  
-  const [availableSkills, setAvailableSkills] = useState<{
-  id: string;
-  name: string;
-  slug: string;
-  description?: string | null;
-}[]>([]);
+  const [primarySubskill, setPrimarySubskill] = useState("");
+
+  type Subskill = {
+    id: string;
+    skill_id: string;
+    name: string;
+    description?: string | null;
+  };
+
+  type AvailableSkill = {
+    id: string;
+    name: string;
+    slug?: string | null;
+    description?: string | null;
+    subskills: Subskill[];
+  };
+
+  const [availableSkills, setAvailableSkills] = useState<AvailableSkill[]>([]);
   const [loadingSkills, setLoadingSkills] = useState(true);
   const [customSkillModalVisible, setCustomSkillModalVisible] = useState(false);
 
@@ -141,52 +152,19 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
   const hours = ["Morning", "Afternoon", "Evening"];
 
-  // Load skills directly from the backend/database
+  // Load primary services together with their database-backed subskills.
+  // Only skills that actually have subskills are returned by this endpoint.
   useEffect(() => {
     const loadSkills = async () => {
       try {
         setLoadingSkills(true);
 
-        const skillsFromBackend = await getSkills();
-
-        console.log("Skills loaded from backend:", skillsFromBackend);
-
+        const skillsFromBackend = await getSkillsWithSubskills();
         const backendSkills = Array.isArray(skillsFromBackend)
           ? skillsFromBackend
           : [];
 
-        // These two caregiver subcategories are required by the MVP.
-        // Keep them available even if an older database has not yet had
-        // the new skill rows inserted.
-        const requiredCaregiverSkills = [
-          {
-            id: "virtual-elder-care",
-            name: "Elder Care",
-            slug: "elder-care",
-            description: "Support and assistance for elderly family members",
-          },
-          {
-            id: "virtual-child-care",
-            name: "Child Care",
-            slug: "child-care",
-            description: "Safe and reliable care for children",
-          },
-        ];
-
-        const mergedSkills = [...backendSkills];
-
-        for (const requiredSkill of requiredCaregiverSkills) {
-          if (
-            !mergedSkills.some(
-              (skill: any) =>
-                String(skill.slug || "").toLowerCase() === requiredSkill.slug
-            )
-          ) {
-            mergedSkills.push(requiredSkill);
-          }
-        }
-
-        setAvailableSkills(mergedSkills);
+        setAvailableSkills(backendSkills);
       } catch (error) {
         console.log("Load Skills Error:", error);
 
@@ -670,6 +648,11 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
       return;
     }
 
+    if (!primarySubskill) {
+      Alert.alert("Select Your Subskill", "Please select a subskill for your primary service.");
+      return;
+    }
+
     const yearsOfExperience = Number(experience);
 
     if (
@@ -787,7 +770,9 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
         bio: workDescription.trim(),
 
-        primary_skill: primarySkill,
+        primary_skill: availableSkills.find((skill) => skill.id === primarySkill)?.name,
+        primary_skill_id: primarySkill,
+        primary_subskill_id: primarySubskill,
         additional_skills: additionalSkills,
 
         years_experience: yearsOfExperience,
@@ -1067,42 +1052,38 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
             ) : (
               availableSkills.map((skill) => {
                 const skillName = skill.name;
-                const skillSlug = skill.slug;
-
-                const selected = primarySkill === skillSlug;
+                const selected = primarySkill === skill.id;
 
                 const iconName =
-                  skillName?.toLowerCase().includes("electric") ||
-                  skillSlug?.includes("electric")
+                  skillName.toLowerCase().includes("electric")
                     ? "flash-outline"
-                    : skillName?.toLowerCase().includes("plumb") ||
-                        skillSlug?.includes("plumb")
+                    : skillName.toLowerCase().includes("plumb")
                       ? "water-outline"
-                      : skillName?.toLowerCase().includes("carpenter") ||
-                          skillSlug?.includes("carpenter")
+                      : skillName.toLowerCase().includes("carp")
                         ? "hammer-outline"
-                        : skillName?.toLowerCase().includes("paint") ||
-                            skillSlug?.includes("paint")
+                        : skillName.toLowerCase().includes("paint")
                           ? "color-palette-outline"
-                          : skillName?.toLowerCase().includes("ac") ||
-                              skillSlug?.includes("ac-")
-                            ? "snow-outline"
-                            : skillName?.toLowerCase().includes("clean") ||
-                                skillSlug?.includes("clean")
-                              ? "sparkles-outline"
-                              : skillName?.toLowerCase().includes("mechanic") ||
-                                  skillSlug?.includes("mechanic")
-                                ? "car-outline"
-                                : "construct-outline";
+                          : skillName.toLowerCase().includes("clean")
+                            ? "sparkles-outline"
+                            : skillName.toLowerCase().includes("driver")
+                              ? "car-outline"
+                              : "construct-outline";
 
                 return (
                   <Pressable
-                    key={skill.id || skillSlug}
+                    key={skill.id}
                     style={[
                       styles.primaryServiceCard,
                       selected && styles.primaryServiceCardSelected,
                     ]}
-                    onPress={() => setPrimarySkill(skillSlug)}
+                    onPress={() => {
+                      setPrimarySkill(skill.id);
+                      setPrimarySubskill(
+                        skill.subskills.length === 1
+                          ? skill.subskills[0].id
+                          : "",
+                      );
+                    }}
                   >
                     <View
                       style={[
@@ -1137,7 +1118,51 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
             )}
           </View>
 
-          <Text style={styles.inputLabel}>Additional Skills</Text>
+          {primarySkill && (
+            <>
+              <Text style={styles.inputLabel}>
+                Subskill <Text style={styles.required}>*</Text>
+              </Text>
+
+              <Text style={styles.helperText}>
+                Select a subskill under your primary service
+              </Text>
+
+              <View style={styles.chipContainer}>
+                {(availableSkills.find((skill) => skill.id === primarySkill)?.subskills || []).map(
+                  (subskill) => {
+                    const selected = primarySubskill === subskill.id;
+
+                    return (
+                      <Pressable
+                        key={subskill.id}
+                        style={[
+                          styles.skillChip,
+                          selected && styles.skillChipSelected,
+                        ]}
+                        onPress={() => setPrimarySubskill(subskill.id)}
+                      >
+                        {selected && (
+                          <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                        )}
+
+                        <Text
+                          style={[
+                            styles.skillChipText,
+                            selected && styles.skillChipTextSelected,
+                          ]}
+                        >
+                          {subskill.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  },
+                )}
+              </View>
+            </>
+          )}
+
+          {/* <Text style={styles.inputLabel}>Additional Skills</Text>
 
           <Text style={styles.helperText}>
             Select other skills you can provide
@@ -1145,18 +1170,19 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
           <View style={styles.chipContainer}>
             {availableSkills
-              .filter((skill) => skill.slug !== primarySkill)
+              .filter((skill) => skill.id !== primarySkill)
               .map((skill) => {
-                const selected = additionalSkills.includes(skill.slug);
+                const skillValue = skill.slug || skill.id;
+                const selected = additionalSkills.includes(skillValue);
 
                 return (
                   <Pressable
-                    key={skill.id || skill.slug}
+                    key={skill.id}
                     style={[
                       styles.skillChip,
                       selected && styles.skillChipSelected,
                     ]}
-                    onPress={() => toggleExtraSkill(skill.slug)}
+                    onPress={() => toggleExtraSkill(skillValue)}
                   >
                     {selected && (
                       <Ionicons name="checkmark" size={14} color="#FFFFFF" />
@@ -1173,7 +1199,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                   </Pressable>
                 );
               })}
-          </View>
+          </View> */}
 
           <Text style={styles.inputLabel}>
             Years of Experience <Text style={styles.required}>*</Text>

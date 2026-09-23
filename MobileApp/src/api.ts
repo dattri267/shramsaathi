@@ -17,7 +17,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 |
 */
 
-export const API_BASE_URL = 'http://172.29.158.197:8000';
+export const API_BASE_URL = 'http://192.168.1.8:8000';
 
 const TOKEN_KEY = '@shramsaathi_auth_token';
 
@@ -768,6 +768,16 @@ export async function updateWorkerAvailability(
  * GET /api/skills
  */
 
+export async function getSkillsWithSubskills() {
+  const response = await apiRequest<any>('/api/skills/with-subskills');
+
+  if (response && Array.isArray(response.skills)) {
+    return response.skills;
+  }
+
+  return Array.isArray(response) ? response : [];
+}
+
 export async function getSkills() {
   const response = await apiRequest<any>(
     '/api/skills'
@@ -821,6 +831,7 @@ export async function getSkills() {
 export async function createBooking(data: {
   skill_slug?: string;
   skill_id?: string;
+  subskill_id: string;
 
   booking_type?: 'normal' | 'emergency';
 

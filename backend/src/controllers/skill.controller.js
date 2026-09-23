@@ -12,6 +12,17 @@ async function getSkills(req, res, next) {
   }
 }
 
+async function getSkillsWithSubskills(req, res, next) {
+  try {
+    const skills = await skillService.getSkillsWithSubskills();
+
+    res.json({ skills });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
-  getSkills
+  getSkills,
+  getSkillsWithSubskills
 };

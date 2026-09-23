@@ -285,6 +285,8 @@ async function updateWorkerProfile(
     hourly_rate,
 
     primary_skill,
+    primary_skill_id,
+    primary_subskill_id,
     additional_skills,
     skills,
 
@@ -851,6 +853,87 @@ async function updateWorkerProfile(
         }
       }
     );
+  }
+
+
+  /*
+   * ---------------------------------------------------------
+   * Primary subskill
+   * ---------------------------------------------------------
+   *
+   * The selected subskill must belong to the selected primary
+   * service. The database relationship is skills.id ->
+   * subskills.skill_id, so IDs are used here instead of slugs.
+   */
+  if (primary_subskill_id !== undefined && primary_subskill_id !== null) {
+    const workerProfile = await prisma.worker_profiles.findUnique({
+      where: { user_id: userId }
+    });
+
+    if (!workerProfile) {
+      throw createError('Worker profile not found', 404);
+    }
+
+    if (!primary_skill_id) {
+      throw createError('primary_skill_id is required when primary_subskill_id is provided');
+    }
+
+    const skillRows = await prisma.$queryRaw`
+      SELECT id
+      FROM skills
+      WHERE id = ${String(primary_skill_id)}::uuid
+      LIMIT 1
+    `;
+
+    if (skillRows.length === 0) {
+      throw createError('Primary skill not found', 404);
+    }
+
+    const subskillRows = await prisma.$queryRaw`
+      SELECT id, skill_id
+      FROM subskills
+      WHERE id = ${String(primary_subskill_id)}::uuid
+        AND skill_id = ${String(primary_skill_id)}::uuid
+      LIMIT 1
+    `;
+
+    if (subskillRows.length === 0) {
+      throw createError(
+        'Selected subskill does not belong to the selected primary service'
+      );
+    }
+
+    const experience =
+      years_experience !== undefined
+        ? Number(years_experience)
+        : 0;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        UPDATE worker_subskills
+        SET is_primary = false
+        WHERE worker_id = ${workerProfile.id}::uuid
+      `;
+
+      await tx.$executeRaw`
+        INSERT INTO worker_subskills (
+          worker_id,
+          subskill_id,
+          years_experience,
+          is_primary
+        )
+        VALUES (
+          ${workerProfile.id}::uuid,
+          ${String(primary_subskill_id)}::uuid,
+          ${experience},
+          true
+        )
+        ON CONFLICT (worker_id, subskill_id)
+        DO UPDATE SET
+          years_experience = EXCLUDED.years_experience,
+          is_primary = true
+      `;
+    });
   }
 
 

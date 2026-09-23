@@ -28,6 +28,8 @@ function createMockBookingObject({
     customerId,
     resolvedSkillId,
     resolvedSkillSlug,
+    subskillId,
+    subskillName,
     booking_type,
     service_address,
     lat,
@@ -47,6 +49,7 @@ function createMockBookingObject({
         customer_id: customerId || '00000000-0000-4000-a000-000000000123',
         worker_id: null,
         skill_id: resolvedSkillId || '00000000-0000-4000-a000-000000000001',
+        subskill_id: subskillId || null,
         booking_type: booking_type === 'emergency' ? 'emergency' : 'normal',
         status: 'requested',
         service_address: typeof service_address === 'string' ? service_address : JSON.stringify(service_address || {}),
@@ -83,6 +86,12 @@ function createMockBookingObject({
             name: sName,
             slug: sSlug,
         },
+        subskill: subskillId
+            ? {
+                id: subskillId,
+                name: subskillName || null,
+            }
+            : null,
         customer: {
             id: customerId || '00000000-0000-4000-a000-000000000123',
             name: 'Customer',
@@ -206,6 +215,7 @@ async function formatBooking(
         b.customer_id,
         b.worker_id,
         b.skill_id,
+        b.subskill_id,
 
         b.booking_type,
         b.status,
@@ -245,6 +255,9 @@ async function formatBooking(
         s.id AS skill_db_id,
         s.name AS skill_name,
         s.slug AS skill_slug,
+        ss.id AS subskill_id,
+        ss.name AS subskill_name,
+        ss.description AS subskill_description,
 
         cp.user_id AS customer_user_id,
         p.full_name AS customer_name,
@@ -270,6 +283,9 @@ async function formatBooking(
 
       LEFT JOIN skills s
         ON s.id = b.skill_id
+
+      LEFT JOIN subskills ss
+        ON ss.id = b.subskill_id
 
       LEFT JOIN customer_profiles cp
         ON cp.id = b.customer_id
@@ -319,6 +335,14 @@ async function formatBooking(
 
                 slug:
                     row.skill_slug
+            }
+            : null,
+
+        subskill: row.subskill_id
+            ? {
+                id: row.subskill_id,
+                name: row.subskill_name,
+                description: row.subskill_description,
             }
             : null,
 
@@ -590,6 +614,7 @@ async function createBooking(
         skill_id,
         skill_slug,
         service,
+        subskill_id,
         service_address,
 
         customer_notes,
@@ -696,6 +721,28 @@ async function createBooking(
             404
         );
     }
+
+
+    if (!subskill_id) {
+        throw error('subskill_id is required');
+    }
+
+    const subskillRows = await prisma.$queryRaw`
+      SELECT id, skill_id, name, description
+      FROM subskills
+      WHERE id = ${String(subskill_id)}::uuid
+        AND skill_id = ${String(resolvedSkillId)}::uuid
+      LIMIT 1
+    `;
+
+    if (subskillRows.length === 0) {
+        throw error(
+            'Selected subskill does not belong to the selected primary service',
+            400
+        );
+    }
+
+    const selectedSubskill = subskillRows[0];
 
 
     if (!scheduled_start_at) {
@@ -844,9 +891,9 @@ if (!pricingKey && resolvedSkillId) {
 
         const dbBooking = await prisma.$queryRaw`
           INSERT INTO bookings (
-            customer_id, skill_id, booking_type, status, service_address, service_location, scheduled_start_at, customer_notes, estimated_amount
+            customer_id, skill_id, subskill_id, booking_type, status, service_address, service_location, scheduled_start_at, customer_notes, estimated_amount
           ) VALUES (
-            ${validCustId}::uuid, ${validSkillId}::uuid, ${booking_type === 'emergency' ? 'emergency' : 'normal'}::booking_type, 'requested'::booking_status, ${service_address}, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography, ${scheduledDate}, ${customer_notes || null}, ${finalEstimatedAmount}
+            ${validCustId}::uuid, ${validSkillId}::uuid, ${String(subskill_id)}::uuid, ${booking_type === 'emergency' ? 'emergency' : 'normal'}::booking_type, 'requested'::booking_status, ${service_address}, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography, ${scheduledDate}, ${customer_notes || null}, ${finalEstimatedAmount}
           ) RETURNING id
         `;
 
@@ -859,7 +906,9 @@ if (!pricingKey && resolvedSkillId) {
             customerId,
             resolvedSkillId,
             resolvedSkillSlug,
-            booking_type,
+            subskillId: subskill_id,
+            subskillName: selectedSubskill?.name || null,
+            booking_type:
             service_address,
             lat,
             lng,

@@ -19,6 +19,7 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import {
+  signup,
   updateCustomerProfile,
   uploadCustomerAvatar,
 } from '../../api';
@@ -105,6 +106,20 @@ export default function CustomerDetailsScreen({
 
     try {
       setSaving(true);
+
+      /*
+       * The credentials are created only after the user has
+       * completed and submitted the profile setup.
+       */
+      await signup({
+        email: route.params?.email?.trim() || '',
+        password:
+          (route.params as { password?: string } | undefined)?.password ||
+          '',
+        phone: mobile.trim(),
+        full_name: fullName.trim(),
+        role: 'customer',
+      });
 
       let avatarUrl: string | null = null;
 
