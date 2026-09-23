@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -9,6 +10,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   Image,
   View,
   Linking,
@@ -29,6 +31,7 @@ import {
   logout,
   getWorkerProfile,
   getWorkerBookings,
+  updateWorkerProfile,
   acceptBooking,
   startBooking,
   completeBooking,
@@ -132,6 +135,32 @@ export default function WorkerDashboard({
 
   const [detailsVisible, setDetailsVisible] =
     useState(false);
+
+  /* =======================================================
+     PROFILE EDITOR STATE
+  ======================================================= */
+
+  const [workerEditVisible, setWorkerEditVisible] = useState(false);
+  const [workerEditSaving, setWorkerEditSaving] = useState(false);
+  const [workerLocationLoading, setWorkerLocationLoading] = useState(false);
+
+  const [workerEditName, setWorkerEditName] = useState("");
+  const [workerEditPhone, setWorkerEditPhone] = useState("");
+  const [workerEditBio, setWorkerEditBio] = useState("");
+  const [workerEditPrimarySkill, setWorkerEditPrimarySkill] = useState("");
+  const [workerEditAdditionalSkills, setWorkerEditAdditionalSkills] = useState("");
+  const [workerEditExperience, setWorkerEditExperience] = useState("");
+  const [workerEditRadius, setWorkerEditRadius] = useState("");
+  const [workerEditDays, setWorkerEditDays] = useState("");
+  const [workerEditHours, setWorkerEditHours] = useState("");
+  const [workerEditHouse, setWorkerEditHouse] = useState("");
+  const [workerEditLocality, setWorkerEditLocality] = useState("");
+  const [workerEditCity, setWorkerEditCity] = useState("");
+  const [workerEditState, setWorkerEditState] = useState("");
+  const [workerEditPincode, setWorkerEditPincode] = useState("");
+  const [workerEditLandmark, setWorkerEditLandmark] = useState("");
+  const [workerEditLatitude, setWorkerEditLatitude] = useState<number | null>(null);
+  const [workerEditLongitude, setWorkerEditLongitude] = useState<number | null>(null);
 
   /*
      WorkerDetailsScreen can pass the worker information through
@@ -1756,6 +1785,243 @@ export default function WorkerDashboard({
     return days.join(', ');
   };
 
+  /* =======================================================
+     EDIT WORKER PROFILE
+  ======================================================= */
+
+  const openWorkerEdit = () => {
+    const backend = workerProfile?.worker_profile || {};
+    const skills = Array.isArray(backend?.skills) ? backend.skills : [];
+    const primary = skills.find((skill: any) => skill.is_primary) || skills[0] || {};
+    const additional = skills
+      .filter((skill: any) => skill !== primary)
+      .map((skill: any) => skill.name || skill.slug || "")
+      .filter(Boolean);
+
+    const address = backend?.service_address || {};
+    const location = backend?.location || {};
+
+    setWorkerEditName(workerProfile?.full_name || workerFromRoute?.name || "");
+    setWorkerEditPhone(workerProfile?.phone || workerFromRoute?.phone || "");
+    setWorkerEditBio(backend?.bio || "");
+    setWorkerEditPrimarySkill(primary?.slug || primary?.name || "");
+    setWorkerEditAdditionalSkills(additional.join(", "));
+    setWorkerEditExperience(
+      primary?.years_experience != null ? String(primary.years_experience) : ""
+    );
+    setWorkerEditRadius(
+      backend?.service_radius_km != null ? String(backend.service_radius_km) : ""
+    );
+    setWorkerEditDays(
+      Array.isArray(backend?.working_days) ? backend.working_days.join(", ") : ""
+    );
+    setWorkerEditHours(
+      Array.isArray(backend?.working_hours) ? backend.working_hours.join(", ") : ""
+    );
+    setWorkerEditHouse(address?.house || "");
+    setWorkerEditLocality(address?.locality || "");
+    setWorkerEditCity(address?.city || "");
+    setWorkerEditState(address?.state || "");
+    setWorkerEditPincode(address?.pincode || "");
+    setWorkerEditLandmark(address?.landmark || "");
+    setWorkerEditLatitude(location?.latitude ?? address?.latitude ?? null);
+    setWorkerEditLongitude(location?.longitude ?? address?.longitude ?? null);
+    setWorkerEditVisible(true);
+  };
+
+  const handleWorkerEditCurrentLocation = async () => {
+    setWorkerLocationLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== "granted") {
+        Alert.alert(
+          "Location Permission Required",
+          "Please allow location access so ShramSaathi can automatically fill your service address."
+        );
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const { latitude, longitude } = location.coords;
+      setWorkerEditLatitude(latitude);
+      setWorkerEditLongitude(longitude);
+
+      const addresses = await Location.reverseGeocodeAsync({
+        latitude,
+        longitude,
+      });
+
+      if (addresses.length === 0) {
+        Alert.alert(
+          "Address Not Found",
+          "We could not determine your address. Please enter it manually."
+        );
+        return;
+      }
+
+      const currentAddress = addresses[0];
+      setWorkerEditHouse(currentAddress.streetNumber || currentAddress.name || "");
+      setWorkerEditLocality(currentAddress.district || currentAddress.subregion || "");
+      setWorkerEditCity(currentAddress.city || currentAddress.subregion || "");
+      setWorkerEditState(currentAddress.region || "");
+      setWorkerEditPincode(currentAddress.postalCode || "");
+
+      Alert.alert(
+        "Location Found",
+        "Address fields have been filled from your current location. Please verify them and save."
+      );
+    } catch (error) {
+      console.error("Worker address location error:", error);
+      Alert.alert(
+        "Location Error",
+        "Unable to fetch your current location. Please enter your address manually."
+      );
+    } finally {
+      setWorkerLocationLoading(false);
+    }
+  };
+
+  const handleSaveWorkerProfile = async () => {
+    const name = workerEditName.trim();
+    const phone = workerEditPhone.trim();
+    const pincode = workerEditPincode.trim();
+
+    if (name.length < 2) {
+      Alert.alert("Invalid Name", "Please enter your full name.");
+      return;
+    }
+
+    if (!/^\d{10}$/.test(phone)) {
+      Alert.alert("Invalid Mobile Number", "Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
+    if (
+      !workerEditHouse.trim() ||
+      !workerEditLocality.trim() ||
+      !workerEditCity.trim() ||
+      !workerEditState.trim() ||
+      !/^\d{6}$/.test(pincode)
+    ) {
+      Alert.alert(
+        "Incomplete Address",
+        "Please fill in house, locality, city, state and a valid 6-digit PIN code."
+      );
+      return;
+    }
+
+    if (workerEditLatitude === null || workerEditLongitude === null) {
+      Alert.alert(
+        "Location Required",
+        'Please use "Current Location" before saving your service address.'
+      );
+      return;
+    }
+
+    const experience = Number(workerEditExperience);
+    const radius = Number(workerEditRadius);
+
+    if (
+      workerEditExperience.trim() &&
+      (!Number.isFinite(experience) || experience < 0 || experience > 60)
+    ) {
+      Alert.alert(
+        "Invalid Experience",
+        "Years of experience must be between 0 and 60."
+      );
+      return;
+    }
+
+    if (
+      workerEditRadius.trim() &&
+      (!Number.isFinite(radius) || radius <= 0)
+    ) {
+      Alert.alert(
+        "Invalid Service Radius",
+        "Service radius must be greater than 0."
+      );
+      return;
+    }
+
+    const formattedAddress = [
+      workerEditHouse.trim(),
+      workerEditLocality.trim(),
+      workerEditCity.trim(),
+      workerEditState.trim(),
+      pincode,
+    ].filter(Boolean).join(", ");
+
+    const additionalSkills = workerEditAdditionalSkills
+      .split(",")
+      .map(value => value.trim())
+      .filter(Boolean);
+
+    const workingDays = workerEditDays
+      .split(",")
+      .map(value => value.trim())
+      .filter(Boolean);
+
+    const workingHours = workerEditHours
+      .split(",")
+      .map(value => value.trim())
+      .filter(Boolean);
+
+    try {
+      setWorkerEditSaving(true);
+
+      await updateWorkerProfile({
+        full_name: name,
+        phone,
+        bio: workerEditBio.trim(),
+        ...(workerEditPrimarySkill.trim()
+          ? {
+              primary_skill: workerEditPrimarySkill.trim(),
+              additional_skills: additionalSkills,
+              years_experience: Number.isFinite(experience) ? experience : 0,
+            }
+          : {}),
+        ...(workerEditRadius.trim()
+          ? { service_radius_km: radius }
+          : {}),
+        working_days: workingDays,
+        working_hours: workingHours,
+        service_address: {
+          house: workerEditHouse.trim(),
+          locality: workerEditLocality.trim(),
+          city: workerEditCity.trim(),
+          state: workerEditState.trim(),
+          pincode,
+          landmark: workerEditLandmark.trim(),
+        },
+        latitude: workerEditLatitude,
+        longitude: workerEditLongitude,
+      });
+
+      setWorkerEditVisible(false);
+      await loadWorkerDashboard(true);
+
+      Alert.alert(
+        "Profile Updated",
+        "Your worker profile has been updated successfully."
+      );
+    } catch (error) {
+      console.error("Worker profile update error:", error);
+      Alert.alert(
+        "Unable to Update Profile",
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while saving your profile."
+      );
+    } finally {
+      setWorkerEditSaving(false);
+    }
+  };
+
+
   const showProfessionalProfile = () => {
     const skills = Array.isArray(workerBackend?.skills)
       ? workerBackend.skills
@@ -1787,20 +2053,68 @@ export default function WorkerDashboard({
   };
 
   const showVerification = () => {
-    const documents = Array.isArray(WORKER.documents) ? WORKER.documents : [];
-    const documentText = documents.length
-      ? documents.map((doc: any) => `• ${doc.title || doc.file_type || 'Document'}`).join('\n')
-      : 'No verification documents found';
+    const documents = Array.isArray(WORKER.documents)
+      ? WORKER.documents
+      : [];
+
+    if (documents.length === 0) {
+      Alert.alert(
+        "Verification",
+        "No verification documents found."
+      );
+      return;
+    }
+
+    const buttons = documents.slice(0, 3).map((doc: any) => ({
+      text: `View ${doc.title || doc.file_type || "Document"}`,
+      onPress: async () => {
+        const url = doc.public_url || doc.url;
+
+        if (!url) {
+          Alert.alert(
+            "Document Unavailable",
+            "This document does not have a viewable URL."
+          );
+          return;
+        }
+
+        try {
+          const supported = await Linking.canOpenURL(url);
+
+          if (supported) {
+            await Linking.openURL(url);
+          } else {
+            Alert.alert(
+              "Unable to Open Document",
+              "This document could not be opened on this device."
+            );
+          }
+        } catch (error) {
+          console.error("Document open error:", error);
+          Alert.alert(
+            "Unable to Open Document",
+            "This document could not be opened on this device."
+          );
+        }
+      },
+    }));
 
     Alert.alert(
-      'Verification',
-      `${documents.length} document${documents.length === 1 ? '' : 's'} on file.\n\n${documentText}`
+      "Verification Documents",
+      `${documents.length} document${documents.length === 1 ? "" : "s"} on file.\n\n${documents
+        .map(
+          (doc: any) =>
+            `• ${doc.title || doc.file_type || "Document"}`
+        )
+        .join("\n")}`,
+      buttons
     );
   };
 
   const renderProfile = () => {
 
     return (
+      <>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={
@@ -1817,6 +2131,14 @@ export default function WorkerDashboard({
           <Text style={styles.pageSubtitle}>
             Manage your worker account
           </Text>
+
+          <Pressable
+            style={styles.profileEditButton}
+            onPress={openWorkerEdit}
+          >
+            <Ionicons name="create-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.profileEditButtonText}>Edit Profile</Text>
+          </Pressable>
 
         </View>
 
@@ -2048,6 +2370,205 @@ export default function WorkerDashboard({
         </Text>
 
       </ScrollView>
+
+      <Modal
+        visible={workerEditVisible}
+        animationType="slide"
+        onRequestClose={() => {
+          if (!workerEditSaving && !workerLocationLoading) {
+            setWorkerEditVisible(false);
+          }
+        }}
+      >
+        <SafeAreaView style={styles.workerEditScreen} edges={["top", "bottom"]}>
+          <View style={styles.workerEditHeader}>
+            <Pressable
+              onPress={() => {
+                if (!workerEditSaving && !workerLocationLoading) {
+                  setWorkerEditVisible(false);
+                }
+              }}
+            >
+              <Ionicons name="arrow-back" size={24} color="#222222" />
+            </Pressable>
+
+            <Text style={styles.workerEditTitle}>Edit Profile</Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.workerEditContent}
+          >
+            <Text style={styles.workerEditSectionTitle}>Personal Information</Text>
+
+            <Text style={styles.workerEditLabel}>Full Name</Text>
+            <TextInput
+              style={styles.workerEditInput}
+              value={workerEditName}
+              onChangeText={setWorkerEditName}
+              placeholder="Enter your full name"
+              placeholderTextColor="#9CA3AF"
+            />
+
+            <Text style={styles.workerEditLabel}>Phone Number</Text>
+            <TextInput
+              style={styles.workerEditInput}
+              value={workerEditPhone}
+              onChangeText={setWorkerEditPhone}
+              placeholder="10-digit mobile number"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="phone-pad"
+              maxLength={10}
+            />
+
+            <Text style={styles.workerEditLabel}>Professional Description</Text>
+            <TextInput
+              style={[styles.workerEditInput, styles.workerEditTextArea]}
+              value={workerEditBio}
+              onChangeText={setWorkerEditBio}
+              placeholder="Describe your experience and services"
+              placeholderTextColor="#9CA3AF"
+              multiline
+              textAlignVertical="top"
+            />
+
+            <Text style={styles.workerEditSectionTitle}>Professional Details</Text>
+
+            <Text style={styles.workerEditLabel}>Primary Skill</Text>
+            <TextInput
+              style={styles.workerEditInput}
+              value={workerEditPrimarySkill}
+              onChangeText={setWorkerEditPrimarySkill}
+              placeholder="e.g. electrician"
+              placeholderTextColor="#9CA3AF"
+            />
+
+            <Text style={styles.workerEditLabel}>Additional Skills</Text>
+            <TextInput
+              style={styles.workerEditInput}
+              value={workerEditAdditionalSkills}
+              onChangeText={setWorkerEditAdditionalSkills}
+              placeholder="Comma-separated skills"
+              placeholderTextColor="#9CA3AF"
+            />
+
+            <Text style={styles.workerEditLabel}>Years of Experience</Text>
+            <TextInput
+              style={styles.workerEditInput}
+              value={workerEditExperience}
+              onChangeText={setWorkerEditExperience}
+              placeholder="e.g. 5"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="decimal-pad"
+            />
+
+            <Text style={styles.workerEditLabel}>Service Radius (km)</Text>
+            <TextInput
+              style={styles.workerEditInput}
+              value={workerEditRadius}
+              onChangeText={setWorkerEditRadius}
+              placeholder="e.g. 10"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="decimal-pad"
+            />
+
+            <Text style={styles.workerEditSectionTitle}>Availability</Text>
+
+            <Text style={styles.workerEditLabel}>Working Days</Text>
+            <TextInput
+              style={styles.workerEditInput}
+              value={workerEditDays}
+              onChangeText={setWorkerEditDays}
+              placeholder="Monday, Tuesday, Wednesday"
+              placeholderTextColor="#9CA3AF"
+            />
+
+            <Text style={styles.workerEditLabel}>Preferred Hours</Text>
+            <TextInput
+              style={styles.workerEditInput}
+              value={workerEditHours}
+              onChangeText={setWorkerEditHours}
+              placeholder="09:00 AM - 01:00 PM, 02:00 PM - 06:00 PM"
+              placeholderTextColor="#9CA3AF"
+            />
+
+            <Text style={styles.workerEditSectionTitle}>Service Address</Text>
+
+            <Pressable
+              style={[
+                styles.workerLocationButton,
+                workerLocationLoading && styles.workerLocationButtonDisabled,
+              ]}
+              onPress={handleWorkerEditCurrentLocation}
+              disabled={workerLocationLoading || workerEditSaving}
+            >
+              {workerLocationLoading ? (
+                <ActivityIndicator size="small" color="#2563EB" />
+              ) : (
+                <Ionicons name="location-outline" size={21} color="#2563EB" />
+              )}
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.workerLocationTitle}>
+                  {workerLocationLoading
+                    ? "Fetching Location..."
+                    : "Use Current Location"}
+                </Text>
+                <Text style={styles.workerLocationSubtitle}>
+                  Automatically fill your service address and coordinates
+                </Text>
+              </View>
+            </Pressable>
+
+            {[
+              ["House / Flat / Building", workerEditHouse, setWorkerEditHouse, "House no., flat no., building"],
+              ["Street / Locality", workerEditLocality, setWorkerEditLocality, "Street, colony, locality"],
+              ["City", workerEditCity, setWorkerEditCity, "Enter city"],
+              ["State", workerEditState, setWorkerEditState, "Enter state"],
+              ["PIN Code", workerEditPincode, setWorkerEditPincode, "6-digit PIN code"],
+              ["Landmark (optional)", workerEditLandmark, setWorkerEditLandmark, "Nearby landmark"],
+            ].map(([label, value, setter, placeholder]) => (
+              <View key={label as string}>
+                <Text style={styles.workerEditLabel}>{label as string}</Text>
+                <TextInput
+                  style={styles.workerEditInput}
+                  value={value as string}
+                  onChangeText={setter as (value: string) => void}
+                  placeholder={placeholder as string}
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType={label === "PIN Code" ? "number-pad" : "default"}
+                  maxLength={label === "PIN Code" ? 6 : undefined}
+                />
+              </View>
+            ))}
+
+            <Pressable
+              style={[
+                styles.workerSaveButton,
+                workerEditSaving && styles.workerSaveButtonDisabled,
+              ]}
+              onPress={handleSaveWorkerProfile}
+              disabled={workerEditSaving || workerLocationLoading}
+            >
+              {workerEditSaving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
+                  <Text style={styles.workerSaveButtonText}>Save Changes</Text>
+                </>
+              )}
+            </Pressable>
+
+            <Text style={styles.workerEditNote}>
+              Verification documents are read-only here and cannot be edited or replaced from your profile.
+            </Text>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+      </>
     );
   };
 
@@ -3806,6 +4327,142 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#9CA3AF',
     marginTop: 2,
+  },
+
+  profileEditButton: {
+    alignSelf: "flex-start",
+    marginTop: 12,
+    minHeight: 42,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: "#2563EB",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+  },
+
+  profileEditButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  workerEditScreen: {
+    flex: 1,
+    backgroundColor: "#F9FAFB",
+  },
+
+  workerEditHeader: {
+    minHeight: 58,
+    paddingHorizontal: 20,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  workerEditTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#222222",
+  },
+
+  workerEditContent: {
+    padding: 20,
+    paddingBottom: 36,
+  },
+
+  workerEditSectionTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#222222",
+    marginTop: 10,
+    marginBottom: 12,
+  },
+
+  workerEditLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#4B5563",
+    marginBottom: 7,
+    marginTop: 9,
+  },
+
+  workerEditInput: {
+    minHeight: 50,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 13,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 14,
+    fontSize: 13,
+    color: "#222222",
+  },
+
+  workerEditTextArea: {
+    minHeight: 105,
+    paddingTop: 13,
+  },
+
+  workerLocationButton: {
+    minHeight: 68,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    marginBottom: 5,
+  },
+
+  workerLocationButtonDisabled: {
+    opacity: 0.65,
+  },
+
+  workerLocationTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#2563EB",
+  },
+
+  workerLocationSubtitle: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 3,
+  },
+
+  workerSaveButton: {
+    minHeight: 54,
+    borderRadius: 14,
+    backgroundColor: "#2563EB",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 20,
+  },
+
+  workerSaveButtonDisabled: {
+    opacity: 0.65,
+  },
+
+  workerSaveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  workerEditNote: {
+    fontSize: 11,
+    lineHeight: 17,
+    color: "#6B7280",
+    textAlign: "center",
+    marginTop: 13,
   },
 
   logoutButton: {

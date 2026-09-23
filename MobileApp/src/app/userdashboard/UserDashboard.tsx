@@ -257,6 +257,11 @@ export default function UserDashboard({
   const [profileVisible, setProfileVisible] =
     useState(false);
 
+  const [customerEditVisible, setCustomerEditVisible] = useState(false);
+  const [customerEditSaving, setCustomerEditSaving] = useState(false);
+  const [customerEditName, setCustomerEditName] = useState("");
+  const [customerEditPhone, setCustomerEditPhone] = useState("");
+
   const [bookingsVisible, setBookingsVisible] =
     useState(false);
 
@@ -568,7 +573,6 @@ export default function UserDashboard({
 
         const result = await getPredictedServicePrice({
           skill_slug:
-            selectedService?.slug ||
             selectedService?.id ||
             selectedService?.name ||
             "carpenter",
@@ -687,6 +691,49 @@ export default function UserDashboard({
 
     setSelectedService(service);
 
+  };
+
+
+  /* =======================================================
+     EDIT CUSTOMER PROFILE
+  ======================================================= */
+
+  const openCustomerEdit = () => {
+    setCustomerEditName(user.name || "");
+    setCustomerEditPhone(user.phone || "");
+    setCustomerEditVisible(true);
+  };
+
+  const handleSaveCustomerProfile = async () => {
+    const name = customerEditName.trim();
+    const phone = customerEditPhone.trim();
+
+    if (name.length < 2) {
+      Alert.alert("Invalid Name", "Please enter your full name.");
+      return;
+    }
+
+    if (!/^\d{10}$/.test(phone)) {
+      Alert.alert("Invalid Mobile Number", "Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
+    try {
+      setCustomerEditSaving(true);
+      await updateCustomerProfile({ full_name: name, phone });
+      setUser(current => ({ ...current, name, phone }));
+      await loadDashboardData();
+      setCustomerEditVisible(false);
+      Alert.alert("Profile Updated", "Your profile has been updated successfully.");
+    } catch (error) {
+      console.error("Customer profile update error:", error);
+      Alert.alert(
+        "Unable to Update Profile",
+        error instanceof Error ? error.message : "Something went wrong while saving your profile."
+      );
+    } finally {
+      setCustomerEditSaving(false);
+    }
   };
 
 
@@ -2824,7 +2871,12 @@ export default function UserDashboard({
               </Text>
 
 
-              <View style={{ width: 24 }} />
+              <Pressable
+                onPress={openCustomerEdit}
+                disabled={customerEditSaving}
+              >
+                <Ionicons name="create-outline" size={22} color="#7047E8" />
+              </Pressable>
 
             </View>
 
@@ -2905,20 +2957,7 @@ export default function UserDashboard({
 
               <Pressable
                 style={styles.profileOption}
-                onPress={() => {
-                  if (addresses.length === 0) {
-                    Alert.alert(
-                      "Addresses",
-                      "No saved address is available in your profile."
-                    );
-                    return;
-                  }
-
-                  Alert.alert(
-                    "Saved Addresses",
-                    addresses.map(item => `${item.title}:\n${item.address}`).join("\n\n")
-                  );
-                }}
+                onPress={openAddressModal}
               >
 
                 <View style={styles.optionIcon}>
@@ -2978,6 +3017,88 @@ export default function UserDashboard({
 
           </SafeAreaView>
 
+        </Modal>
+
+        <Modal
+          visible={customerEditVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => {
+            if (!customerEditSaving) setCustomerEditVisible(false);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.customerEditModal}>
+              <View style={styles.modalHandle} />
+
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Edit Profile</Text>
+                <Pressable
+                  onPress={() => {
+                    if (!customerEditSaving) setCustomerEditVisible(false);
+                  }}
+                >
+                  <Ionicons name="close" size={24} color="#222222" />
+                </Pressable>
+              </View>
+
+              <Text style={styles.customerEditLabel}>Full Name</Text>
+              <View style={styles.customerEditInputContainer}>
+                <Ionicons name="person-outline" size={19} color="#9CA3AF" />
+                <TextInput
+                  style={styles.customerEditInput}
+                  value={customerEditName}
+                  onChangeText={setCustomerEditName}
+                  placeholder="Enter your full name"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+
+              <Text style={styles.customerEditLabel}>Phone Number</Text>
+              <View style={styles.customerEditInputContainer}>
+                <Ionicons name="call-outline" size={19} color="#9CA3AF" />
+                <TextInput
+                  style={styles.customerEditInput}
+                  value={customerEditPhone}
+                  onChangeText={setCustomerEditPhone}
+                  placeholder="10-digit mobile number"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+              </View>
+
+              <Text style={styles.customerEditLabel}>Email</Text>
+              <View style={[styles.customerEditInputContainer, styles.customerEditReadonly]}>
+                <Ionicons name="mail-outline" size={19} color="#9CA3AF" />
+                <Text style={styles.customerEditReadonlyText}>
+                  {user.email || "Email not available"}
+                </Text>
+              </View>
+
+              <Text style={styles.customerEditHint}>
+                Email is your login identity and cannot be changed here.
+              </Text>
+
+              <Pressable
+                style={[
+                  styles.customerSaveButton,
+                  customerEditSaving && styles.customerSaveButtonDisabled,
+                ]}
+                onPress={handleSaveCustomerProfile}
+                disabled={customerEditSaving}
+              >
+                {customerEditSaving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
+                    <Text style={styles.customerSaveButtonText}>Save Changes</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          </View>
         </Modal>
 
 
@@ -3546,6 +3667,70 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     color: "#7047E8",
+  },
+
+  /* CUSTOMER PROFILE EDIT */
+
+  customerEditModal: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+  },
+  customerEditLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#4B5563",
+    marginBottom: 7,
+    marginTop: 10,
+  },
+  customerEditInputContainer: {
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#DDDDDD",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+  },
+  customerEditInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 13,
+    color: "#222222",
+  },
+  customerEditReadonly: {
+    backgroundColor: "#F9FAFB",
+  },
+  customerEditReadonlyText: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 13,
+    color: "#9CA3AF",
+  },
+  customerEditHint: {
+    fontSize: 10.5,
+    color: "#9CA3AF",
+    marginTop: 6,
+  },
+  customerSaveButton: {
+    height: 54,
+    borderRadius: 15,
+    backgroundColor: "#7047E8",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 20,
+  },
+  customerSaveButtonDisabled: {
+    opacity: 0.65,
+  },
+  customerSaveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 
   /* BOOKING MODAL */

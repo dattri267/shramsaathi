@@ -1,6 +1,7 @@
 // backend/src/controllers/customer.controller.js
 const prisma = require('../config/db');
 const { devUserStore } = require('./auth.controller');
+const customerService = require('../services/customer.service');
 
 const inMemoryCustomerProfiles = new Map();
 
@@ -125,52 +126,17 @@ async function updateCustomerProfile(req, res) {
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    const { full_name, phone, address, address_details, avatar_url, latitude, longitude } = req.body;
-    const addr = address || address_details || {};
 
-    let matchedUser = null;
-    if (devUserStore) {
-      for (const u of devUserStore.values()) {
-        if (u.id === userId) {
-          matchedUser = u;
-          if (full_name) u.full_name = full_name;
-          if (phone) u.phone = phone;
-          break;
-        }
-      }
-    }
-
-    if (prisma && prisma.customer_profiles) {
-      try {
-        const updated = await prisma.customer_profiles.upsert({
-          where: { user_id: userId },
-          update: {
-            default_address: typeof addr === 'string' ? addr : (addr.formatted_address || `${addr.house || ''} ${addr.locality || ''} ${addr.city || ''}`.trim()),
-            address_details: addr
-          },
-          create: {
-            user_id: userId,
-            default_address: typeof addr === 'string' ? addr : (addr.formatted_address || `${addr.house || ''} ${addr.locality || ''} ${addr.city || ''}`.trim()),
-            address_details: addr
-          }
-        });
-        return res.status(200).json({ message: 'Profile updated successfully', profile: updated });
-      } catch (e) {
-        console.warn('Prisma updateCustomerProfile warning:', e.message);
-      }
-    }
-
-    const updatedProfile = {
-      id: 'cust-prof-' + userId,
-      user_id: userId,
-      full_name: full_name || matchedUser?.full_name || null,
-      phone: phone || matchedUser?.phone || null,
-      address: addr,
-      address_details: addr,
-      avatar_url: avatar_url || null
-    };
-
-    inMemoryCustomerProfiles.set(userId, updatedProfile);
+    // Use the customer service as the single source of truth for profile
+    // updates. It updates both the shared `profiles` row (name, phone,
+    // avatar, language) and the customer-specific address/location data.
+    // The previous controller updated only `customer_profiles`, which meant
+    // full_name/phone changes were lost after logout/login because login
+    // reads the `profiles` table.
+    const updatedProfile = await customerService.updateCustomerProfile(
+      userId,
+      req.body || {}
+    );
 
     return res.status(200).json({
       message: 'Profile updated successfully',
@@ -178,7 +144,10 @@ async function updateCustomerProfile(req, res) {
     });
   } catch (err) {
     console.error('updateCustomerProfile error:', err);
-    return res.status(500).json({ error: 'Failed to update customer profile' });
+    const status = err.statusCode || 500;
+    return res.status(status).json({
+      error: err.message || 'Failed to update customer profile'
+    });
   }
 }
 
