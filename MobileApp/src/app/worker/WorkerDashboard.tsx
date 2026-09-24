@@ -242,7 +242,9 @@ export default function WorkerDashboard({ navigation, route }: Props) {
       customerName: item?.customer?.name || "Customer",
       customerPhone: item?.customer?.phone || "",
       service: item?.service?.name || "Service",
-      serviceDescription: item?.customer_notes || "Service request",
+      serviceDescription: item?.customer_notes || t("workerDashboard.serviceRequest", {
+        defaultValue: "Service request",
+      }),
       date: scheduled
         ? scheduled.toLocaleDateString(i18n.language === "hi" ? "hi-IN" : "en-GB", {
             day: "2-digit",

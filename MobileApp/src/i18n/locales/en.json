@@ -564,6 +564,7 @@
   },
   "workerDashboard": {
     "welcome": "Welcome back",
+    "serviceRequest": "Service request",
     "notifications": {
       "title": "Notifications",
       "message": "New booking notifications will appear here."

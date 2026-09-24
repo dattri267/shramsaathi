@@ -576,6 +576,7 @@
   },
   "workerDashboard": {
     "welcome": "वापसी पर स्वागत है",
+    "serviceRequest": "सेवा अनुरोध",
     "notifications": {
       "title": "सूचनाएं",
       "message": "नई बुकिंग सूचनाएं यहां दिखाई देंगी।"
