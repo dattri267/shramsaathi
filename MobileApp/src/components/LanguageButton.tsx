@@ -8,15 +8,37 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 
-import { changeLanguage } from "../i18n";
+import { changeLanguage, SupportedLanguage } from "../i18n";
+
+const LANGUAGE_OPTIONS: {
+  code: SupportedLanguage;
+  label: string;
+}[] = [
+  { code: "en", label: "EN" },
+  { code: "hi", label: "हिन्दी" },
+  { code: "pa", label: "ਪੰਜਾਬੀ" },
+  { code: "bn", label: "বাংলা" },
+  { code: "mr", label: "मराठी" },
+  { code: "kn", label: "ಕನ್ನಡ" },
+  { code: "ta", label: "தமிழ்" },
+  { code: "te", label: "తెలుగు" },
+  { code: "ml", label: "മലയാളം" },
+];
 
 export default function LanguageButton() {
   const { i18n, t } = useTranslation();
   const [visible, setVisible] = useState(false);
 
-  const currentLanguage = i18n.language === "hi" ? "hi" : "en";
+  const currentLanguage: SupportedLanguage =
+    LANGUAGE_OPTIONS.some((option) => option.code === i18n.language)
+      ? (i18n.language as SupportedLanguage)
+      : "en";
 
-  const selectLanguage = async (language: "en" | "hi") => {
+  const currentLanguageLabel =
+    LANGUAGE_OPTIONS.find((option) => option.code === currentLanguage)?.label ??
+    "EN";
+
+  const selectLanguage = async (language: SupportedLanguage) => {
     await changeLanguage(language);
     setVisible(false);
   };
@@ -30,7 +52,7 @@ export default function LanguageButton() {
         <Text style={styles.globe}>🌐</Text>
 
         <Text style={styles.languageText}>
-          {currentLanguage === "hi" ? "हिन्दी" : "EN"}
+          {currentLanguageLabel}
         </Text>
 
         <Text style={styles.arrow}>⌄</Text>
@@ -54,31 +76,21 @@ export default function LanguageButton() {
               {t("language.selectLanguage")}
             </Text>
 
-            <Pressable
-              style={styles.languageOption}
-              onPress={() => selectLanguage("en")}
-            >
-              <Text style={styles.optionText}>
-                {t("language.english")}
-              </Text>
+            {LANGUAGE_OPTIONS.map((option) => (
+              <Pressable
+                key={option.code}
+                style={styles.languageOption}
+                onPress={() => selectLanguage(option.code)}
+              >
+                <Text style={styles.optionText}>
+                  {option.label}
+                </Text>
 
-              {currentLanguage === "en" && (
-                <Text style={styles.checkmark}>✓</Text>
-              )}
-            </Pressable>
-
-            <Pressable
-              style={styles.languageOption}
-              onPress={() => selectLanguage("hi")}
-            >
-              <Text style={styles.optionText}>
-                {t("language.hindi")}
-              </Text>
-
-              {currentLanguage === "hi" && (
-                <Text style={styles.checkmark}>✓</Text>
-              )}
-            </Pressable>
+                {currentLanguage === option.code && (
+                  <Text style={styles.checkmark}>✓</Text>
+                )}
+              </Pressable>
+            ))}
           </Pressable>
         </Pressable>
       </Modal>
@@ -89,7 +101,7 @@ export default function LanguageButton() {
 const styles = StyleSheet.create({
   languageButton: {
     position: "absolute",
-    top: 90,
+    top: 100,
     right: 16,
 
     height: 38,
