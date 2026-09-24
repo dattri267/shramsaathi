@@ -155,6 +155,21 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
   const hours = ["Morning", "Afternoon", "Evening"];
 
+  const translateServiceName = (name: string) => {
+    const normalized = name.trim().toLowerCase();
+    return t(`workerDetails.skillTranslations.${normalized}`, {
+      defaultValue: name,
+    });
+  };
+
+  const translateSubskillName = (name: string) => {
+    const normalized = name.trim().toLowerCase();
+    return t(`workerDetails.skillTranslations.${normalized}`, {
+      defaultValue: name,
+    });
+  };
+
+
   // Load primary services together with their database-backed subskills.
   // Only skills that actually have subskills are returned by this endpoint.
   useEffect(() => {
@@ -1039,7 +1054,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                     color: "#6B7280",
                   }}
                 >
-                  {t("workerDetails.loadingServices")}
+                  {t("skillsTranslations.loadingServices")}
                 </Text>
               </View>
             ) : availableSkills.length === 0 ? (
@@ -1121,7 +1136,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                         selected && styles.primaryServiceTextSelected,
                       ]}
                     >
-                      {skillName}
+                      {translateServiceName(skillName)}
                     </Text>
 
                     {selected && (
@@ -1169,7 +1184,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                             selected && styles.skillChipTextSelected,
                           ]}
                         >
-                          {subskill.name}
+                          {translateSubskillName(subskill.name)}
                         </Text>
                       </Pressable>
                     );
@@ -1300,8 +1315,8 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                 {isGettingLocation
                   ? t("workerDetails.locationWait")
                   : locationUpdated
-                    ? "Please verify your address below"
-                    : "Automatically fill your work address"}
+                    ? t("workerDetails.verifyAddress")
+                    : t("workerDetails.autoFillAddress")}
               </Text>
             </View>
           </Pressable>
@@ -1339,7 +1354,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
           <View style={styles.row}>
             <View style={styles.halfInput}>
               <Text style={styles.inputLabel}>
-                City <Text style={styles.required}>*</Text>
+                {t("workerDetails.city")} <Text style={styles.required}>*</Text>
               </Text>
 
               <View style={styles.inputContainer}>
@@ -1355,7 +1370,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
             <View style={styles.halfInput}>
               <Text style={styles.inputLabel}>
-                State <Text style={styles.required}>*</Text>
+                {t("workerDetails.state")} <Text style={styles.required}>*</Text>
               </Text>
 
               <View style={styles.inputContainer}>
@@ -1816,7 +1831,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                 <Text style={styles.modalOptionTitle}>{t("common.takePhoto")}</Text>
 
                 <Text style={styles.modalOptionSubtitle}>
-                  Capture the document
+                  {t("workerDetails.captureDocument")}
                 </Text>
               </Pressable>
 
@@ -1831,7 +1846,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                 <Text style={styles.modalOptionTitle}>{t("common.chooseFromDevice")}</Text>
 
                 <Text style={styles.modalOptionSubtitle}>
-                  Select an existing image
+                  {t("workerDetails.selectExistingImage")}
                 </Text>
               </Pressable>
             </View>
