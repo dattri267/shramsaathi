@@ -19,6 +19,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Ionicons } from "@expo/vector-icons";
+import RazorpayCheckout from "react-native-razorpay";
 
 import {
   NativeStackScreenProps,
@@ -35,7 +36,7 @@ import {
   updateCustomerProfile,
   createBooking as createBackendBooking,
   createCustomerPayment,
-  completeMockCustomerPayment,
+  verifyCustomerPayment,
   getPredictedServicePrice,
   getWorkerLocation,
   getSkillsWithSubskills,
@@ -1061,23 +1062,58 @@ export default function UserDashboard({
 
       const paymentResponse = await createCustomerPayment(booking.id);
       const paymentId = paymentResponse?.payment?.id;
+      const razorpay = paymentResponse?.razorpay;
 
-      if (!paymentId) {
-        throw new Error("Payment could not be created.");
+      if (paymentResponse?.alreadyPaid || paymentResponse?.payment?.status === "paid") {
+        await loadDashboardData();
+        Alert.alert("Already paid", "This booking has already been paid.");
+        return;
       }
 
-      await completeMockCustomerPayment(String(paymentId));
+      if (!paymentId || !razorpay?.key_id || !razorpay?.order_id) {
+        throw new Error("Razorpay payment order could not be created.");
+      }
+
+      const checkoutResult = await RazorpayCheckout.open({
+        key: String(razorpay.key_id),
+        amount: Number(razorpay.amount),
+        currency: String(razorpay.currency || "INR"),
+        name: "ShramSaathi",
+        description: `Payment for ${booking.serviceName || "completed service"}`,
+        order_id: String(razorpay.order_id),
+        prefill: {
+          name: user.name || undefined,
+          email: user.email || undefined,
+          contact: user.phone || undefined,
+        },
+        theme: {
+          color: "#208AEF",
+        },
+      });
+
+      await verifyCustomerPayment(String(paymentId), {
+        razorpay_order_id: checkoutResult.razorpay_order_id,
+        razorpay_payment_id: checkoutResult.razorpay_payment_id,
+        razorpay_signature: checkoutResult.razorpay_signature,
+      });
+
       await loadDashboardData();
 
       Alert.alert(
         "Payment Successful",
-        `Demo payment of ₹${amount.toFixed(2)} completed successfully.`
+        `Payment of ₹${amount.toFixed(2)} completed successfully through Razorpay.`
       );
-    } catch (error) {
-      console.error("Customer payment failed:", error);
+    } catch (error: any) {
+      console.error("Customer Razorpay payment failed:", error);
+
+      const description =
+        error?.description ||
+        error?.error?.description ||
+        (error instanceof Error ? error.message : "Unable to complete payment.");
+
       Alert.alert(
         "Payment failed",
-        error instanceof Error ? error.message : "Unable to complete payment."
+        description
       );
     } finally {
       setPaymentSubmitting(false);

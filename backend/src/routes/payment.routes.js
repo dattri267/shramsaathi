@@ -4,14 +4,13 @@ const router = express.Router();
 
 const {
   createPayment,
-  completeMockPayment
+  verifyRazorpayPayment
 } = require('../controllers/payment.controller');
 
 const {
   requireAuth,
   resolveRoleProfile
 } = require('../middleware/auth');
-
 
 router.post(
   '/customer/payment/create',
@@ -20,13 +19,11 @@ router.post(
   createPayment
 );
 
-
-router.patch(
-  '/customer/payment/:paymentId/complete',
+router.post(
+  '/customer/payment/:paymentId/verify',
   requireAuth,
   resolveRoleProfile,
-  completeMockPayment
+  verifyRazorpayPayment
 );
-
 
 module.exports = router;

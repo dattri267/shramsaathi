@@ -1034,9 +1034,7 @@ export async function completeBooking(
 }
 
 /**
- * Create a payment for a completed customer booking.
- * Current backend provider is `mock`; this endpoint is ready to be
- * replaced by Razorpay integration later without changing the booking UI.
+ * Create a Razorpay order for a completed customer booking.
  */
 export async function createCustomerPayment(bookingId: string) {
   return apiRequest<any>(
@@ -1049,13 +1047,21 @@ export async function createCustomerPayment(bookingId: string) {
 }
 
 /**
- * Complete the current mock payment.
+ * Verify a successful Razorpay checkout on the backend.
  */
-export async function completeMockCustomerPayment(paymentId: string) {
+export async function verifyCustomerPayment(
+  paymentId: string,
+  data: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+  }
+) {
   return apiRequest<any>(
-    `/api/customer/payment/${paymentId}/complete`,
+    `/api/customer/payment/${paymentId}/verify`,
     {
-      method: 'PATCH',
+      method: 'POST',
+      body: JSON.stringify(data),
     }
   );
 }
