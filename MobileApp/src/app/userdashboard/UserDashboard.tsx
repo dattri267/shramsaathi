@@ -249,6 +249,8 @@ export default function UserDashboard({
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [emergencyPrice, setEmergencyPrice] = useState<number | null>(null);
   const [emergencyPriceLoading, setEmergencyPriceLoading] = useState(false);
+  const [normalPrice, setNormalPrice] = useState<number | null>(null);
+  const [normalPriceLoading, setNormalPriceLoading] = useState(false);
   const [liveWorkerLocations, setLiveWorkerLocations] = useState<
     Record<string, { latitude: number; longitude: number; updatedAt?: string }>
   >({});
@@ -540,6 +542,131 @@ export default function UserDashboard({
 
     return () => clearInterval(refreshInterval);
   }, []);
+
+  // Fetch the exact server-side AI price for the selected normal booking.
+  // These are the same inputs used by the final booking calculation.
+  useEffect(() => {
+    if (
+      bookingType !== "normal" ||
+      !selectedService ||
+      !selectedSubskill ||
+      !selectedAddress ||
+      !selectedDate ||
+      !selectedTime
+    ) {
+      setNormalPrice(null);
+      return;
+    }
+
+    const addressDetails =
+      customerProfile?.address || customerProfile?.address_details || {};
+
+    const latitude = Number(
+      selectedAddress?.latitude ??
+      customerProfile?.location?.latitude ??
+      addressDetails.latitude
+    );
+    const longitude = Number(
+      selectedAddress?.longitude ??
+      customerProfile?.location?.longitude ??
+      addressDetails.longitude
+    );
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      setNormalPrice(null);
+      return;
+    }
+
+    const startTime = selectedTime.split(" - ")[0];
+    const dateParts = selectedDate.split("-").map(Number);
+    const timeMatch = startTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+
+    if (
+      dateParts.length !== 3 ||
+      dateParts.some(part => Number.isNaN(part)) ||
+      !timeMatch
+    ) {
+      setNormalPrice(null);
+      return;
+    }
+
+    const [, hourText, minuteText, meridiem] = timeMatch;
+    let hours = Number(hourText);
+    const minutes = Number(minuteText);
+
+    if (meridiem.toUpperCase() === "AM") {
+      if (hours === 12) hours = 0;
+    } else if (hours !== 12) {
+      hours += 12;
+    }
+
+    const scheduledStart = new Date(
+      dateParts[0],
+      dateParts[1] - 1,
+      dateParts[2],
+      hours,
+      minutes,
+      0,
+      0
+    );
+
+    if (Number.isNaN(scheduledStart.getTime())) {
+      setNormalPrice(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadNormalPrice = async () => {
+      try {
+        setNormalPriceLoading(true);
+
+        const result = await getPredictedServicePrice({
+          skill_slug: selectedService.slug || selectedService.name,
+          subCategory: selectedSubskill.name,
+          service_address: selectedAddress.address,
+          latitude,
+          longitude,
+          city: addressDetails?.city || "",
+          scheduled_start_at: scheduledStart.toISOString(),
+        });
+
+        const price = Number(
+          result?.suggestedPrice ??
+          result?.estimated_price
+        );
+
+        if (!cancelled && Number.isFinite(price) && price > 0) {
+          setNormalPrice(price);
+        } else if (!cancelled) {
+          setNormalPrice(null);
+        }
+      } catch (error) {
+        console.error("Normal AI price error:", error);
+        if (!cancelled) setNormalPrice(null);
+      } finally {
+        if (!cancelled) setNormalPriceLoading(false);
+      }
+    };
+
+    loadNormalPrice();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    bookingType,
+    selectedService?.id,
+    selectedSubskill?.id,
+    selectedAddress?.id,
+    selectedAddress?.address,
+    selectedAddress?.latitude,
+    selectedAddress?.longitude,
+    selectedDate,
+    selectedTime,
+    customerProfile?.id,
+    customerProfile?.address?.city ?? customerProfile?.address_details?.city,
+  ]);
 
   // Fetch the live AI price only for emergency requests.
   useEffect(() => {
@@ -1161,6 +1288,18 @@ export default function UserDashboard({
       }
     }
 
+    const normalPriceValue = Number(normalPrice);
+
+    if (bookingType === "normal" && (!Number.isFinite(normalPriceValue) || normalPriceValue <= 0)) {
+      Alert.alert(
+        "Price unavailable",
+        normalPriceLoading
+          ? "Please wait while the AI price is being calculated."
+          : "Unable to calculate the AI price. Please try again."
+      );
+      return;
+    }
+
     try {
       setBookingSubmitting(true);
 
@@ -1172,9 +1311,12 @@ export default function UserDashboard({
         latitude,
         longitude,
         scheduled_start_at: scheduledStart.toISOString(),
-        ...(bookingType === "emergency" && emergencyPrice
-          ? { estimated_amount: emergencyPrice }
-          : {}),
+        city: addressDetails?.city || undefined,
+        ...(bookingType === "normal"
+          ? { estimated_amount: normalPriceValue }
+          : bookingType === "emergency" && emergencyPrice
+            ? { estimated_amount: emergencyPrice }
+            : {}),
       });
 
       const createdId =
@@ -2193,15 +2335,21 @@ export default function UserDashboard({
                                 : "For the selected 2-hour service slot"}
                             </Text>
                           </View>
-                          <Text style={styles.bookingPriceTotal}>{bookingType === "emergency" ? (emergencyPrice ? `₹${emergencyPrice.toFixed(0)}` : "Calculating…") : (selectedService?.basePrice ? `₹${selectedService.basePrice.toFixed(0)}` : "Calculated by backend")}</Text>
+                          <Text style={styles.bookingPriceTotal}>{bookingType === "emergency"
+                              ? (emergencyPrice ? `₹${emergencyPrice.toFixed(0)}` : "Calculating…")
+                              : (normalPriceLoading ? "Calculating…" : normalPrice ? `₹${normalPrice.toFixed(0)}` : "Calculated by backend")}</Text>
                         </View>
                         <View style={styles.bookingPriceLine}>
                           <Text style={styles.bookingPriceLabel}>Customer pays</Text>
-                          <Text style={styles.bookingPriceValue}>{bookingType === "emergency" ? (emergencyPrice ? `₹${emergencyPrice.toFixed(0)}` : "Calculating…") : (selectedService?.basePrice ? `₹${selectedService.basePrice.toFixed(0)}` : "Calculated by backend")}</Text>
+                          <Text style={styles.bookingPriceValue}>{bookingType === "emergency"
+                              ? (emergencyPrice ? `₹${emergencyPrice.toFixed(0)}` : "Calculating…")
+                              : (normalPriceLoading ? "Calculating…" : normalPrice ? `₹${normalPrice.toFixed(0)}` : "Calculated by backend")}</Text>
                         </View>
                         <View style={styles.bookingPriceLine}>
                           <Text style={styles.bookingPriceLabel}>Worker share (80%)</Text>
-                          <Text style={styles.bookingWorkerValue}>{bookingType === "emergency" ? (emergencyPrice ? `₹${(emergencyPrice * 0.8).toFixed(0)}` : "Calculating…") : (selectedService?.basePrice ? `₹${(selectedService.basePrice * 0.8).toFixed(0)}` : "Calculated by backend")}</Text>
+                          <Text style={styles.bookingWorkerValue}>{bookingType === "emergency"
+                              ? (emergencyPrice ? `₹${(emergencyPrice * 0.8).toFixed(0)}` : "Calculating…")
+                              : (normalPriceLoading ? "Calculating…" : normalPrice ? `₹${(normalPrice * 0.8).toFixed(0)}` : "Calculated by backend")}</Text>
                         </View>
                         <Text style={styles.bookingPriceNote}>10% supports the welfare fund and 10% covers platform operations. Final amount is fixed by the backend when the booking is created.</Text>
                       </View>
@@ -2270,7 +2418,9 @@ export default function UserDashboard({
                       {bookingType === "emergency" ? "Emergency request" : "Normal booking"}
                     </Text>
                     <Text style={styles.successAmountText}>
-                      Estimated amount: {bookingType === "emergency" ? (emergencyPrice ? `₹${emergencyPrice.toFixed(0)}` : "being calculated") : (selectedService?.basePrice ? `₹${selectedService.basePrice.toFixed(0)}` : "calculated by the backend")}
+                      Estimated amount: {bookingType === "emergency"
+                        ? (emergencyPrice ? `₹${emergencyPrice.toFixed(0)}` : "being calculated")
+                        : (normalPrice ? `₹${normalPrice.toFixed(0)}` : "calculated by the backend")}
                     </Text>
                     <Text style={styles.successPaymentNote}>Payment will be requested after the worker completes the service.</Text>
                   </View>

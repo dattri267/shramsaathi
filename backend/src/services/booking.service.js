@@ -3,6 +3,7 @@ const prisma = require('../config/db');
 const {
     calculatePrice
 } = require('./pricing.service');
+const { predictDynamicPrice } = require('./dynamic-pricing.service');
 
 function toUuid(idStr) {
     if (!idStr) return '00000000-0000-4000-a000-000000000000';
@@ -626,6 +627,8 @@ async function createBooking(
         latitude,
         longitude,
 
+        city,
+
         scheduled_start_at,
 
         standardPrice,
@@ -784,6 +787,36 @@ async function createBooking(
         `;
 
         resolvedSkillSlug = skillRows[0]?.slug || null;
+    }
+
+    /*
+     * Normal bookings use the AI quote already shown in the customer
+     * preview when one is supplied, so the stored booking amount is
+     * exactly the amount shown to the customer. If no quote is supplied,
+     * retain the existing server-side pricing fallback.
+     * Emergency bookings retain their existing pricing path below.
+     */
+    if (booking_type !== 'emergency') {
+        const suppliedPrice = Number(estimated_amount);
+
+        if (Number.isFinite(suppliedPrice) && suppliedPrice > 0) {
+            // Use the exact AI quote already shown to the customer.
+            // This prevents a second pricing call from producing a different
+            // amount between preview and booking creation.
+            finalEstimatedAmount = suppliedPrice;
+        } else {
+            const dynamicPricing = await predictDynamicPrice({
+                skillSlug: resolvedSkillSlug,
+                subCategory: selectedSubskill?.name || '',
+                serviceAddress: service_address,
+                latitude: lat,
+                longitude: lng,
+                city,
+                scheduledStartAt: scheduledDate.toISOString()
+            });
+
+            finalEstimatedAmount = dynamicPricing.suggestedPrice;
+        }
     }
 
     /*
@@ -1124,6 +1157,14 @@ async function getWorkerBookings(workerId) {
                         AND ws.skill_id = b.skill_id
                 )
 
+                AND EXISTS (
+                    SELECT 1
+                    FROM worker_subskills wss
+                    WHERE
+                        wss.worker_id = ${workerId}::uuid
+                        AND wss.subskill_id = b.subskill_id
+                )
+
                 AND NOT EXISTS (
                     SELECT 1
                     FROM worker_booking_rejections r
@@ -1176,12 +1217,19 @@ async function rejectBooking(
     id,
     workerId
 ) {
-    const booking =
-        await prisma.bookings.findUnique({
-            where: {
-                id
-            }
-        });
+    const bookingRows = await prisma.$queryRaw`
+      SELECT
+        id,
+        worker_id,
+        skill_id,
+        subskill_id,
+        status
+      FROM bookings
+      WHERE id = ${id}::uuid
+      LIMIT 1
+    `;
+
+    const booking = bookingRows[0];
 
     if (!booking) {
         throw error(
@@ -1202,9 +1250,15 @@ async function rejectBooking(
     const qualified =
         await prisma.$queryRaw`
       SELECT 1
-      FROM worker_skills
-      WHERE worker_id = ${workerId}::uuid
-        AND skill_id = ${booking.skill_id}::uuid
+      FROM worker_skills ws
+      WHERE ws.worker_id = ${workerId}::uuid
+        AND ws.skill_id = ${booking.skill_id}::uuid
+        AND EXISTS (
+          SELECT 1
+          FROM worker_subskills wss
+          WHERE wss.worker_id = ${workerId}::uuid
+            AND wss.subskill_id = ${booking.subskill_id}::uuid
+        )
       LIMIT 1
     `;
 
@@ -1275,17 +1329,19 @@ async function acceptBooking(id, workerId) {
      * Check that the booking exists and determine
      * which skill it requires.
      */
-    const booking = await prisma.bookings.findUnique({
-        where: {
-            id
-        },
-        select: {
-            id: true,
-            worker_id: true,
-            skill_id: true,
-            status: true
-        }
-    });
+    const bookingRows = await prisma.$queryRaw`
+        SELECT
+            id,
+            worker_id,
+            skill_id,
+            subskill_id,
+            status
+        FROM bookings
+        WHERE id = ${id}::uuid
+        LIMIT 1
+    `;
+
+    const booking = bookingRows[0];
 
     if (!booking) {
         throw error(
@@ -1343,6 +1399,12 @@ async function acceptBooking(id, workerId) {
         WHERE
             ws.worker_id = ${workerId}::uuid
             AND ws.skill_id = ${booking.skill_id}::uuid
+            AND EXISTS (
+                SELECT 1
+                FROM worker_subskills wss
+                WHERE wss.worker_id = ${workerId}::uuid
+                  AND wss.subskill_id = ${booking.subskill_id}::uuid
+            )
         LIMIT 1
     `;
 

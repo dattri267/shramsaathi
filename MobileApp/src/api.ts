@@ -843,6 +843,7 @@ export async function createBooking(data: {
   longitude: number;
 
   scheduled_start_at: string;
+  city?: string;
 
   estimated_amount?: number;
 
@@ -1068,8 +1069,14 @@ export async function completeMockCustomerPayment(paymentId: string) {
  */
 export async function getPredictedServicePrice(data: {
   skill_slug: string;
+  subCategory?: string;
+  service_address?: string;
+  latitude?: number;
+  longitude?: number;
+  scheduled_start_at?: string;
   city?: string;
   date?: string;
+  time?: string;
   weather?: string;
   events?: string;
 }) {

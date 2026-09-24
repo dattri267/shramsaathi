@@ -16,6 +16,15 @@ const ATTEMPT_TIMEOUT_SECONDS = 30;
  */
 async function findNextWorker(bookingId, skillId) {
 
+  const booking = await prisma.bookings.findUnique({
+    where: { id: bookingId },
+    select: { subskill_id: true }
+  });
+
+  if (!booking || !booking.subskill_id) {
+    return null;
+  }
+
   // Get workers who already received an attempt
   const previousAttempts =
     await prisma.emergency_match_attempts.findMany({
@@ -46,6 +55,12 @@ async function findNextWorker(bookingId, skillId) {
         worker_skills: {
           some: {
             skill_id: skillId
+          }
+        },
+
+        worker_subskills: {
+          some: {
+            subskill_id: booking.subskill_id
           }
         }
       },

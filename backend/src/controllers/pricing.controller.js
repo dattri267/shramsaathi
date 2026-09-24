@@ -1,4 +1,5 @@
 const { calculatePrice } = require('../services/pricing.service');
+const { predictDynamicPrice } = require('../services/dynamic-pricing.service');
 const calendarService = require('../services/calendar.service');
 const weatherService = require('../services/weather.service');
 
@@ -88,6 +89,37 @@ async function calculateBookingPrice(req, res) {
 
 async function predictBookingPrice(req, res) {
   try {
+    // For a real booking preview, use the exact same pricing service and
+    // booking context as booking.service.js. This prevents the preview
+    // price from using a different calculation path than the final price.
+    if (
+      req.body?.scheduled_start_at &&
+      req.body?.service_address &&
+      req.body?.latitude !== undefined &&
+      req.body?.longitude !== undefined
+    ) {
+      const skillSlug =
+        req.body.skill_slug ||
+        req.body.service ||
+        req.body.task ||
+        req.body.category;
+
+      if (!skillSlug) {
+        return res.status(400).json({ error: 'skill_slug is required' });
+      }
+
+      const result = await predictDynamicPrice({
+        skillSlug,
+        subCategory: req.body.subCategory || req.body.sub_category || '',
+        serviceAddress: req.body.service_address,
+        latitude: Number(req.body.latitude),
+        longitude: Number(req.body.longitude),
+        city: req.body.city,
+        scheduledStartAt: req.body.scheduled_start_at
+      });
+
+      return res.json(result);
+    }
     const skill = normalizeSlug(
       req.body.task || req.body.skill_slug || req.body.category || req.body.service
     );

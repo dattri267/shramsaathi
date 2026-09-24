@@ -76,7 +76,7 @@ async function getWeatherForBooking({ latitude, longitude, location, city, date 
   const dateVal = date || new Date().toISOString().slice(0, 10);
 
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&daily=weathercode,temperature_2m_max&timezone=auto`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&daily=weathercode,temperature_2m_max&start_date=${dateVal}&end_date=${dateVal}&timezone=auto`;
     const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
 
     if (response.ok) {
