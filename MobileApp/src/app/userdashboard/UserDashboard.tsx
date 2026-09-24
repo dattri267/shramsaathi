@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import * as Location from "expo-location";
-import LanguageSelector from "../../components/LanguageSelector";
+import LanguageButton from "../../components/LanguageButton";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -23,13 +23,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import RazorpayCheckout from "react-native-razorpay";
 
-import {
-  NativeStackScreenProps,
-} from "@react-navigation/native-stack";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import {
-  RootStackParamList,
-} from "../navigation/AppNavigator";
+import { RootStackParamList } from "../navigation/AppNavigator";
 
 import {
   logout,
@@ -45,16 +41,11 @@ import {
   submitWorkerRating,
 } from "../../api";
 
-
 /* =========================================================
    TYPES
 ========================================================= */
 
-type Props = NativeStackScreenProps<
-  RootStackParamList,
-  "UserDashboard"
->;
-
+type Props = NativeStackScreenProps<RootStackParamList, "UserDashboard">;
 
 type Subskill = {
   id: string;
@@ -131,7 +122,6 @@ type Booking = {
   };
 };
 
-
 /* =========================================================
    SERVICE PRESENTATION
 ========================================================= */
@@ -146,39 +136,50 @@ const SERVICE_BASE_PRICES: Record<string, number> = {
   technician: 850,
 };
 
-const serviceIconForSlug = (slug?: string | null, name?: string): keyof typeof Ionicons.glyphMap => {
-  const key = String(slug || name || "").trim().toLowerCase();
+const serviceIconForSlug = (
+  slug?: string | null,
+  name?: string,
+): keyof typeof Ionicons.glyphMap => {
+  const key = String(slug || name || "")
+    .trim()
+    .toLowerCase();
 
   switch (key) {
-    case "electrician": return "flash-outline";
-    case "plumber": return "water-outline";
+    case "electrician":
+      return "flash-outline";
+    case "plumber":
+      return "water-outline";
     case "carpenter":
-    case "carpentry": return "hammer-outline";
-    case "painter": return "color-palette-outline";
+    case "carpentry":
+      return "hammer-outline";
+    case "painter":
+      return "color-palette-outline";
     case "domestic-helper":
-    case "domestic helper": return "home-outline";
-    case "caregiver": return "heart-outline";
+    case "domestic helper":
+      return "home-outline";
+    case "caregiver":
+      return "heart-outline";
     case "driver":
-    case "drivers": return "car-outline";
-    case "gardener": return "leaf-outline";
-    case "cleaner": return "sparkles-outline";
-    case "technician": return "construct-outline";
-    case "ac-technician": return "snow-outline";
-    default: return "construct-outline";
+    case "drivers":
+      return "car-outline";
+    case "gardener":
+      return "leaf-outline";
+    case "cleaner":
+      return "sparkles-outline";
+    case "technician":
+      return "construct-outline";
+    case "ac-technician":
+      return "snow-outline";
+    default:
+      return "construct-outline";
   }
 };
-
 
 /* =========================================================
    USER DASHBOARD
 ========================================================= */
 
-export default function UserDashboard({
-  route,
-  navigation,
-}: Props) {
-
-
+export default function UserDashboard({ route, navigation }: Props) {
   /* =======================================================
      USER INFORMATION
   ======================================================= */
@@ -205,7 +206,46 @@ export default function UserDashboard({
     phone: route.params?.user?.phone || "",
     avatarUrl: null,
   });
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+
+  const translateServiceName = (name: string) => {
+    const normalized = name.trim().toLowerCase();
+    return t(`workerDetails.skillTranslations.${normalized}`, {
+      defaultValue: name,
+    });
+  };
+
+  const translateServiceDescription = (
+    description: string,
+    slug?: string | null,
+    name?: string,
+  ) => {
+    const normalized = String(slug || name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "-");
+
+    return t(`userDashboard.serviceDescriptions.${normalized}`, {
+      defaultValue: description,
+    });
+  };
+
+  const translateSkillName = (name: string) => {
+    const normalized = name.trim().toLowerCase();
+    return t(`workerDetails.skillTranslations.${normalized}`, {
+      defaultValue: name,
+    });
+  };
+
+  const translateSubskillName = (name: string) => {
+    const normalized = name.trim().toLowerCase();
+    return t(`workerDetails.skillTranslations.${normalized}`, {
+      defaultValue: name,
+    });
+  };
+
+  const getBookingStatusText = (status: Booking["status"]) =>
+    t(`userDashboard.status.${status.toLowerCase()}`, { defaultValue: status });
 
 
   /* =======================================================
@@ -214,18 +254,19 @@ export default function UserDashboard({
 
   const [search, setSearch] = useState("");
 
-  const [selectedService, setSelectedService] =
-    useState<Service | null>(null);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
 
-  const [bookingType, setBookingType] =
-    useState<"normal" | "emergency">("normal");
+  const [bookingType, setBookingType] = useState<"normal" | "emergency">(
+    "normal",
+  );
 
   const [services, setServices] = useState<Service[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
-  const [selectedSubskill, setSelectedSubskill] = useState<Subskill | null>(null);
+  const [selectedSubskill, setSelectedSubskill] = useState<Subskill | null>(
+    null,
+  );
 
-  const [profileVisible, setProfileVisible] =
-    useState(false);
+  const [profileVisible, setProfileVisible] = useState(false);
 
   // Customer profile editing
   const [customerEditVisible, setCustomerEditVisible] = useState(false);
@@ -233,19 +274,15 @@ export default function UserDashboard({
   const [customerEditName, setCustomerEditName] = useState("");
   const [customerEditPhone, setCustomerEditPhone] = useState("");
 
-  const [bookingsVisible, setBookingsVisible] =
-    useState(false);
+  const [bookingsVisible, setBookingsVisible] = useState(false);
 
   const [bookingStep, setBookingStep] = useState(1);
 
-  const [selectedAddress, setSelectedAddress] =
-    useState<Address | null>(null);
+  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
 
-  const [selectedDate, setSelectedDate] =
-    useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  const [selectedTime, setSelectedTime] =
-    useState<string | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [customerProfile, setCustomerProfile] = useState<any>(null);
@@ -259,23 +296,16 @@ export default function UserDashboard({
     Record<string, { latitude: number; longitude: number; updatedAt?: string }>
   >({});
 
-  const [bookingSuccess, setBookingSuccess] =
-    useState(false);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
 
-  const [latestBookingId, setLatestBookingId] =
-    useState<string | null>(null);
+  const [latestBookingId, setLatestBookingId] = useState<string | null>(null);
 
-  const [paymentSubmitting, setPaymentSubmitting] =
-    useState(false);
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
 
-  const [ratingModalVisible, setRatingModalVisible] =
-    useState(false);
-  const [ratingBooking, setRatingBooking] =
-    useState<Booking | null>(null);
-  const [selectedRating, setSelectedRating] =
-    useState(0);
-  const [ratingSubmitting, setRatingSubmitting] =
-    useState(false);
+  const [ratingModalVisible, setRatingModalVisible] = useState(false);
+  const [ratingBooking, setRatingBooking] = useState<Booking | null>(null);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
 
   // Add/update service address
   const [addressModalVisible, setAddressModalVisible] = useState(false);
@@ -289,7 +319,6 @@ export default function UserDashboard({
   const [addressLandmark, setAddressLandmark] = useState("");
   const [addressLatitude, setAddressLatitude] = useState<number | null>(null);
   const [addressLongitude, setAddressLongitude] = useState<number | null>(null);
-
 
   /* =======================================================
      BOOKING DATA
@@ -316,14 +345,8 @@ export default function UserDashboard({
           id: "default",
           title: "Home",
           address: formatted || profile.default_address,
-          latitude:
-            profile?.location?.latitude ??
-            details?.latitude ??
-            null,
-          longitude:
-            profile?.location?.longitude ??
-            details?.longitude ??
-            null,
+          latitude: profile?.location?.latitude ?? details?.latitude ?? null,
+          longitude: profile?.location?.longitude ?? details?.longitude ?? null,
         },
       ];
     }
@@ -354,21 +377,23 @@ export default function UserDashboard({
 
       dates.push({
         value: date.toISOString().split("T")[0],
-        day: date.toLocaleDateString("en-US", {
+        day: date.toLocaleDateString(i18n.language === "hi" ? "hi-IN" : "en-US", {
           weekday: "short",
         }),
         date: date.getDate(),
-        month: date.toLocaleDateString("en-US", {
+        month: date.toLocaleDateString(i18n.language === "hi" ? "hi-IN" : "en-US", {
           month: "short",
         }),
       });
     }
 
     return dates;
-  }, []);
+  }, [i18n.language]);
 
   const formatBackendBooking = (item: any): Booking => {
-    const scheduled = item?.scheduled_start_at ? new Date(item.scheduled_start_at) : null;
+    const scheduled = item?.scheduled_start_at
+      ? new Date(item.scheduled_start_at)
+      : null;
     const serviceId = item?.service?.id || item?.service?.slug || "";
     const serviceName = item?.service?.name || "Service";
     const addressText = item?.service_address || "Service address";
@@ -392,71 +417,96 @@ export default function UserDashboard({
 
     return {
       id: String(item.id),
-      bookingType:
-        item?.booking_type === "emergency" ? "emergency" : "normal",
+      bookingType: item?.booking_type === "emergency" ? "emergency" : "normal",
       serviceId,
       serviceName,
       subskillId: item?.subskill?.id || item?.subskill_id || null,
       subskillName: item?.subskill?.name || null,
       serviceIcon: serviceIconForSlug(item?.service?.slug),
-      address: { id: "backend", title: "Service Address", address: addressText },
+      address: {
+        id: "backend",
+        title: t("userDashboard.serviceAddress"),
+        address: addressText,
+      },
       date: scheduled ? scheduled.toISOString().split("T")[0] : "",
       time: scheduled
-        ? scheduled.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+        ? scheduled.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
         : "Not scheduled",
       status,
       createdAt: item?.created_at || new Date().toISOString(),
       worker: item?.worker
         ? {
-          id: String(item.worker.id),
-          name: item.worker.name || "Assigned professional",
-          phone: item.worker.phone || null,
-          avatarUrl: item.worker.avatar_url || null,
-          rating: item.worker.rating !== null && item.worker.rating !== undefined
-            ? Number(item.worker.rating)
-            : null,
-          completedJobs: item.worker.completed_jobs !== null && item.worker.completed_jobs !== undefined
-            ? Number(item.worker.completed_jobs)
-            : 0,
-          hourlyRate: item.worker.hourly_rate !== null && item.worker.hourly_rate !== undefined
-            ? Number(item.worker.hourly_rate)
-            : null,
-        }
+            id: String(item.worker.id),
+            name: item.worker.name || "Assigned professional",
+            phone: item.worker.phone || null,
+            avatarUrl: item.worker.avatar_url || null,
+            rating:
+              item.worker.rating !== null && item.worker.rating !== undefined
+                ? Number(item.worker.rating)
+                : null,
+            completedJobs:
+              item.worker.completed_jobs !== null &&
+              item.worker.completed_jobs !== undefined
+                ? Number(item.worker.completed_jobs)
+                : 0,
+            hourlyRate:
+              item.worker.hourly_rate !== null &&
+              item.worker.hourly_rate !== undefined
+                ? Number(item.worker.hourly_rate)
+                : null,
+          }
         : null,
-      customerRating: item?.customer_rating !== null && item?.customer_rating !== undefined
-        ? Number(item.customer_rating)
-        : null,
+      customerRating:
+        item?.customer_rating !== null && item?.customer_rating !== undefined
+          ? Number(item.customer_rating)
+          : null,
       price: item?.price
         ? {
-          estimatedAmount: item.price.estimated_amount !== null && item.price.estimated_amount !== undefined
-            ? Number(item.price.estimated_amount)
-            : null,
-          finalAmount: item.price.final_amount !== null && item.price.final_amount !== undefined
-            ? Number(item.price.final_amount)
-            : null,
-          currency: item.price.currency || "INR",
-          workerAmount: item.price.worker_amount !== null && item.price.worker_amount !== undefined
-            ? Number(item.price.worker_amount)
-            : null,
-          welfareAmount: item.price.welfare_amount !== null && item.price.welfare_amount !== undefined
-            ? Number(item.price.welfare_amount)
-            : null,
-          platformAmount: item.price.platform_amount !== null && item.price.platform_amount !== undefined
-            ? Number(item.price.platform_amount)
-            : null,
-          workerSharePercent: Number(item.price.worker_share_percent ?? 80),
-          welfareSharePercent: Number(item.price.welfare_share_percent ?? 10),
-          platformSharePercent: Number(item.price.platform_share_percent ?? 10),
-        }
+            estimatedAmount:
+              item.price.estimated_amount !== null &&
+              item.price.estimated_amount !== undefined
+                ? Number(item.price.estimated_amount)
+                : null,
+            finalAmount:
+              item.price.final_amount !== null &&
+              item.price.final_amount !== undefined
+                ? Number(item.price.final_amount)
+                : null,
+            currency: item.price.currency || "INR",
+            workerAmount:
+              item.price.worker_amount !== null &&
+              item.price.worker_amount !== undefined
+                ? Number(item.price.worker_amount)
+                : null,
+            welfareAmount:
+              item.price.welfare_amount !== null &&
+              item.price.welfare_amount !== undefined
+                ? Number(item.price.welfare_amount)
+                : null,
+            platformAmount:
+              item.price.platform_amount !== null &&
+              item.price.platform_amount !== undefined
+                ? Number(item.price.platform_amount)
+                : null,
+            workerSharePercent: Number(item.price.worker_share_percent ?? 80),
+            welfareSharePercent: Number(item.price.welfare_share_percent ?? 10),
+            platformSharePercent: Number(
+              item.price.platform_share_percent ?? 10,
+            ),
+          }
         : undefined,
       payment: item?.payment
         ? {
-          id: item.payment.id || null,
-          amount: item.payment.amount !== null && item.payment.amount !== undefined
-            ? Number(item.payment.amount)
-            : null,
-          status: item.payment.status || null,
-        }
+            id: item.payment.id || null,
+            amount:
+              item.payment.amount !== null && item.payment.amount !== undefined
+                ? Number(item.payment.amount)
+                : null,
+            status: item.payment.status || null,
+          }
         : undefined,
     };
   };
@@ -478,7 +528,7 @@ export default function UserDashboard({
       };
 
       setCustomerProfile(profile);
-      setUser(current => ({
+      setUser((current) => ({
         ...current,
         id: profile?.id || rawProfile?.id || current.id,
         name: rawProfile?.full_name || current.name,
@@ -492,8 +542,8 @@ export default function UserDashboard({
       console.error("Failed to load customer dashboard:", error);
       if (!silent) {
         Alert.alert(
-          "Unable to load dashboard",
-          error instanceof Error ? error.message : "Please try again."
+          t("userDashboard.alerts.loadDashboardTitle"),
+          error instanceof Error ? error.message : t("userDashboard.alerts.tryAgain"),
         );
       }
     } finally {
@@ -506,29 +556,33 @@ export default function UserDashboard({
       try {
         setLoadingServices(true);
         const rows = await getSkillsWithSubskills();
-        const normalized: Service[] = (Array.isArray(rows) ? rows : []).map((skill: any) => ({
-          id: String(skill.id),
-          name: String(skill.name || "Service"),
-          description: String(skill.description || ""),
-          slug: skill.slug || null,
-          icon: serviceIconForSlug(skill.slug, skill.name),
-          subskills: Array.isArray(skill.subskills)
-            ? skill.subskills.map((subskill: any) => ({
-                id: String(subskill.id),
-                skill_id: String(subskill.skill_id),
-                name: String(subskill.name || "Subskill"),
-                description: subskill.description ?? null,
-              }))
-            : [],
-          basePrice: skill.slug && SERVICE_BASE_PRICES[String(skill.slug).toLowerCase()]
-            ? SERVICE_BASE_PRICES[String(skill.slug).toLowerCase()]
-            : undefined,
-        }));
+        const normalized: Service[] = (Array.isArray(rows) ? rows : []).map(
+          (skill: any) => ({
+            id: String(skill.id),
+            name: String(skill.name || "Service"),
+            description: String(skill.description || ""),
+            slug: skill.slug || null,
+            icon: serviceIconForSlug(skill.slug, skill.name),
+            subskills: Array.isArray(skill.subskills)
+              ? skill.subskills.map((subskill: any) => ({
+                  id: String(subskill.id),
+                  skill_id: String(subskill.skill_id),
+                  name: String(subskill.name || "Subskill"),
+                  description: subskill.description ?? null,
+                }))
+              : [],
+            basePrice:
+              skill.slug &&
+              SERVICE_BASE_PRICES[String(skill.slug).toLowerCase()]
+                ? SERVICE_BASE_PRICES[String(skill.slug).toLowerCase()]
+                : undefined,
+          }),
+        );
         setServices(normalized);
       } catch (error) {
         console.error("Failed to load services:", error);
         setServices([]);
-        Alert.alert("Unable to load services", "Please try again.");
+        Alert.alert(t("userDashboard.alerts.loadServicesTitle"), t("userDashboard.alerts.tryAgain"));
       } finally {
         setLoadingServices(false);
       }
@@ -567,13 +621,13 @@ export default function UserDashboard({
 
     const latitude = Number(
       selectedAddress?.latitude ??
-      customerProfile?.location?.latitude ??
-      addressDetails.latitude
+        customerProfile?.location?.latitude ??
+        addressDetails.latitude,
     );
     const longitude = Number(
       selectedAddress?.longitude ??
-      customerProfile?.location?.longitude ??
-      addressDetails.longitude
+        customerProfile?.location?.longitude ??
+        addressDetails.longitude,
     );
 
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
@@ -587,7 +641,7 @@ export default function UserDashboard({
 
     if (
       dateParts.length !== 3 ||
-      dateParts.some(part => Number.isNaN(part)) ||
+      dateParts.some((part) => Number.isNaN(part)) ||
       !timeMatch
     ) {
       setNormalPrice(null);
@@ -611,7 +665,7 @@ export default function UserDashboard({
       hours,
       minutes,
       0,
-      0
+      0,
     );
 
     if (Number.isNaN(scheduledStart.getTime())) {
@@ -635,10 +689,7 @@ export default function UserDashboard({
           scheduled_start_at: scheduledStart.toISOString(),
         });
 
-        const price = Number(
-          result?.suggestedPrice ??
-          result?.estimated_price
-        );
+        const price = Number(result?.suggestedPrice ?? result?.estimated_price);
 
         if (!cancelled && Number.isFinite(price) && price > 0) {
           setNormalPrice(price);
@@ -674,11 +725,7 @@ export default function UserDashboard({
 
   // Fetch the live AI price only for emergency requests.
   useEffect(() => {
-    if (
-      bookingType !== "emergency" ||
-      !selectedService ||
-      !customerProfile
-    ) {
+    if (bookingType !== "emergency" || !selectedService || !customerProfile) {
       setEmergencyPrice(null);
       return;
     }
@@ -690,15 +737,11 @@ export default function UserDashboard({
         setEmergencyPriceLoading(true);
 
         const address =
-          customerProfile?.address ||
-          customerProfile?.address_details ||
-          {};
+          customerProfile?.address || customerProfile?.address_details || {};
 
         const result = await getPredictedServicePrice({
           skill_slug:
-            selectedService?.slug ||
-            selectedService?.name ||
-            "carpenter",
+            selectedService?.slug || selectedService?.name || "carpenter",
           city: address?.city || "",
           date: new Date().toISOString().slice(0, 10),
           weather: "Clear",
@@ -729,16 +772,21 @@ export default function UserDashboard({
     return () => {
       cancelled = true;
     };
-  }, [bookingType, selectedService?.id, customerProfile?.id, customerProfile?.city]);
+  }, [
+    bookingType,
+    selectedService?.id,
+    customerProfile?.id,
+    customerProfile?.city,
+  ]);
 
   // After an emergency worker accepts, keep fetching that worker's
   // current Redis-backed location so the customer UI stays updated.
   useEffect(() => {
     const activeEmergencyBookings = bookings.filter(
-      booking =>
+      (booking) =>
         booking.bookingType === "emergency" &&
         booking.worker?.id &&
-        booking.status === "Confirmed"
+        booking.status === "Confirmed",
     );
 
     if (activeEmergencyBookings.length === 0) return;
@@ -762,7 +810,7 @@ export default function UserDashboard({
             Number.isFinite(latitude) &&
             Number.isFinite(longitude)
           ) {
-            setLiveWorkerLocations(current => ({
+            setLiveWorkerLocations((current) => ({
               ...current,
               [workerId]: {
                 latitude,
@@ -792,19 +840,16 @@ export default function UserDashboard({
   ======================================================= */
 
   const filteredServices = useMemo(() => {
-
     const query = search.trim().toLowerCase();
 
     if (!query) {
       return services;
     }
 
-    return services.filter(service =>
-      service.name.toLowerCase().includes(query)
+    return services.filter((service) =>
+      service.name.toLowerCase().includes(query),
     );
-
   }, [search, services]);
-
 
   /* =======================================================
      SERVICE CLICK
@@ -814,7 +859,6 @@ export default function UserDashboard({
     setSelectedService(service);
     setSelectedSubskill(null);
   };
-
 
   /* =======================================================
      EDIT CUSTOMER PROFILE
@@ -831,33 +875,34 @@ export default function UserDashboard({
     const phone = customerEditPhone.trim();
 
     if (name.length < 2) {
-      Alert.alert("Invalid Name", "Please enter your full name.");
+      Alert.alert(t("userDashboard.alerts.invalidNameTitle"), t("userDashboard.alerts.invalidNameMessage"));
       return;
     }
 
     if (!/^\d{10}$/.test(phone)) {
-      Alert.alert("Invalid Mobile Number", "Please enter a valid 10-digit mobile number.");
+      Alert.alert(t("userDashboard.alerts.invalidMobileTitle"), t("userDashboard.alerts.invalidMobileMessage"));
       return;
     }
 
     try {
       setCustomerEditSaving(true);
       await updateCustomerProfile({ full_name: name, phone });
-      setUser(current => ({ ...current, name, phone }));
+      setUser((current) => ({ ...current, name, phone }));
       await loadDashboardData();
       setCustomerEditVisible(false);
-      Alert.alert("Profile Updated", "Your profile has been updated successfully.");
+      Alert.alert(t("userDashboard.alerts.profileUpdatedTitle"), t("userDashboard.alerts.profileUpdatedMessage"));
     } catch (error) {
       console.error("Customer profile update error:", error);
       Alert.alert(
-        "Unable to Update Profile",
-        error instanceof Error ? error.message : "Something went wrong while saving your profile."
+        t("userDashboard.alerts.updateProfileTitle"),
+        error instanceof Error
+          ? error.message
+          : t("userDashboard.alerts.updateProfileMessage"),
       );
     } finally {
       setCustomerEditSaving(false);
     }
   };
-
 
   /* =======================================================
      ADD / UPDATE ADDRESS
@@ -874,14 +919,10 @@ export default function UserDashboard({
     setAddressPincode(details?.pincode || "");
     setAddressLandmark(details?.landmark || "");
     setAddressLatitude(
-      profile?.location?.latitude ??
-      details?.latitude ??
-      null
+      profile?.location?.latitude ?? details?.latitude ?? null,
     );
     setAddressLongitude(
-      profile?.location?.longitude ??
-      details?.longitude ??
-      null
+      profile?.location?.longitude ?? details?.longitude ?? null,
     );
     setAddressModalVisible(true);
   };
@@ -890,21 +931,16 @@ export default function UserDashboard({
     setAddressLocationLoading(true);
 
     try {
-      const { status } =
-        await Location.requestForegroundPermissionsAsync();
+      const { status } = await Location.requestForegroundPermissionsAsync();
 
       if (status !== "granted") {
-        Alert.alert(
-          "Location Permission Required",
-          "Please allow location access so ShramSaathi can save the service address coordinates."
-        );
+        Alert.alert(t("userDashboard.alerts.locationPermissionTitle"), t("userDashboard.alerts.locationPermissionMessage"));
         return;
       }
 
-      const location =
-        await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        });
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
 
       const { latitude, longitude } = location.coords;
 
@@ -919,35 +955,17 @@ export default function UserDashboard({
       if (results.length > 0) {
         const current = results[0];
 
-        setAddressHouse(
-          current.streetNumber ||
-          current.name ||
-          ""
-        );
-        setAddressLocality(
-          current.district ||
-          current.subregion ||
-          ""
-        );
-        setAddressCity(
-          current.city ||
-          current.subregion ||
-          ""
-        );
+        setAddressHouse(current.streetNumber || current.name || "");
+        setAddressLocality(current.district || current.subregion || "");
+        setAddressCity(current.city || current.subregion || "");
         setAddressState(current.region || "");
         setAddressPincode(current.postalCode || "");
       }
 
-      Alert.alert(
-        "Location Found",
-        "Address fields have been filled from your current location. Please verify them and save."
-      );
+      Alert.alert(t("userDashboard.alerts.locationFoundTitle"), t("userDashboard.alerts.locationFoundMessage"));
     } catch (error) {
       console.error("Address location error:", error);
-      Alert.alert(
-        "Location Error",
-        "Unable to fetch your current location. You can enter the address manually, but a valid location is required for booking."
-      );
+      Alert.alert(t("userDashboard.alerts.locationErrorTitle"), t("userDashboard.alerts.locationErrorMessage"));
     } finally {
       setAddressLocationLoading(false);
     }
@@ -961,29 +979,17 @@ export default function UserDashboard({
       !addressState.trim() ||
       !addressPincode.trim()
     ) {
-      Alert.alert(
-        "Incomplete Address",
-        "Please fill in house, locality, city, state and PIN code."
-      );
+      Alert.alert(t("userDashboard.alerts.incompleteAddressTitle"), t("userDashboard.alerts.incompleteAddressMessage"));
       return;
     }
 
     if (!/^\d{6}$/.test(addressPincode.trim())) {
-      Alert.alert(
-        "Invalid PIN Code",
-        "Please enter a valid 6-digit PIN code."
-      );
+      Alert.alert(t("userDashboard.alerts.invalidPinTitle"), t("userDashboard.alerts.invalidPinMessage"));
       return;
     }
 
-    if (
-      addressLatitude === null ||
-      addressLongitude === null
-    ) {
-      Alert.alert(
-        "Location Required",
-        "Please use Current Location before saving this service address so the worker can be matched to the correct location."
-      );
+    if (addressLatitude === null || addressLongitude === null) {
+      Alert.alert(t("userDashboard.alerts.locationRequiredTitle"), t("userDashboard.alerts.locationRequiredMessage"));
       return;
     }
 
@@ -1029,34 +1035,31 @@ export default function UserDashboard({
         longitude: addressLongitude,
       });
 
-      Alert.alert(
-        "Address Saved",
-        "Your service address has been saved successfully."
-      );
+      Alert.alert(t("userDashboard.alerts.addressSavedTitle"), t("userDashboard.alerts.addressSavedMessage"));
     } catch (error) {
       console.error("Failed to save address:", error);
       Alert.alert(
-        "Unable to Save Address",
+        t("userDashboard.alerts.saveAddressTitle"),
         error instanceof Error
           ? error.message
-          : "Something went wrong while saving the address."
+          : t("userDashboard.alerts.saveAddressMessage"),
       );
     } finally {
       setAddressSaving(false);
     }
   };
 
-
   const handlePayNow = async (booking: Booking) => {
-    const amount = booking.price?.finalAmount ?? booking.price?.estimatedAmount ?? 0;
+    const amount =
+      booking.price?.finalAmount ?? booking.price?.estimatedAmount ?? 0;
 
     if (!booking.id || amount <= 0) {
-      Alert.alert("Payment unavailable", "A valid final amount is not available for this booking yet.");
+      Alert.alert(t("userDashboard.alerts.paymentUnavailableTitle"), t("userDashboard.alerts.paymentUnavailableMessage"));
       return;
     }
 
     if (booking.payment?.status === "paid") {
-      Alert.alert("Already paid", "This booking has already been paid.");
+      Alert.alert(t("userDashboard.alerts.alreadyPaidTitle"), t("userDashboard.alerts.alreadyPaidMessage"));
       return;
     }
 
@@ -1067,9 +1070,12 @@ export default function UserDashboard({
       const paymentId = paymentResponse?.payment?.id;
       const razorpay = paymentResponse?.razorpay;
 
-      if (paymentResponse?.alreadyPaid || paymentResponse?.payment?.status === "paid") {
+      if (
+        paymentResponse?.alreadyPaid ||
+        paymentResponse?.payment?.status === "paid"
+      ) {
         await loadDashboardData();
-        Alert.alert("Already paid", "This booking has already been paid.");
+        Alert.alert(t("userDashboard.alerts.alreadyPaidTitle"), t("userDashboard.alerts.alreadyPaidMessage"));
         return;
       }
 
@@ -1102,27 +1108,22 @@ export default function UserDashboard({
 
       await loadDashboardData();
 
-      Alert.alert(
-        "Payment Successful",
-        `Payment of ₹${amount.toFixed(2)} completed successfully through Razorpay.`
-      );
+      Alert.alert(t("userDashboard.alerts.paymentSuccessfulTitle"), t("userDashboard.alerts.paymentSuccessfulMessage", { amount: amount.toFixed(2) }));
     } catch (error: any) {
       console.error("Customer Razorpay payment failed:", error);
 
       const description =
         error?.description ||
         error?.error?.description ||
-        (error instanceof Error ? error.message : "Unable to complete payment.");
+        (error instanceof Error
+          ? error.message
+          : "Unable to complete payment.");
 
-      Alert.alert(
-        "Payment failed",
-        description
-      );
+      Alert.alert(t("userDashboard.alerts.paymentFailedTitle"), description);
     } finally {
       setPaymentSubmitting(false);
     }
   };
-
 
   /* =======================================================
      BOOK SERVICE
@@ -1157,15 +1158,12 @@ export default function UserDashboard({
       if (!selectedService) return;
 
       if (!selectedSubskill) {
-        Alert.alert(
-          "Select Subskill",
-          "Please select the specific service you need."
-        );
+        Alert.alert(t("userDashboard.alerts.selectSubskillTitle"), t("userDashboard.alerts.selectSubskillMessage"));
         return;
       }
 
       if (!selectedAddress) {
-        Alert.alert("Select Address", "Please select a service address.");
+        Alert.alert(t("userDashboard.alerts.selectAddressTitle"), t("userDashboard.alerts.selectAddressMessage"));
         return;
       }
 
@@ -1176,16 +1174,16 @@ export default function UserDashboard({
     }
 
     if (bookingStep === 2 && !selectedDate) {
-      Alert.alert("Select Date", "Please select a preferred date.");
+      Alert.alert(t("userDashboard.alerts.selectDateTitle"), t("userDashboard.alerts.selectDateMessage"));
       return;
     }
 
     if (bookingStep === 3 && !selectedTime) {
-      Alert.alert("Select Time", "Please select a time slot.");
+      Alert.alert(t("userDashboard.alerts.selectTimeTitle"), t("userDashboard.alerts.selectTimeMessage"));
       return;
     }
 
-    setBookingStep(prev => Math.min(prev + 1, 4));
+    setBookingStep((prev) => Math.min(prev + 1, 4));
   };
 
   const handlePreviousStep = () => {
@@ -1194,12 +1192,12 @@ export default function UserDashboard({
       return;
     }
 
-    setBookingStep(prev => Math.max(prev - 1, 1));
+    setBookingStep((prev) => Math.max(prev - 1, 1));
   };
 
   const formatBookingDate = (dateValue: string) => {
     const date = new Date(`${dateValue}T00:00:00`);
-    return date.toLocaleDateString("en-US", {
+    return date.toLocaleDateString(i18n.language === "hi" ? "hi-IN" : "en-US", {
       weekday: "long",
       day: "numeric",
       month: "long",
@@ -1213,18 +1211,12 @@ export default function UserDashboard({
     }
 
     if (!selectedSubskill) {
-      Alert.alert(
-        "Select Subskill",
-        "Please select the specific service you need."
-      );
+      Alert.alert(t("userDashboard.alerts.selectSubskillTitle"), t("userDashboard.alerts.selectSubskillMessage"));
       return;
     }
 
     if (bookingType === "normal" && (!selectedDate || !selectedTime)) {
-      Alert.alert(
-        "Select Schedule",
-        "Please select a preferred date and time."
-      );
+      Alert.alert(t("userDashboard.alerts.selectScheduleTitle"), t("userDashboard.alerts.selectScheduleMessage"));
       return;
     }
 
@@ -1233,21 +1225,18 @@ export default function UserDashboard({
 
     const latitude = Number(
       selectedAddress?.latitude ??
-      customerProfile?.location?.latitude ??
-      addressDetails.latitude
+        customerProfile?.location?.latitude ??
+        addressDetails.latitude,
     );
 
     const longitude = Number(
       selectedAddress?.longitude ??
-      customerProfile?.location?.longitude ??
-      addressDetails.longitude
+        customerProfile?.location?.longitude ??
+        addressDetails.longitude,
     );
 
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      Alert.alert(
-        "Location required",
-        "Please add a valid service location in your customer profile first."
-      );
+      Alert.alert(t("userDashboard.alerts.locationRequiredTitle"), t("userDashboard.alerts.validServiceLocationMessage"));
       return;
     }
 
@@ -1263,20 +1252,14 @@ export default function UserDashboard({
 
       if (
         dateParts.length !== 3 ||
-        dateParts.some(part => Number.isNaN(part))
+        dateParts.some((part) => Number.isNaN(part))
       ) {
-        Alert.alert(
-          "Invalid schedule",
-          "Please select a valid date and time."
-        );
+        Alert.alert(t("userDashboard.alerts.invalidScheduleTitle"), t("userDashboard.alerts.invalidScheduleMessage"));
         return;
       }
 
       if (!timeMatch) {
-        Alert.alert(
-          "Invalid schedule",
-          "Please select a valid date and time."
-        );
+        Alert.alert(t("userDashboard.alerts.invalidScheduleTitle"), t("userDashboard.alerts.invalidScheduleMessage"));
         return;
       }
 
@@ -1285,16 +1268,8 @@ export default function UserDashboard({
       let hours = Number(hourText);
       const minutes = Number(minuteText);
 
-      if (
-        hours < 1 ||
-        hours > 12 ||
-        minutes < 0 ||
-        minutes > 59
-      ) {
-        Alert.alert(
-          "Invalid schedule",
-          "Please select a valid date and time."
-        );
+      if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) {
+        Alert.alert(t("userDashboard.alerts.invalidScheduleTitle"), t("userDashboard.alerts.invalidScheduleMessage"));
         return;
       }
 
@@ -1315,26 +1290,26 @@ export default function UserDashboard({
         hours,
         minutes,
         0,
-        0
+        0,
       );
 
       if (Number.isNaN(scheduledStart.getTime())) {
-        Alert.alert(
-          "Invalid schedule",
-          "Please select a valid date and time."
-        );
+        Alert.alert(t("userDashboard.alerts.invalidScheduleTitle"), t("userDashboard.alerts.invalidScheduleMessage"));
         return;
       }
     }
 
     const normalPriceValue = Number(normalPrice);
 
-    if (bookingType === "normal" && (!Number.isFinite(normalPriceValue) || normalPriceValue <= 0)) {
+    if (
+      bookingType === "normal" &&
+      (!Number.isFinite(normalPriceValue) || normalPriceValue <= 0)
+    ) {
       Alert.alert(
-        "Price unavailable",
+        t("userDashboard.alerts.priceUnavailableTitle"),
         normalPriceLoading
-          ? "Please wait while the AI price is being calculated."
-          : "Unable to calculate the AI price. Please try again."
+          ? t("userDashboard.alerts.waitForAiPrice")
+          : t("userDashboard.alerts.aiPriceError"),
       );
       return;
     }
@@ -1342,30 +1317,25 @@ export default function UserDashboard({
     try {
       setBookingSubmitting(true);
 
-const bookingPrice =
-  bookingType === "emergency"
-    ? Number(emergencyPrice)
-    : normalPriceValue;
+      const bookingPrice =
+        bookingType === "emergency" ? Number(emergencyPrice) : normalPriceValue;
 
-if (!Number.isFinite(bookingPrice) || bookingPrice <= 0) {
-  Alert.alert(
-    "Price unavailable",
-    "Unable to determine the service price. Please try again."
-  );
-  return;
-}
+      if (!Number.isFinite(bookingPrice) || bookingPrice <= 0) {
+        Alert.alert(t("userDashboard.alerts.priceUnavailableTitle"), t("userDashboard.alerts.servicePriceError"));
+        return;
+      }
 
-const createdBooking = await createBackendBooking({
-  skill_id: selectedService.id,
-  subskill_id: selectedSubskill.id,
-  estimated_amount: bookingPrice,
-  booking_type: bookingType,
-  service_address: selectedAddress.address,
-  latitude,
-  longitude,
-  scheduled_start_at: scheduledStart.toISOString(),
-  city: addressDetails?.city || undefined,
-});
+      const createdBooking = await createBackendBooking({
+        skill_id: selectedService.id,
+        subskill_id: selectedSubskill.id,
+        estimated_amount: bookingPrice,
+        booking_type: bookingType,
+        service_address: selectedAddress.address,
+        latitude,
+        longitude,
+        scheduled_start_at: scheduledStart.toISOString(),
+        city: addressDetails?.city || undefined,
+      });
 
       const createdId =
         createdBooking?.booking?.id || createdBooking?.id || null;
@@ -1386,8 +1356,8 @@ const createdBooking = await createBackendBooking({
     } catch (error) {
       console.error("Failed to create booking:", error);
       Alert.alert(
-        "Booking failed",
-        error instanceof Error ? error.message : "Unable to create booking."
+        t("userDashboard.alerts.bookingFailedTitle"),
+        error instanceof Error ? error.message : t("userDashboard.alerts.createBookingError"),
       );
     } finally {
       setBookingSubmitting(false);
@@ -1404,10 +1374,7 @@ const createdBooking = await createBackendBooking({
     }
 
     if (booking.customerRating) {
-      Alert.alert(
-        "Already rated",
-        "You have already rated this worker for this booking."
-      );
+      Alert.alert(t("userDashboard.alerts.alreadyRatedTitle"), t("userDashboard.alerts.alreadyRatedMessage"));
       return;
     }
 
@@ -1430,7 +1397,7 @@ const createdBooking = await createBackendBooking({
     }
 
     if (selectedRating < 1 || selectedRating > 5) {
-      Alert.alert("Select a rating", "Please select between 1 and 5 stars.");
+      Alert.alert(t("userDashboard.alerts.selectRatingTitle"), t("userDashboard.alerts.selectRatingMessage"));
       return;
     }
 
@@ -1448,40 +1415,37 @@ const createdBooking = await createBackendBooking({
 
       await loadDashboardData();
 
-      Alert.alert(
-        "Thank you!",
-        "Your rating has been submitted successfully."
-      );
+      Alert.alert(t("userDashboard.alerts.thankYouTitle"), t("userDashboard.alerts.ratingSubmitted"));
     } catch (error) {
       console.error("Failed to submit worker rating:", error);
       Alert.alert(
-        "Rating failed",
-        error instanceof Error ? error.message : "Unable to submit your rating."
+        t("userDashboard.alerts.ratingFailedTitle"),
+        error instanceof Error
+          ? error.message
+          : t("userDashboard.alerts.ratingFailedMessage"),
       );
     } finally {
       setRatingSubmitting(false);
     }
   };
 
-
   /* =======================================================
      LOGOUT
   ======================================================= */
 
   const handleLogout = () => {
-
     Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
+      t("common.logout"),
+      t("common.logoutConfirm"),
 
       [
         {
-          text: "Cancel",
+          text: t("common.cancel"),
           style: "cancel",
         },
 
         {
-          text: "Logout",
+          text: t("common.logout"),
           style: "destructive",
 
           onPress: async () => {
@@ -1489,33 +1453,19 @@ const createdBooking = await createBackendBooking({
             navigation.replace("Login");
           },
         },
-
-      ]
+      ],
     );
-
   };
-
 
   /* =======================================================
      MAIN SCREEN
   ======================================================= */
 
   return (
-
-    <SafeAreaView
-      style={styles.safeArea}
-      edges={["top", "bottom"]}
-    >
-
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#FFFFFF"
-      />
-
+    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <View style={styles.container}>
-
-
         {/* =================================================
             MAIN CONTENT
         ================================================= */}
@@ -1524,40 +1474,28 @@ const createdBooking = await createBackendBooking({
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-
-
           {/* =================================================
               HEADER
           ================================================= */}
 
           <View style={styles.header}>
-
             <View style={styles.headerLeft}>
+              <Text style={styles.welcome}>{t("userDashboard.welcome")} 👋</Text>
 
-              <Text style={styles.welcome}>
-                Welcome back 👋
-              </Text>
-
-              <Text
-                style={styles.userName}
-                numberOfLines={1}
-              >
+              <Text style={styles.userName} numberOfLines={1}>
                 {user.name}
               </Text>
-
             </View>
-
 
             <Pressable
               style={styles.notificationButton}
               onPress={() =>
                 Alert.alert(
-                  "Notifications",
-                  "Your notifications will appear here."
+                  t("userDashboard.notifications.title"),
+                  t("userDashboard.notifications.message"),
                 )
               }
             >
-
               <Ionicons
                 name="notifications-outline"
                 size={23}
@@ -1565,11 +1503,8 @@ const createdBooking = await createBackendBooking({
               />
 
               <View style={styles.notificationDot} />
-
             </Pressable>
-
           </View>
-
 
           {/* =================================================
               LOCATION
@@ -1581,172 +1516,106 @@ const createdBooking = await createBackendBooking({
               if (addresses.length === 0) {
                 Alert.alert(
                   "Service Location",
-                  "No saved service address is available yet."
+                  "No saved service address is available yet.",
                 );
                 return;
               }
 
               Alert.alert(
                 "Service Location",
-                addresses.map(item => `${item.title}: ${item.address}`).join("\n\n")
+                addresses
+                  .map((item) => `${item.title}: ${item.address}`)
+                  .join("\n\n"),
               );
             }}
           >
-
             <View style={styles.locationIcon}>
-
-              <Ionicons
-                name="location"
-                size={18}
-                color="#7047E8"
-              />
-
+              <Ionicons name="location" size={18} color="#7047E8" />
             </View>
-
 
             <View style={styles.locationContent}>
-
-              <Text style={styles.locationLabel}>
-                Service location
-              </Text>
+              <Text style={styles.locationLabel}>{t("userDashboard.serviceLocation")}</Text>
 
               <Text style={styles.locationValue} numberOfLines={1}>
-                {addresses[0]?.address || "Select your location"}
+                {addresses[0]?.address || t("userDashboard.selectLocation")}
               </Text>
-
             </View>
 
-
-            <Ionicons
-              name="chevron-down"
-              size={18}
-              color="#777777"
-            />
-
+            <Ionicons name="chevron-down" size={18} color="#777777" />
           </Pressable>
-
 
           {/* =================================================
               SEARCH
           ================================================= */}
 
           <View style={styles.searchContainer}>
-
-            <Ionicons
-              name="search-outline"
-              size={22}
-              color="#777777"
-            />
-
+            <Ionicons name="search-outline" size={22} color="#777777" />
 
             <TextInput
               style={styles.searchInput}
-              placeholder="What service do you need?"
+              placeholder={t("userDashboard.searchPlaceholder")}
               placeholderTextColor="#999999"
               value={search}
               onChangeText={setSearch}
             />
 
-
             {search.length > 0 && (
-
-              <Pressable
-                onPress={() => setSearch("")}
-              >
-
-                <Ionicons
-                  name="close-circle"
-                  size={20}
-                  color="#999999"
-                />
-
+              <Pressable onPress={() => setSearch("")}>
+                <Ionicons name="close-circle" size={20} color="#999999" />
               </Pressable>
-
             )}
-
           </View>
-
 
           {/* =================================================
               SERVICES TITLE
           ================================================= */}
 
           <View style={styles.sectionHeader}>
-
-            <Text style={styles.sectionTitle}>
-              What do you need?
-            </Text>
+            <Text style={styles.sectionTitle}>{t("userDashboard.whatDoYouNeed")}</Text>
 
             <Text style={styles.sectionSubtitle}>
-              Choose a service to get started
+              {t("userDashboard.chooseServiceToStart")}
             </Text>
-
           </View>
-
 
           {/* =================================================
               SERVICE GRID
           ================================================= */}
 
           <View style={styles.serviceGrid}>
-
-            {filteredServices.map(service => (
-
+            {filteredServices.map((service) => (
               <Pressable
                 key={service.id}
                 style={({ pressed }) => [
-
                   styles.serviceCard,
 
                   pressed && {
                     transform: [{ scale: 0.97 }],
                     opacity: 0.8,
                   },
-
                 ]}
-
-                onPress={() =>
-                  handleServicePress(service)
-                }
+                onPress={() => handleServicePress(service)}
               >
-
                 <View style={styles.serviceIcon}>
-
-                  <Ionicons
-                    name={service.icon}
-                    size={29}
-                    color="#7047E8"
-                  />
-
+                  <Ionicons name={service.icon} size={29} color="#7047E8" />
                 </View>
 
-
-                <Text style={styles.serviceName}>
-                  {service.name}
-                </Text>
-
+                <Text style={styles.serviceName}>{translateServiceName(service.name)}</Text>
 
                 <Text style={styles.serviceDescription}>
-                  {service.description}
+                  {translateServiceDescription(
+                    service.description,
+                    service.slug,
+                    service.name,
+                  )}
                 </Text>
 
-
                 <View style={styles.arrow}>
-
-                  <Ionicons
-                    name="arrow-forward"
-                    size={15}
-                    color="#7047E8"
-                  />
-
+                  <Ionicons name="arrow-forward" size={15} color="#7047E8" />
                 </View>
-
               </Pressable>
-
             ))}
-
           </View>
-
 
           {/* =================================================
               ACTIVE BOOKINGS
@@ -1755,22 +1624,16 @@ const createdBooking = await createBackendBooking({
           <View style={styles.bookingSection}>
             <View style={styles.bookingSectionHeader}>
               <View>
-                <Text style={styles.sectionTitle}>
-                  Your bookings
-                </Text>
+                <Text style={styles.sectionTitle}>{t("userDashboard.yourBookings")}</Text>
 
                 <Text style={styles.sectionSubtitle}>
-                  Track your service requests
+                  {t("userDashboard.trackRequests")}
                 </Text>
               </View>
 
               {bookings.length > 0 && (
-                <Pressable
-                  onPress={() => setBookingsVisible(true)}
-                >
-                  <Text style={styles.viewAllText}>
-                    View all
-                  </Text>
+                <Pressable onPress={() => setBookingsVisible(true)}>
+                  <Text style={styles.viewAllText}>{t("userDashboard.viewAll")}</Text>
                 </Pressable>
               )}
             </View>
@@ -1778,25 +1641,19 @@ const createdBooking = await createBackendBooking({
             {bookings.length === 0 ? (
               <View style={styles.emptyBooking}>
                 <View style={styles.bookingIcon}>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={27}
-                    color="#7047E8"
-                  />
+                  <Ionicons name="calendar-outline" size={27} color="#7047E8" />
                 </View>
 
                 <View style={styles.bookingText}>
-                  <Text style={styles.bookingTitle}>
-                    No active bookings
-                  </Text>
+                  <Text style={styles.bookingTitle}>{t("userDashboard.noActiveBookings")}</Text>
 
                   <Text style={styles.bookingSubtitle}>
-                    Your upcoming services will appear here.
+                    {t("userDashboard.upcomingServices")}
                   </Text>
                 </View>
               </View>
             ) : (
-              bookings.slice(0, 2).map(booking => (
+              bookings.slice(0, 2).map((booking) => (
                 <Pressable
                   key={booking.id}
                   style={styles.bookingCard}
@@ -1813,19 +1670,19 @@ const createdBooking = await createBackendBooking({
                   <View style={styles.bookingCardContent}>
                     <View style={styles.bookingCardTop}>
                       <Text style={styles.bookingCardTitle}>
-                        {booking.serviceName}
+                        {translateServiceName(booking.serviceName)}
                       </Text>
 
                       <View style={styles.statusBadge}>
                         <Text style={styles.statusBadgeText}>
-                          {booking.status}
+                          {getBookingStatusText(booking.status)}
                         </Text>
                       </View>
                     </View>
 
                     {!!booking.subskillName && (
                       <Text style={styles.bookingCardInfo}>
-                        {booking.subskillName}
+                        {translateSubskillName(booking.subskillName)}
                       </Text>
                     )}
 
@@ -1833,16 +1690,10 @@ const createdBooking = await createBackendBooking({
                       {formatBookingDate(booking.date)}
                     </Text>
 
-                    <Text style={styles.bookingCardInfo}>
-                      {booking.time}
-                    </Text>
+                    <Text style={styles.bookingCardInfo}>{booking.time}</Text>
                   </View>
 
-                  <Ionicons
-                    name="chevron-forward"
-                    size={18}
-                    color="#999"
-                  />
+                  <Ionicons name="chevron-forward" size={18} color="#999" />
                 </Pressable>
               ))
             )}
@@ -1853,65 +1704,38 @@ const createdBooking = await createBackendBooking({
           ================================================= */}
 
           <View style={styles.trustCard}>
-
             <View style={styles.trustIcon}>
-
               <Ionicons
                 name="shield-checkmark-outline"
                 size={27}
                 color="#7047E8"
               />
-
             </View>
-
 
             <View style={styles.trustContent}>
-
-              <Text style={styles.trustTitle}>
-                Trusted professionals
-              </Text>
+              <Text style={styles.trustTitle}>{t("userDashboard.trustedProfessionals")}</Text>
 
               <Text style={styles.trustDescription}>
-                Find skilled workers for your everyday needs.
+                {t("userDashboard.findSkilledWorkers")}
               </Text>
-
             </View>
-
           </View>
-
-
         </ScrollView>
-
 
         {/* =================================================
             BOTTOM NAVIGATION
         ================================================= */}
 
         <View style={styles.bottomNavigation}>
-
-
           {/* HOME */}
 
-          <Pressable
-            style={styles.navItem}
-          >
-
+          <Pressable style={styles.navItem}>
             <View style={styles.activeNavIcon}>
-
-              <Ionicons
-                name="home"
-                size={20}
-                color="#FFFFFF"
-              />
-
+              <Ionicons name="home" size={20} color="#FFFFFF" />
             </View>
 
-<Text style={styles.activeNavText}>
-  {t("navigation.home")}
-</Text>
-
+            <Text style={styles.activeNavText}>{t("navigation.home")}</Text>
           </Pressable>
-
 
           {/* BOOKINGS */}
 
@@ -1919,23 +1743,12 @@ const createdBooking = await createBackendBooking({
             style={styles.navItem}
             onPress={() => setBookingsVisible(true)}
           >
-
             <View style={styles.navIcon}>
-
-              <Ionicons
-                name="calendar-outline"
-                size={22}
-                color="#777777"
-              />
-
+              <Ionicons name="calendar-outline" size={22} color="#777777" />
             </View>
 
-<Text style={styles.navText}>
-  {t("navigation.bookings")}
-</Text>
-
+            <Text style={styles.navText}>{t("navigation.bookings")}</Text>
           </Pressable>
-
 
           {/* PROFILE */}
 
@@ -1943,26 +1756,13 @@ const createdBooking = await createBackendBooking({
             style={styles.navItem}
             onPress={() => setProfileVisible(true)}
           >
-
             <View style={styles.navIcon}>
-
-              <Ionicons
-                name="person-outline"
-                size={22}
-                color="#777777"
-              />
-
+              <Ionicons name="person-outline" size={22} color="#777777" />
             </View>
 
-<Text style={styles.navText}>
-  {t("navigation.profile")}
-</Text>
-
+            <Text style={styles.navText}>{t("navigation.profile")}</Text>
           </Pressable>
-
-
         </View>
-
 
         {/* =================================================
             SERVICE BOOKING MODAL
@@ -1990,14 +1790,20 @@ const createdBooking = await createBackendBooking({
                   }}
                 >
                   <Ionicons
-                    name={bookingStep > 1 && !bookingSuccess ? "arrow-back" : "close"}
+                    name={
+                      bookingStep > 1 && !bookingSuccess
+                        ? "arrow-back"
+                        : "close"
+                    }
                     size={21}
                     color="#222222"
                   />
                 </Pressable>
 
                 <Text style={styles.bookingModalTitle}>
-                  {bookingSuccess ? "Booking Confirmed" : "Book a service"}
+                  {bookingSuccess
+                    ? t("booking.bookingConfirmed")
+                    : t("booking.bookService")}
                 </Text>
 
                 <View style={{ width: 40 }} />
@@ -2006,7 +1812,7 @@ const createdBooking = await createBackendBooking({
               {!bookingSuccess ? (
                 <>
                   <View style={styles.progressRow}>
-                    {[1, 2, 3, 4].map(step => (
+                    {[1, 2, 3, 4].map((step) => (
                       <View
                         key={step}
                         style={[
@@ -2029,10 +1835,14 @@ const createdBooking = await createBackendBooking({
 
                       <View style={{ flex: 1 }}>
                         <Text style={styles.selectedServiceName}>
-                          {selectedService.name}
+                          {translateServiceName(selectedService.name)}
                         </Text>
                         <Text style={styles.selectedServiceDescription}>
-                          {selectedService.description}
+                          {translateServiceDescription(
+                            selectedService.description,
+                            selectedService.slug,
+                            selectedService.name,
+                          )}
                         </Text>
                       </View>
                     </View>
@@ -2044,33 +1854,36 @@ const createdBooking = await createBackendBooking({
                       contentContainerStyle={styles.bookingStepContent}
                     >
                       <Text style={styles.stepTitle}>
-                        Where do you need the service?
+                        {t("userDashboard.whereService")}
                       </Text>
                       <Text style={styles.stepSubtitle}>
-                        Select the address where the professional should visit.
+                        {t("userDashboard.selectAddressForVisit")}
                       </Text>
 
                       <View style={styles.caregiverSkillSection}>
                         <Text style={styles.bookingOptionLabel}>
-                          Choose a subskill
+                          {t("userDashboard.chooseSubskill")}
                         </Text>
                         <Text style={styles.stepSubtitle}>
-                          Select the specific service you need under {selectedService?.name}.
+                          Select the specific service you need under{" "}
+                          {selectedService ? translateSkillName(selectedService.name) : ""}.
                         </Text>
 
-                        {(selectedService?.subskills || []).map(subskill => (
+                        {(selectedService?.subskills || []).map((subskill) => (
                           <Pressable
                             key={subskill.id}
                             onPress={() => setSelectedSubskill(subskill)}
                             style={[
                               styles.caregiverSkillCard,
                               selectedSubskill?.id === subskill.id &&
-                              styles.caregiverSkillCardSelected,
+                                styles.caregiverSkillCardSelected,
                             ]}
                           >
                             <View style={styles.caregiverSkillIcon}>
                               <Ionicons
-                                name={selectedService?.icon || "construct-outline"}
+                                name={
+                                  selectedService?.icon || "construct-outline"
+                                }
                                 size={21}
                                 color="#7047E8"
                               />
@@ -2078,7 +1891,7 @@ const createdBooking = await createBackendBooking({
 
                             <View style={styles.caregiverSkillContent}>
                               <Text style={styles.caregiverSkillName}>
-                                {subskill.name}
+                                {translateSubskillName(subskill.name)}
                               </Text>
                               {!!subskill.description && (
                                 <Text style={styles.caregiverSkillDescription}>
@@ -2105,7 +1918,7 @@ const createdBooking = await createBackendBooking({
                       </View>
 
                       <Text style={styles.bookingOptionLabel}>
-                        Service type
+                        {t("userDashboard.serviceType")}
                       </Text>
 
                       <View style={styles.bookingTypeRow}>
@@ -2114,7 +1927,7 @@ const createdBooking = await createBackendBooking({
                           style={[
                             styles.bookingTypeCard,
                             bookingType === "normal" &&
-                            styles.bookingTypeCardSelected,
+                              styles.bookingTypeCardSelected,
                           ]}
                         >
                           <Ionicons
@@ -2122,9 +1935,9 @@ const createdBooking = await createBackendBooking({
                             size={22}
                             color="#7047E8"
                           />
-                          <Text style={styles.bookingTypeTitle}>Normal</Text>
+                          <Text style={styles.bookingTypeTitle}>{t("userDashboard.normal")}</Text>
                           <Text style={styles.bookingTypeDescription}>
-                            Schedule a convenient date and time
+                            {t("userDashboard.scheduleDateTime")}
                           </Text>
                         </Pressable>
 
@@ -2133,7 +1946,7 @@ const createdBooking = await createBackendBooking({
                           style={[
                             styles.bookingTypeCard,
                             bookingType === "emergency" &&
-                            styles.bookingTypeCardSelected,
+                              styles.bookingTypeCardSelected,
                           ]}
                         >
                           <Ionicons
@@ -2141,25 +1954,30 @@ const createdBooking = await createBackendBooking({
                             size={22}
                             color="#7047E8"
                           />
-                          <Text style={styles.bookingTypeTitle}>Emergency</Text>
+                          <Text style={styles.bookingTypeTitle}>{t("userDashboard.emergency")}</Text>
                           <Text style={styles.bookingTypeDescription}>
-                            Request service immediately
+                            {t("userDashboard.requestImmediately")}
                           </Text>
                         </Pressable>
                       </View>
 
-                      {addresses.map(address => (
+                      {addresses.map((address) => (
                         <Pressable
                           key={address.id}
                           onPress={() => setSelectedAddress(address)}
                           style={[
                             styles.addressCard,
-                            selectedAddress?.id === address.id && styles.selectedAddressCard,
+                            selectedAddress?.id === address.id &&
+                              styles.selectedAddressCard,
                           ]}
                         >
                           <View style={styles.addressIcon}>
                             <Ionicons
-                              name={address.title === "Home" ? "home-outline" : "location-outline"}
+                              name={
+                                address.title === "Home"
+                                  ? "home-outline"
+                                  : "location-outline"
+                              }
                               size={21}
                               color="#7047E8"
                             />
@@ -2175,9 +1993,17 @@ const createdBooking = await createBackendBooking({
                           </View>
 
                           <Ionicons
-                            name={selectedAddress?.id === address.id ? "radio-button-on" : "radio-button-off"}
+                            name={
+                              selectedAddress?.id === address.id
+                                ? "radio-button-on"
+                                : "radio-button-off"
+                            }
                             size={22}
-                            color={selectedAddress?.id === address.id ? "#7047E8" : "#AAAAAA"}
+                            color={
+                              selectedAddress?.id === address.id
+                                ? "#7047E8"
+                                : "#AAAAAA"
+                            }
                           />
                         </Pressable>
                       ))}
@@ -2192,7 +2018,7 @@ const createdBooking = await createBackendBooking({
                           color="#7047E8"
                         />
                         <Text style={styles.addAddressText}>
-                          Add new address
+                          {t("userDashboard.addNewAddress")}
                         </Text>
                       </Pressable>
                     </ScrollView>
@@ -2203,39 +2029,47 @@ const createdBooking = await createBackendBooking({
                       showsVerticalScrollIndicator={false}
                       contentContainerStyle={styles.bookingStepContent}
                     >
-                      <Text style={styles.stepTitle}>
-                        Choose a date
-                      </Text>
+                      <Text style={styles.stepTitle}>{t("userDashboard.chooseDate")}</Text>
                       <Text style={styles.stepSubtitle}>
-                        Select when you want the professional to visit.
+                        {t("userDashboard.selectVisitDate")}
                       </Text>
 
                       <View style={styles.dateGrid}>
-                        {availableDates.map(item => (
+                        {availableDates.map((item) => (
                           <Pressable
                             key={item.value}
                             onPress={() => setSelectedDate(item.value)}
                             style={[
                               styles.dateCard,
-                              selectedDate === item.value && styles.dateCardSelected,
+                              selectedDate === item.value &&
+                                styles.dateCardSelected,
                             ]}
                           >
-                            <Text style={[
-                              styles.dateDay,
-                              selectedDate === item.value && styles.dateTextSelected,
-                            ]}>
+                            <Text
+                              style={[
+                                styles.dateDay,
+                                selectedDate === item.value &&
+                                  styles.dateTextSelected,
+                              ]}
+                            >
                               {item.day}
                             </Text>
-                            <Text style={[
-                              styles.dateNumber,
-                              selectedDate === item.value && styles.dateTextSelected,
-                            ]}>
+                            <Text
+                              style={[
+                                styles.dateNumber,
+                                selectedDate === item.value &&
+                                  styles.dateTextSelected,
+                              ]}
+                            >
                               {item.date}
                             </Text>
-                            <Text style={[
-                              styles.dateMonth,
-                              selectedDate === item.value && styles.dateTextSelected,
-                            ]}>
+                            <Text
+                              style={[
+                                styles.dateMonth,
+                                selectedDate === item.value &&
+                                  styles.dateTextSelected,
+                              ]}
+                            >
                               {item.month}
                             </Text>
                           </Pressable>
@@ -2249,14 +2083,12 @@ const createdBooking = await createBackendBooking({
                       showsVerticalScrollIndicator={false}
                       contentContainerStyle={styles.bookingStepContent}
                     >
-                      <Text style={styles.stepTitle}>
-                        Choose a time slot
-                      </Text>
+                      <Text style={styles.stepTitle}>{t("userDashboard.chooseTimeSlot")}</Text>
                       <Text style={styles.stepSubtitle}>
-                        Pick a convenient time for your service.
+                        {t("userDashboard.pickTime")}
                       </Text>
 
-                      {timeSlots.map(slot => (
+                      {timeSlots.map((slot) => (
                         <Pressable
                           key={slot}
                           onPress={() => setSelectedTime(slot)}
@@ -2268,18 +2100,29 @@ const createdBooking = await createBackendBooking({
                           <Ionicons
                             name="time-outline"
                             size={21}
-                            color={selectedTime === slot ? "#7047E8" : "#666666"}
+                            color={
+                              selectedTime === slot ? "#7047E8" : "#666666"
+                            }
                           />
-                          <Text style={[
-                            styles.timeSlotText,
-                            selectedTime === slot && styles.timeSlotTextSelected,
-                          ]}>
+                          <Text
+                            style={[
+                              styles.timeSlotText,
+                              selectedTime === slot &&
+                                styles.timeSlotTextSelected,
+                            ]}
+                          >
                             {slot}
                           </Text>
                           <Ionicons
-                            name={selectedTime === slot ? "radio-button-on" : "radio-button-off"}
+                            name={
+                              selectedTime === slot
+                                ? "radio-button-on"
+                                : "radio-button-off"
+                            }
                             size={22}
-                            color={selectedTime === slot ? "#7047E8" : "#AAAAAA"}
+                            color={
+                              selectedTime === slot ? "#7047E8" : "#AAAAAA"
+                            }
                           />
                         </Pressable>
                       ))}
@@ -2291,11 +2134,9 @@ const createdBooking = await createBackendBooking({
                       showsVerticalScrollIndicator={false}
                       contentContainerStyle={styles.bookingStepContent}
                     >
-                      <Text style={styles.stepTitle}>
-                        Confirm your booking
-                      </Text>
+                      <Text style={styles.stepTitle}>{t("userDashboard.confirmYourBooking")}</Text>
                       <Text style={styles.stepSubtitle}>
-                        Review the details before confirming your service.
+                        {t("userDashboard.reviewBooking")}
                       </Text>
 
                       <View style={styles.summaryCard}>
@@ -2307,39 +2148,55 @@ const createdBooking = await createBackendBooking({
                           />
                         </View>
                         <View style={styles.summaryContent}>
-                          <Text style={styles.summaryLabel}>Service</Text>
+                          <Text style={styles.summaryLabel}>{t("userDashboard.service")}</Text>
                           <Text style={styles.summaryValue}>
-                            {selectedService?.name}
+                            {selectedService ? translateSkillName(selectedService.name) : ""}
                           </Text>
                         </View>
                       </View>
 
                       {selectedSubskill && (
                         <View style={styles.summaryRow}>
-                          <Ionicons name={selectedService?.icon || "construct-outline"} size={21} color="#7047E8" />
+                          <Ionicons
+                            name={selectedService?.icon || "construct-outline"}
+                            size={21}
+                            color="#7047E8"
+                          />
                           <View style={styles.summaryRowContent}>
-                            <Text style={styles.summaryLabel}>Subskill</Text>
+                            <Text style={styles.summaryLabel}>{t("userDashboard.subskill")}</Text>
                             <Text style={styles.summaryValue}>
-                              {selectedSubskill.name}
+                              {translateSubskillName(selectedSubskill.name)}
                             </Text>
                           </View>
                         </View>
                       )}
 
                       <View style={styles.summaryRow}>
-                        <Ionicons name="flash-outline" size={21} color="#7047E8" />
+                        <Ionicons
+                          name="flash-outline"
+                          size={21}
+                          color="#7047E8"
+                        />
                         <View style={styles.summaryRowContent}>
-                          <Text style={styles.summaryLabel}>Booking type</Text>
+                          <Text style={styles.summaryLabel}>{t("userDashboard.bookingType")}</Text>
                           <Text style={styles.summaryValue}>
-                            {bookingType === "emergency" ? "Emergency" : "Normal"}
+                            {bookingType === "emergency"
+                              ? "Emergency"
+                              : "Normal"}
                           </Text>
                         </View>
                       </View>
 
                       <View style={styles.summaryRow}>
-                        <Ionicons name="location-outline" size={21} color="#7047E8" />
+                        <Ionicons
+                          name="location-outline"
+                          size={21}
+                          color="#7047E8"
+                        />
                         <View style={styles.summaryRowContent}>
-                          <Text style={styles.summaryLabel}>Service location</Text>
+                          <Text style={styles.summaryLabel}>
+                            {t("userDashboard.serviceLocation")}
+                          </Text>
                           <Text style={styles.summaryValue}>
                             {selectedAddress?.title}
                           </Text>
@@ -2352,19 +2209,29 @@ const createdBooking = await createBackendBooking({
                       {bookingType === "normal" && (
                         <>
                           <View style={styles.summaryRow}>
-                            <Ionicons name="calendar-outline" size={21} color="#7047E8" />
+                            <Ionicons
+                              name="calendar-outline"
+                              size={21}
+                              color="#7047E8"
+                            />
                             <View style={styles.summaryRowContent}>
-                              <Text style={styles.summaryLabel}>Date</Text>
+                              <Text style={styles.summaryLabel}>{t("userDashboard.date")}</Text>
                               <Text style={styles.summaryValue}>
-                                {selectedDate ? formatBookingDate(selectedDate) : "Not selected"}
+                                {selectedDate
+                                  ? formatBookingDate(selectedDate)
+                                  : "Not selected"}
                               </Text>
                             </View>
                           </View>
 
                           <View style={styles.summaryRow}>
-                            <Ionicons name="time-outline" size={21} color="#7047E8" />
+                            <Ionicons
+                              name="time-outline"
+                              size={21}
+                              color="#7047E8"
+                            />
                             <View style={styles.summaryRowContent}>
-                              <Text style={styles.summaryLabel}>Time slot</Text>
+                              <Text style={styles.summaryLabel}>{t("userDashboard.timeSlot")}</Text>
                               <Text style={styles.summaryValue}>
                                 {selectedTime}
                               </Text>
@@ -2376,30 +2243,62 @@ const createdBooking = await createBackendBooking({
                       <View style={styles.bookingPriceCard}>
                         <View style={styles.bookingPriceHeader}>
                           <View>
-                            <Text style={styles.bookingPriceTitle}>Estimated service cost</Text>
+                            <Text style={styles.bookingPriceTitle}>
+                              {t("userDashboard.estimatedServiceCost")}
+                            </Text>
                             <Text style={styles.bookingPriceSubtitle}>
                               {bookingType === "emergency"
-                                ? "Estimated cost for immediate service"
-                                : "For the selected 2-hour service slot"}
+                                ? t("userDashboard.estimatedImmediateCost")
+                                : t("userDashboard.selectedTwoHourSlot")}
                             </Text>
                           </View>
-                          <Text style={styles.bookingPriceTotal}>{bookingType === "emergency"
-                              ? (emergencyPrice ? `₹${emergencyPrice.toFixed(0)}` : "Calculating…")
-                              : (normalPriceLoading ? "Calculating…" : normalPrice ? `₹${normalPrice.toFixed(0)}` : "Calculated by backend")}</Text>
+                          <Text style={styles.bookingPriceTotal}>
+                            {bookingType === "emergency"
+                              ? emergencyPrice
+                                ? `₹${emergencyPrice.toFixed(0)}`
+                                : t("userDashboard.calculating")
+                              : normalPriceLoading
+                                ? t("userDashboard.calculating")
+                                : normalPrice
+                                  ? `₹${normalPrice.toFixed(0)}`
+                                  : t("userDashboard.calculatedByBackend")}
+                          </Text>
                         </View>
                         <View style={styles.bookingPriceLine}>
-                          <Text style={styles.bookingPriceLabel}>Customer pays</Text>
-                          <Text style={styles.bookingPriceValue}>{bookingType === "emergency"
-                              ? (emergencyPrice ? `₹${emergencyPrice.toFixed(0)}` : "Calculating…")
-                              : (normalPriceLoading ? "Calculating…" : normalPrice ? `₹${normalPrice.toFixed(0)}` : "Calculated by backend")}</Text>
+                          <Text style={styles.bookingPriceLabel}>
+                            {t("userDashboard.customerPays")}
+                          </Text>
+                          <Text style={styles.bookingPriceValue}>
+                            {bookingType === "emergency"
+                              ? emergencyPrice
+                                ? `₹${emergencyPrice.toFixed(0)}`
+                                : t("userDashboard.calculating")
+                              : normalPriceLoading
+                                ? t("userDashboard.calculating")
+                                : normalPrice
+                                  ? `₹${normalPrice.toFixed(0)}`
+                                  : t("userDashboard.calculatedByBackend")}
+                          </Text>
                         </View>
                         <View style={styles.bookingPriceLine}>
-                          <Text style={styles.bookingPriceLabel}>Worker share (80%)</Text>
-                          <Text style={styles.bookingWorkerValue}>{bookingType === "emergency"
-                              ? (emergencyPrice ? `₹${(emergencyPrice * 0.8).toFixed(0)}` : "Calculating…")
-                              : (normalPriceLoading ? "Calculating…" : normalPrice ? `₹${(normalPrice * 0.8).toFixed(0)}` : "Calculated by backend")}</Text>
+                          <Text style={styles.bookingPriceLabel}>
+                            {t("userDashboard.workerShare")}
+                          </Text>
+                          <Text style={styles.bookingWorkerValue}>
+                            {bookingType === "emergency"
+                              ? emergencyPrice
+                                ? `₹${(emergencyPrice * 0.8).toFixed(0)}`
+                                : t("userDashboard.calculating")
+                              : normalPriceLoading
+                                ? t("userDashboard.calculating")
+                                : normalPrice
+                                  ? `₹${(normalPrice * 0.8).toFixed(0)}`
+                                  : t("userDashboard.calculatedByBackend")}
+                          </Text>
                         </View>
-                        <Text style={styles.bookingPriceNote}>10% supports the welfare fund and 10% covers platform operations. Final amount is fixed by the backend when the booking is created.</Text>
+                        <Text style={styles.bookingPriceNote}>
+                          {t("userDashboard.priceNote")}
+                        </Text>
                       </View>
 
                       <View style={styles.confirmNotice}>
@@ -2409,7 +2308,7 @@ const createdBooking = await createBackendBooking({
                           color="#7047E8"
                         />
                         <Text style={styles.confirmNoticeText}>
-                          You can track the booking status from the Bookings section.
+                          {t("userDashboard.trackBookingStatus")}
                         </Text>
                       </View>
                     </ScrollView>
@@ -2417,7 +2316,9 @@ const createdBooking = await createBackendBooking({
 
                   <Pressable
                     style={styles.continueButton}
-                    onPress={bookingStep === 4 ? confirmBooking : handleNextStep}
+                    onPress={
+                      bookingStep === 4 ? confirmBooking : handleNextStep
+                    }
                   >
                     <Text style={styles.continueButtonText}>
                       {bookingStep === 4 ? "Confirm Booking" : "Continue"}
@@ -2435,17 +2336,16 @@ const createdBooking = await createBackendBooking({
                     <Ionicons name="checkmark" size={45} color="#FFFFFF" />
                   </View>
 
-                  <Text style={styles.successTitle}>
-                    Booking Confirmed!
-                  </Text>
+                  <Text style={styles.successTitle}>{t("userDashboard.bookingConfirmedBang")}</Text>
 
                   <Text style={styles.successText}>
                     {bookingType === "emergency"
-                      ? `Your ${selectedService?.name} emergency service has been requested immediately.`
-                      : `Your ${selectedService?.name} service has been successfully booked.`}</Text>
+                      ? `Your ${selectedService ? translateSkillName(selectedService.name) : ""} emergency service has been requested immediately.`
+                      : `Your ${selectedService ? translateSkillName(selectedService.name) : ""} service has been successfully booked.`}
+                  </Text>
 
                   <View style={styles.bookingIdCard}>
-                    <Text style={styles.bookingIdLabel}>Booking ID</Text>
+                    <Text style={styles.bookingIdLabel}>{t("userDashboard.bookingId")}</Text>
                     <Text style={styles.bookingId}>
                       #{latestBookingId || bookings[0]?.id || "Pending"}
                     </Text>
@@ -2463,23 +2363,30 @@ const createdBooking = await createBackendBooking({
                       </>
                     )}
                     <Text style={styles.successDetailText}>
-                      {bookingType === "emergency" ? "Emergency request" : "Normal booking"}
+                      {bookingType === "emergency"
+                        ? t("userDashboard.emergencyRequest")
+                        : t("userDashboard.normalBooking")}
                     </Text>
                     <Text style={styles.successAmountText}>
-                      Estimated amount: {bookingType === "emergency"
-                        ? (emergencyPrice ? `₹${emergencyPrice.toFixed(0)}` : "being calculated")
-                        : (normalPrice ? `₹${normalPrice.toFixed(0)}` : "calculated by the backend")}
+                      Estimated amount:{" "}
+                      {bookingType === "emergency"
+                        ? emergencyPrice
+                          ? `₹${emergencyPrice.toFixed(0)}`
+                          : t("userDashboard.beingCalculated")
+                        : normalPrice
+                          ? `₹${normalPrice.toFixed(0)}`
+                          : t("userDashboard.calculatedByBackend")}
                     </Text>
-                    <Text style={styles.successPaymentNote}>Payment will be requested after the worker completes the service.</Text>
+                    <Text style={styles.successPaymentNote}>
+                      {t("userDashboard.paymentAfterCompletion")}
+                    </Text>
                   </View>
 
                   <Pressable
                     style={styles.doneButton}
                     onPress={handleCloseBooking}
                   >
-                    <Text style={styles.doneButtonText}>
-                      Done
-                    </Text>
+                    <Text style={styles.doneButtonText}>{t("common.done")}</Text>
                   </Pressable>
                 </View>
               )}
@@ -2505,9 +2412,7 @@ const createdBooking = await createBackendBooking({
                 <Ionicons name="arrow-back" size={23} color="#222222" />
               </Pressable>
 
-              <Text style={styles.bookingsTitle}>
-                My Bookings
-              </Text>
+              <Text style={styles.bookingsTitle}>{t("userDashboard.myBookings")}</Text>
 
               <View style={{ width: 42 }} />
             </View>
@@ -2515,25 +2420,17 @@ const createdBooking = await createBackendBooking({
             {bookings.length === 0 ? (
               <View style={styles.noBookingsContainer}>
                 <View style={styles.noBookingsIcon}>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={43}
-                    color="#7047E8"
-                  />
+                  <Ionicons name="calendar-outline" size={43} color="#7047E8" />
                 </View>
-                <Text style={styles.noBookingsTitle}>
-                  No bookings yet
-                </Text>
+                <Text style={styles.noBookingsTitle}>{t("userDashboard.noBookingsYet")}</Text>
                 <Text style={styles.noBookingsText}>
-                  Choose a service from the home screen to create your first booking.
+                  {t("userDashboard.firstBookingHint")}
                 </Text>
                 <Pressable
                   style={styles.startBookingButton}
                   onPress={() => setBookingsVisible(false)}
                 >
-                  <Text style={styles.startBookingText}>
-                    Book a Service
-                  </Text>
+                  <Text style={styles.startBookingText}>{t("userDashboard.bookServiceButton")}</Text>
                 </Pressable>
               </View>
             ) : (
@@ -2542,10 +2439,11 @@ const createdBooking = await createBackendBooking({
                 contentContainerStyle={styles.bookingsContent}
               >
                 <Text style={styles.bookingsCount}>
-                  {bookings.length} {bookings.length === 1 ? "booking" : "bookings"}
+                  {bookings.length}{" "}
+                  {bookings.length === 1 ? "booking" : "bookings"}
                 </Text>
 
-                {bookings.map(booking => (
+                {bookings.map((booking) => (
                   <View key={booking.id} style={styles.fullBookingCard}>
                     <View style={styles.fullBookingTop}>
                       <View style={styles.fullBookingIcon}>
@@ -2558,16 +2456,14 @@ const createdBooking = await createBackendBooking({
 
                       <View style={styles.fullBookingTitleArea}>
                         <Text style={styles.fullBookingTitle}>
-                          {booking.serviceName}
+                          {translateServiceName(booking.serviceName)}
                         </Text>
-                        <Text style={styles.fullBookingId}>
-                          {booking.id}
-                        </Text>
+                        <Text style={styles.fullBookingId}>{booking.id}</Text>
                       </View>
 
                       <View style={styles.statusBadge}>
                         <Text style={styles.statusBadgeText}>
-                          {booking.status}
+                          {getBookingStatusText(booking.status)}
                         </Text>
                       </View>
                     </View>
@@ -2576,15 +2472,23 @@ const createdBooking = await createBackendBooking({
 
                     {!!booking.subskillName && (
                       <View style={styles.fullBookingRow}>
-                        <Ionicons name="construct-outline" size={19} color="#7047E8" />
+                        <Ionicons
+                          name="construct-outline"
+                          size={19}
+                          color="#7047E8"
+                        />
                         <Text style={styles.fullBookingRowText}>
-                          {booking.subskillName}
+                          {translateSubskillName(booking.subskillName)}
                         </Text>
                       </View>
                     )}
 
                     <View style={styles.fullBookingRow}>
-                      <Ionicons name="calendar-outline" size={19} color="#7047E8" />
+                      <Ionicons
+                        name="calendar-outline"
+                        size={19}
+                        color="#7047E8"
+                      />
                       <Text style={styles.fullBookingRowText}>
                         {formatBookingDate(booking.date)}
                       </Text>
@@ -2598,9 +2502,13 @@ const createdBooking = await createBackendBooking({
                     </View>
 
                     <View style={styles.fullBookingRow}>
-                      <Ionicons name="location-outline" size={19} color="#7047E8" />
+                      <Ionicons
+                        name="location-outline"
+                        size={19}
+                        color="#7047E8"
+                      />
                       <Text style={styles.fullBookingRowText}>
-                        {booking.address.title} · {booking.address.address}
+                        {booking.address.title === "Home" ? t("navigation.home") : booking.address.title} · {booking.address.address}
                       </Text>
                     </View>
 
@@ -2617,12 +2525,20 @@ const createdBooking = await createBackendBooking({
                           )}
                         </View>
                         <View style={styles.customerWorkerInfo}>
-                          <Text style={styles.customerWorkerLabel}>Assigned professional</Text>
-                          <Text style={styles.customerWorkerName}>{booking.worker.name}</Text>
+                          <Text style={styles.customerWorkerLabel}>
+                            {t("userDashboard.assignedProfessional")}
+                          </Text>
+                          <Text style={styles.customerWorkerName}>
+                            {booking.worker.name}
+                          </Text>
                           <View style={styles.customerWorkerMeta}>
-                            <Text style={styles.customerWorkerMetaText}>★ {booking.worker.rating?.toFixed(1) || "New"}</Text>
+                            <Text style={styles.customerWorkerMetaText}>
+                              ★ {booking.worker.rating?.toFixed(1) || t("userDashboard.newWorker")}
+                            </Text>
                             <Text style={styles.customerWorkerMetaText}>•</Text>
-                            <Text style={styles.customerWorkerMetaText}>{booking.worker.completedJobs || 0} jobs</Text>
+                            <Text style={styles.customerWorkerMetaText}>
+                              {booking.worker.completedJobs || 0} {t("userDashboard.jobs")}
+                            </Text>
                           </View>
                         </View>
                       </View>
@@ -2642,9 +2558,9 @@ const createdBooking = await createBackendBooking({
 
                             Linking.openURL(url).catch(() =>
                               Alert.alert(
-                                "Unable to open Maps",
-                                "Google Maps could not be opened on this device."
-                              )
+                                t("userDashboard.alerts.unableToOpenMapsTitle"),
+                                t("userDashboard.alerts.unableToOpenMapsMessage"),
+                              ),
                             );
                           }}
                           style={{
@@ -2662,7 +2578,7 @@ const createdBooking = await createBackendBooking({
                               color: "#3730A3",
                             }}
                           >
-                            Live worker location
+                            {t("userDashboard.liveWorkerLocation")}
                           </Text>
 
                           <Text
@@ -2671,9 +2587,13 @@ const createdBooking = await createBackendBooking({
                               color: "#4B5563",
                             }}
                           >
-                            {liveWorkerLocations[booking.worker.id].latitude.toFixed(6)}
+                            {liveWorkerLocations[
+                              booking.worker.id
+                            ].latitude.toFixed(6)}
                             {", "}
-                            {liveWorkerLocations[booking.worker.id].longitude.toFixed(6)}
+                            {liveWorkerLocations[
+                              booking.worker.id
+                            ].longitude.toFixed(6)}
                           </Text>
 
                           <Text
@@ -2683,75 +2603,135 @@ const createdBooking = await createBackendBooking({
                               fontWeight: "600",
                             }}
                           >
-                            Open in Maps
+                            {t("userDashboard.openMaps")}
                           </Text>
                         </Pressable>
                       )}
 
                     <View style={styles.customerPaymentCard}>
                       <View style={styles.customerPaymentHeader}>
-                        <Text style={styles.customerPaymentTitle}>Payment</Text>
-                        <Text style={styles.customerPaymentTotal}>₹{(booking.price?.finalAmount ?? booking.price?.estimatedAmount ?? 0).toFixed(2)}</Text>
+                        <Text style={styles.customerPaymentTitle}>{t("userDashboard.payment")}</Text>
+                        <Text style={styles.customerPaymentTotal}>
+                          ₹
+                          {(
+                            booking.price?.finalAmount ??
+                            booking.price?.estimatedAmount ??
+                            0
+                          ).toFixed(2)}
+                        </Text>
                       </View>
                       <View style={styles.customerPaymentLine}>
-                        <Text style={styles.customerPaymentLabel}>Customer pays</Text>
-                        <Text style={styles.customerPaymentValue}>₹{(booking.price?.finalAmount ?? booking.price?.estimatedAmount ?? 0).toFixed(2)}</Text>
+                        <Text style={styles.customerPaymentLabel}>
+                          {t("userDashboard.customerPays")}
+                        </Text>
+                        <Text style={styles.customerPaymentValue}>
+                          ₹
+                          {(
+                            booking.price?.finalAmount ??
+                            booking.price?.estimatedAmount ??
+                            0
+                          ).toFixed(2)}
+                        </Text>
                       </View>
                       <View style={styles.customerPaymentLine}>
-                        <Text style={styles.customerPaymentLabel}>Worker receives</Text>
-                        <Text style={styles.customerWorkerAmount}>₹{(booking.price?.workerAmount ?? (((booking.price?.finalAmount ?? booking.price?.estimatedAmount ?? 0) * 80) / 100)).toFixed(2)}</Text>
+                        <Text style={styles.customerPaymentLabel}>
+                          {t("userDashboard.workerReceives")}
+                        </Text>
+                        <Text style={styles.customerWorkerAmount}>
+                          ₹
+                          {(
+                            booking.price?.workerAmount ??
+                            ((booking.price?.finalAmount ??
+                              booking.price?.estimatedAmount ??
+                              0) *
+                              80) /
+                              100
+                          ).toFixed(2)}
+                        </Text>
                       </View>
-                      <Text style={styles.customerPaymentNote}>80% worker · 10% welfare · 10% platform</Text>
+                      <Text style={styles.customerPaymentNote}>
+                        {t("userDashboard.paymentBreakdown")}
+                      </Text>
 
-                      {booking.status === "Completed" && booking.payment?.status !== "paid" && (
-                        <Pressable
-                          style={styles.payNowButton}
-                          onPress={() => handlePayNow(booking)}
-                          disabled={paymentSubmitting}
-                        >
-                          {paymentSubmitting ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                          ) : (
-                            <>
-                              <Text style={styles.payNowButtonText}>Pay ₹{(booking.price?.finalAmount ?? booking.price?.estimatedAmount ?? 0).toFixed(0)}</Text>
-                              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-                            </>
-                          )}
-                        </Pressable>
-                      )}
+                      {booking.status === "Completed" &&
+                        booking.payment?.status !== "paid" && (
+                          <Pressable
+                            style={styles.payNowButton}
+                            onPress={() => handlePayNow(booking)}
+                            disabled={paymentSubmitting}
+                          >
+                            {paymentSubmitting ? (
+                              <ActivityIndicator size="small" color="#FFFFFF" />
+                            ) : (
+                              <>
+                                <Text style={styles.payNowButtonText}>
+                                  Pay ₹
+                                  {(
+                                    booking.price?.finalAmount ??
+                                    booking.price?.estimatedAmount ??
+                                    0
+                                  ).toFixed(0)}
+                                </Text>
+                                <Ionicons
+                                  name="arrow-forward"
+                                  size={18}
+                                  color="#FFFFFF"
+                                />
+                              </>
+                            )}
+                          </Pressable>
+                        )}
 
                       {booking.payment?.status === "paid" && (
                         <View style={styles.paymentPaidRow}>
-                          <Ionicons name="checkmark-circle" size={19} color="#16A34A" />
-                          <Text style={styles.paymentPaidText}>Payment completed</Text>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={19}
+                            color="#16A34A"
+                          />
+                          <Text style={styles.paymentPaidText}>
+                            {t("userDashboard.paymentCompleted")}
+                          </Text>
                         </View>
                       )}
 
-                      {booking.status === "Completed" && booking.worker && (
-                        booking.customerRating ? (
+                      {booking.status === "Completed" &&
+                        booking.worker &&
+                        (booking.customerRating ? (
                           <View style={styles.ratingSubmittedRow}>
                             <View style={styles.ratingSubmittedStars}>
-                              {[1, 2, 3, 4, 5].map(star => (
+                              {[1, 2, 3, 4, 5].map((star) => (
                                 <Ionicons
                                   key={star}
-                                  name={star <= booking.customerRating! ? "star" : "star-outline"}
+                                  name={
+                                    star <= booking.customerRating!
+                                      ? "star"
+                                      : "star-outline"
+                                  }
                                   size={16}
                                   color="#F59E0B"
                                 />
                               ))}
                             </View>
-                            <Text style={styles.ratingSubmittedText}>Your rating</Text>
+                            <Text style={styles.ratingSubmittedText}>
+                              {t("userDashboard.yourRating")}
+                            </Text>
                           </View>
                         ) : (
                           <Pressable
                             style={styles.rateWorkerButton}
                             onPress={() => openRatingModal(booking)}
                           >
-                            <Ionicons name="star-outline" size={19} color="#FFFFFF" />
-                            <Text style={styles.rateWorkerButtonText}>Rate Worker</Text>
+                            <Ionicons
+                              name="star-outline"
+                              size={19}
+                              color="#FFFFFF"
+                            />
+                            <Text style={styles.rateWorkerButtonText}>
+                              {t("userDashboard.rateWorker")}
+                            </Text>
                           </Pressable>
-                        )
-                      )}
+                        ))}
                     </View>
                   </View>
                 ))}
@@ -2774,9 +2754,10 @@ const createdBooking = await createBackendBooking({
             <View style={styles.ratingModalContainer}>
               <View style={styles.ratingModalHeader}>
                 <View>
-                  <Text style={styles.ratingModalTitle}>Rate your worker</Text>
+                  <Text style={styles.ratingModalTitle}>{t("userDashboard.rateYourWorker")}</Text>
                   <Text style={styles.ratingModalSubtitle}>
-                    How was your experience with {ratingBooking?.worker?.name || "the worker"}?
+                    How was your experience with{" "}
+                    {ratingBooking?.worker?.name || "the worker"}?
                   </Text>
                 </View>
                 <Pressable
@@ -2789,7 +2770,7 @@ const createdBooking = await createBackendBooking({
               </View>
 
               <View style={styles.ratingStarsRow}>
-                {[1, 2, 3, 4, 5].map(star => (
+                {[1, 2, 3, 4, 5].map((star) => (
                   <Pressable
                     key={star}
                     onPress={() => setSelectedRating(star)}
@@ -2809,14 +2790,15 @@ const createdBooking = await createBackendBooking({
 
               <Text style={styles.ratingSelectedText}>
                 {selectedRating === 0
-                  ? "Tap a star to rate"
-                  : `${selectedRating} out of 5 stars`}
+                  ? t("userDashboard.tapStar")
+                  : t("userDashboard.starsOutOfFive", { count: selectedRating })}
               </Text>
 
               <Pressable
                 style={[
                   styles.submitRatingButton,
-                  (selectedRating === 0 || ratingSubmitting) && styles.submitRatingButtonDisabled,
+                  (selectedRating === 0 || ratingSubmitting) &&
+                    styles.submitRatingButtonDisabled,
                 ]}
                 onPress={handleSubmitRating}
                 disabled={selectedRating === 0 || ratingSubmitting}
@@ -2825,14 +2807,20 @@ const createdBooking = await createBackendBooking({
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <>
-                    <Ionicons name="checkmark-circle-outline" size={19} color="#FFFFFF" />
-                    <Text style={styles.submitRatingButtonText}>Submit Rating</Text>
+                    <Ionicons
+                      name="checkmark-circle-outline"
+                      size={19}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.submitRatingButtonText}>
+                      {t("userDashboard.submitRating")}
+                    </Text>
                   </>
                 )}
               </Pressable>
 
               <Text style={styles.ratingHint}>
-                Your rating helps maintain service quality on ShramSaathi.
+                {t("userDashboard.ratingHelp")}
               </Text>
             </View>
           </View>
@@ -2857,9 +2845,7 @@ const createdBooking = await createBackendBooking({
               <View style={styles.modalHandle} />
 
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  Add Service Address
-                </Text>
+                <Text style={styles.modalTitle}>{t("userDashboard.addServiceAddress")}</Text>
 
                 <Pressable
                   onPress={() => {
@@ -2869,11 +2855,7 @@ const createdBooking = await createBackendBooking({
                   }}
                   disabled={addressSaving}
                 >
-                  <Ionicons
-                    name="close"
-                    size={24}
-                    color="#222222"
-                  />
+                  <Ionicons name="close" size={24} color="#222222" />
                 </Pressable>
               </View>
 
@@ -2883,23 +2865,20 @@ const createdBooking = await createBackendBooking({
                 contentContainerStyle={{ paddingBottom: 20 }}
               >
                 <Text style={styles.addressModalHint}>
-                  This address will be used for service booking and worker matching.
+                  {t("userDashboard.addressModalHint")}
                 </Text>
 
                 <Pressable
                   style={[
                     styles.addressLocationButton,
                     addressLocationLoading &&
-                    styles.addressLocationButtonDisabled,
+                      styles.addressLocationButtonDisabled,
                   ]}
                   onPress={handleAddressCurrentLocation}
                   disabled={addressLocationLoading || addressSaving}
                 >
                   {addressLocationLoading ? (
-                    <ActivityIndicator
-                      size="small"
-                      color="#7047E8"
-                    />
+                    <ActivityIndicator size="small" color="#7047E8" />
                   ) : (
                     <Ionicons
                       name="location-outline"
@@ -2911,73 +2890,64 @@ const createdBooking = await createBackendBooking({
                   <View style={{ flex: 1 }}>
                     <Text style={styles.addressLocationTitle}>
                       {addressLocationLoading
-                        ? "Fetching location..."
-                        : "Use Current Location"}
+                        ? t("userDashboard.fetchingLocation")
+                        : t("userDashboard.useCurrentLocation")}
                     </Text>
                     <Text style={styles.addressLocationSubtitle}>
-                      Automatically fill address and coordinates
+                      {t("userDashboard.autoFillAddress")}
                     </Text>
                   </View>
                 </Pressable>
 
                 {[
                   {
-                    label: "House / Flat / Building",
+                    label: t("common.houseLabel"),
                     value: addressHouse,
                     setter: setAddressHouse,
-                    placeholder: "House no., flat no., building",
+                    placeholder: t("common.housePlaceholder"),
                     icon: "home-outline" as keyof typeof Ionicons.glyphMap,
                   },
                   {
-                    label: "Street / Locality",
+                    label: t("common.streetLabel"),
                     value: addressLocality,
                     setter: setAddressLocality,
-                    placeholder: "Street, colony, locality",
+                    placeholder: t("common.streetPlaceholder"),
                     icon: "navigate-outline" as keyof typeof Ionicons.glyphMap,
                   },
                   {
-                    label: "City",
+                    label: t("common.city"),
                     value: addressCity,
                     setter: setAddressCity,
-                    placeholder: "Enter city",
+                    placeholder: t("common.enterCity"),
                     icon: "business-outline" as keyof typeof Ionicons.glyphMap,
                   },
                   {
-                    label: "State",
+                    label: t("common.state"),
                     value: addressState,
                     setter: setAddressState,
-                    placeholder: "Enter state",
+                    placeholder: t("common.enterState"),
                     icon: "map-outline" as keyof typeof Ionicons.glyphMap,
                   },
                   {
-                    label: "PIN Code",
+                    label: t("common.pinCode"),
                     value: addressPincode,
                     setter: setAddressPincode,
-                    placeholder: "6-digit PIN code",
+                    placeholder: t("common.pinPlaceholder"),
                     icon: "keypad-outline" as keyof typeof Ionicons.glyphMap,
                   },
                   {
-                    label: "Landmark (optional)",
+                    label: t("common.landmarkOptional"),
                     value: addressLandmark,
                     setter: setAddressLandmark,
-                    placeholder: "Nearby landmark",
+                    placeholder: t("common.landmarkPlaceholder"),
                     icon: "flag-outline" as keyof typeof Ionicons.glyphMap,
                   },
-                ].map(field => (
-                  <View
-                    key={field.label}
-                    style={styles.addressInputGroup}
-                  >
-                    <Text style={styles.addressInputLabel}>
-                      {field.label}
-                    </Text>
+                ].map((field) => (
+                  <View key={field.label} style={styles.addressInputGroup}>
+                    <Text style={styles.addressInputLabel}>{field.label}</Text>
 
                     <View style={styles.addressInputContainer}>
-                      <Ionicons
-                        name={field.icon}
-                        size={19}
-                        color="#9CA3AF"
-                      />
+                      <Ionicons name={field.icon} size={19} color="#9CA3AF" />
 
                       <TextInput
                         style={styles.addressInput}
@@ -2986,15 +2956,9 @@ const createdBooking = await createBackendBooking({
                         placeholder={field.placeholder}
                         placeholderTextColor="#9CA3AF"
                         keyboardType={
-                          field.label === "PIN Code"
-                            ? "number-pad"
-                            : "default"
+                          field.label === "PIN Code" ? "number-pad" : "default"
                         }
-                        maxLength={
-                          field.label === "PIN Code"
-                            ? 6
-                            : undefined
-                        }
+                        maxLength={field.placeholder === t("common.pinPlaceholder") ? 6 : undefined}
                         autoCapitalize="words"
                       />
                     </View>
@@ -3004,27 +2968,19 @@ const createdBooking = await createBackendBooking({
                 <Pressable
                   style={[
                     styles.addressSaveButton,
-                    addressSaving &&
-                    styles.addressSaveButtonDisabled,
+                    addressSaving && styles.addressSaveButtonDisabled,
                   ]}
                   onPress={handleSaveAddress}
                   disabled={addressSaving}
                 >
                   {addressSaving ? (
-                    <ActivityIndicator
-                      size="small"
-                      color="#FFFFFF"
-                    />
+                    <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
                     <>
                       <Text style={styles.addressSaveButtonText}>
-                        Save Address
+                        {t("userDashboard.saveAddress")}
                       </Text>
-                      <Ionicons
-                        name="checkmark"
-                        size={20}
-                        color="#FFFFFF"
-                      />
+                      <Ionicons name="checkmark" size={20} color="#FFFFFF" />
                     </>
                   )}
                 </Pressable>
@@ -3033,7 +2989,6 @@ const createdBooking = await createBackendBooking({
           </View>
         </Modal>
 
-
         {/* =================================================
             PROFILE MODAL
         ================================================= */}
@@ -3041,34 +2996,15 @@ const createdBooking = await createBackendBooking({
         <Modal
           visible={profileVisible}
           animationType="slide"
-          onRequestClose={() =>
-            setProfileVisible(false)
-          }
+          onRequestClose={() => setProfileVisible(false)}
         >
-
           <SafeAreaView style={styles.profileScreen}>
-
             <View style={styles.profileHeader}>
-
-              <Pressable
-                onPress={() =>
-                  setProfileVisible(false)
-                }
-              >
-
-                <Ionicons
-                  name="arrow-back"
-                  size={24}
-                  color="#222222"
-                />
-
+              <Pressable onPress={() => setProfileVisible(false)}>
+                <Ionicons name="arrow-back" size={24} color="#222222" />
               </Pressable>
 
-
-              <Text style={styles.profileTitle}>
-                My Profile
-              </Text>
-
+              <Text style={styles.profileTitle}>{t("userDashboard.myProfile")}</Text>
 
               <Pressable
                 onPress={openCustomerEdit}
@@ -3076,15 +3012,9 @@ const createdBooking = await createBackendBooking({
               >
                 <Ionicons name="create-outline" size={22} color="#7047E8" />
               </Pressable>
-
             </View>
 
-
-            <ScrollView
-              contentContainerStyle={styles.profileContent}
-            >
-
-
+            <ScrollView contentContainerStyle={styles.profileContent}>
               {/* AVATAR */}
 
               <View style={styles.avatar}>
@@ -3094,34 +3024,23 @@ const createdBooking = await createBackendBooking({
                     style={styles.avatarImage}
                   />
                 ) : (
-                  <Ionicons
-                    name="person"
-                    size={43}
-                    color="#7047E8"
-                  />
+                  <Ionicons name="person" size={43} color="#7047E8" />
                 )}
               </View>
 
-
-              <Text style={styles.profileName}>
-                {user.name}
-              </Text>
-
+              <Text style={styles.profileName}>{user.name}</Text>
 
               <Text style={styles.profileEmail}>
-                {user.email || "Email not available"}
+                {user.email || t("common.emailNotAvailable")}
               </Text>
-
 
               {/* INFORMATION */}
 
               <Text style={styles.profileSectionTitle}>
-                Personal Information
+                {t("userDashboard.personalInformation")}
               </Text>
 
-
               <View style={styles.infoCard}>
-
                 <ProfileRow
                   icon="person-outline"
                   title="Name"
@@ -3133,7 +3052,7 @@ const createdBooking = await createBackendBooking({
                 <ProfileRow
                   icon="mail-outline"
                   title="Email"
-                  value={user.email || "Not available"}
+                  value={user.email || t("common.notAvailable")}
                 />
 
                 <View style={styles.divider} />
@@ -3141,17 +3060,13 @@ const createdBooking = await createBackendBooking({
                 <ProfileRow
                   icon="call-outline"
                   title="Phone"
-                  value={user.phone || "Not available"}
+                  value={user.phone || t("common.notAvailable")}
                 />
-
               </View>
-              <LanguageSelector />
+              <LanguageButton />
               {/* ADDRESS */}
 
-              <Text style={styles.profileSectionTitle}>
-                Saved Addresses
-              </Text>
-
+              <Text style={styles.profileSectionTitle}>{t("userDashboard.savedAddresses")}</Text>
 
               <Pressable
                 style={styles.profileOption}
@@ -3159,75 +3074,43 @@ const createdBooking = await createBackendBooking({
                   if (addresses.length === 0) {
                     Alert.alert(
                       "Addresses",
-                      "No saved address is available in your profile."
+                      t("userDashboard.noSavedAddress"),
                     );
                     return;
                   }
 
                   Alert.alert(
-                    "Saved Addresses",
-                    addresses.map(item => `${item.title}:\n${item.address}`).join("\n\n")
+                    t("userDashboard.savedAddresses"),
+                    addresses
+                      .map((item) => `${item.title}:\n${item.address}`)
+                      .join("\n\n"),
                   );
                 }}
               >
-
                 <View style={styles.optionIcon}>
-
-                  <Ionicons
-                    name="location-outline"
-                    size={21}
-                    color="#7047E8"
-                  />
-
+                  <Ionicons name="location-outline" size={21} color="#7047E8" />
                 </View>
-
 
                 <View style={styles.optionContent}>
-
-                  <Text style={styles.optionTitle}>
-                    Manage Addresses
-                  </Text>
+                  <Text style={styles.optionTitle}>{t("userDashboard.manageAddresses")}</Text>
 
                   <Text style={styles.optionSubtitle} numberOfLines={2}>
-                    {addresses[0]?.address || "No saved service address"}
+                    {addresses[0]?.address || t("userDashboard.noSavedServiceAddress")}
                   </Text>
-
                 </View>
 
-
-                <Ionicons
-                  name="chevron-forward"
-                  size={19}
-                  color="#999999"
-                />
-
+                <Ionicons name="chevron-forward" size={19} color="#999999" />
               </Pressable>
-
 
               {/* LOGOUT */}
 
-              <Pressable
-                style={styles.logoutButton}
-                onPress={handleLogout}
-              >
+              <Pressable style={styles.logoutButton} onPress={handleLogout}>
+                <Ionicons name="log-out-outline" size={21} color="#D93636" />
 
-                <Ionicons
-                  name="log-out-outline"
-                  size={21}
-                  color="#D93636"
-                />
-
-                <Text style={styles.logoutText}>
-                  Logout
-                </Text>
-
+                <Text style={styles.logoutText}>{t("common.logout")}</Text>
               </Pressable>
-
-
             </ScrollView>
-
           </SafeAreaView>
-
         </Modal>
 
         <Modal
@@ -3243,7 +3126,7 @@ const createdBooking = await createBackendBooking({
               <View style={styles.modalHandle} />
 
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Edit Profile</Text>
+                <Text style={styles.modalTitle}>{t("userDashboard.editProfile")}</Text>
                 <Pressable
                   onPress={() => {
                     if (!customerEditSaving) setCustomerEditVisible(false);
@@ -3253,42 +3136,47 @@ const createdBooking = await createBackendBooking({
                 </Pressable>
               </View>
 
-              <Text style={styles.customerEditLabel}>Full Name</Text>
+              <Text style={styles.customerEditLabel}>{t("common.fullName")}</Text>
               <View style={styles.customerEditInputContainer}>
                 <Ionicons name="person-outline" size={19} color="#9CA3AF" />
                 <TextInput
                   style={styles.customerEditInput}
                   value={customerEditName}
                   onChangeText={setCustomerEditName}
-                  placeholder="Enter your full name"
+                  placeholder={t("common.enterFullName")}
                   placeholderTextColor="#9CA3AF"
                 />
               </View>
 
-              <Text style={styles.customerEditLabel}>Phone Number</Text>
+              <Text style={styles.customerEditLabel}>{t("common.phoneNumber")}</Text>
               <View style={styles.customerEditInputContainer}>
                 <Ionicons name="call-outline" size={19} color="#9CA3AF" />
                 <TextInput
                   style={styles.customerEditInput}
                   value={customerEditPhone}
                   onChangeText={setCustomerEditPhone}
-                  placeholder="10-digit mobile number"
+                  placeholder={t("common.mobilePlaceholder")}
                   placeholderTextColor="#9CA3AF"
                   keyboardType="phone-pad"
                   maxLength={10}
                 />
               </View>
 
-              <Text style={styles.customerEditLabel}>Email</Text>
-              <View style={[styles.customerEditInputContainer, styles.customerEditReadonly]}>
+              <Text style={styles.customerEditLabel}>{t("common.email")}</Text>
+              <View
+                style={[
+                  styles.customerEditInputContainer,
+                  styles.customerEditReadonly,
+                ]}
+              >
                 <Ionicons name="mail-outline" size={19} color="#9CA3AF" />
                 <Text style={styles.customerEditReadonlyText}>
-                  {user.email || "Email not available"}
+                  {user.email || t("common.emailNotAvailable")}
                 </Text>
               </View>
 
               <Text style={styles.customerEditHint}>
-                Email is your login identity and cannot be changed here.
+                {t("userDashboard.emailImmutable")}
               </Text>
 
               <Pressable
@@ -3303,23 +3191,24 @@ const createdBooking = await createBackendBooking({
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <>
-                    <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
-                    <Text style={styles.customerSaveButtonText}>Save Changes</Text>
+                    <Ionicons
+                      name="checkmark-circle-outline"
+                      size={20}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.customerSaveButtonText}>
+                      {t("common.saveChanges")}
+                    </Text>
                   </>
                 )}
               </Pressable>
             </View>
           </View>
         </Modal>
-
-
       </View>
-
     </SafeAreaView>
-
   );
 }
-
 
 /* =========================================================
    PROFILE ROW
@@ -3334,46 +3223,26 @@ function ProfileRow({
   title: string;
   value: string;
 }) {
-
   return (
-
     <View style={styles.infoRow}>
-
       <View style={styles.infoIcon}>
-
-        <Ionicons
-          name={icon}
-          size={20}
-          color="#7047E8"
-        />
-
+        <Ionicons name={icon} size={20} color="#7047E8" />
       </View>
-
 
       <View style={styles.infoContent}>
+        <Text style={styles.infoTitle}>{title}</Text>
 
-        <Text style={styles.infoTitle}>
-          {title}
-        </Text>
-
-        <Text style={styles.infoValue}>
-          {value}
-        </Text>
-
+        <Text style={styles.infoValue}>{value}</Text>
       </View>
-
     </View>
-
   );
 }
-
 
 /* =========================================================
    STYLES
 ========================================================= */
 
 const styles = StyleSheet.create({
-
   safeArea: {
     flex: 1,
     backgroundColor: "#FFFFFF",
@@ -3389,7 +3258,6 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 25,
   },
-
 
   /* HEADER */
 
@@ -3436,7 +3304,6 @@ const styles = StyleSheet.create({
     right: 9,
   },
 
-
   /* LOCATION */
 
   locationContainer: {
@@ -3471,7 +3338,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-
   /* SEARCH */
 
   searchContainer: {
@@ -3493,7 +3359,6 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
 
-
   /* SECTION */
 
   sectionHeader: {
@@ -3511,7 +3376,6 @@ const styles = StyleSheet.create({
     color: "#777777",
     marginTop: 4,
   },
-
 
   /* SERVICES */
 
@@ -3562,7 +3426,6 @@ const styles = StyleSheet.create({
     right: 13,
   },
 
-
   /* BOOKINGS */
 
   bookingSection: {
@@ -3608,7 +3471,6 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
 
-
   /* TRUST */
 
   trustCard: {
@@ -3646,7 +3508,6 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginTop: 4,
   },
-
 
   /* BOTTOM NAV */
 
@@ -3694,7 +3555,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#777777",
   },
-
 
   /* SERVICE MODAL */
 
@@ -3805,7 +3665,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#FFFFFF",
   },
-
 
   bookingSectionHeader: {
     flexDirection: "row",
@@ -4622,100 +4481,100 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-ratingModalContainer: {
-  width: "100%",
-  maxWidth: 430,
-  borderRadius: 24,
-  backgroundColor: "#FFFFFF",
-  paddingHorizontal: 22,
-  paddingTop: 22,
-  paddingBottom: 20,
-  alignSelf: "center",
-},
+  ratingModalContainer: {
+    width: "100%",
+    maxWidth: 430,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 20,
+    alignSelf: "center",
+  },
 
-ratingModalHeader: {
-  width: "100%",
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "space-between",
-},
+  ratingModalHeader: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
 
-ratingModalTitle: {
-  fontSize: 20,
-  fontWeight: "800",
-  color: "#222222",
-},
+  ratingModalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#222222",
+  },
 
-ratingModalSubtitle: {
-  marginTop: 5,
-  paddingRight: 8,
-  fontSize: 13,
-  lineHeight: 19,
-  color: "#777777",
-},
+  ratingModalSubtitle: {
+    marginTop: 5,
+    paddingRight: 8,
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#777777",
+  },
 
-ratingModalClose: {
-  width: 38,
-  height: 38,
-  borderRadius: 19,
-  backgroundColor: "#F3F4F6",
-  alignItems: "center",
-  justifyContent: "center",
-  marginLeft: 12,
-},
+  ratingModalClose: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
+  },
 
-ratingStarsRow: {
-  width: "100%",
-  marginTop: 26,
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-},
+  ratingStarsRow: {
+    width: "100%",
+    marginTop: 26,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
 
-ratingStarButton: {
-  padding: 3,
-  alignItems: "center",
-  justifyContent: "center",
-},
+  ratingStarButton: {
+    padding: 3,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-ratingSelectedText: {
-  marginTop: 13,
-  textAlign: "center",
-  fontSize: 13,
-  fontWeight: "700",
-  color: "#6B7280",
-},
+  ratingSelectedText: {
+    marginTop: 13,
+    textAlign: "center",
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#6B7280",
+  },
 
-submitRatingButton: {
-  width: "100%",
-  height: 50,
-  borderRadius: 14,
-  marginTop: 22,
-  backgroundColor: "#7047E8",
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-},
+  submitRatingButton: {
+    width: "100%",
+    height: 50,
+    borderRadius: 14,
+    marginTop: 22,
+    backgroundColor: "#7047E8",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
 
-submitRatingButtonDisabled: {
-  opacity: 0.45,
-},
+  submitRatingButtonDisabled: {
+    opacity: 0.45,
+  },
 
-submitRatingButtonText: {
-  color: "#FFFFFF",
-  fontSize: 13,
-  fontWeight: "800",
-},
+  submitRatingButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
 
-ratingHint: {
-  marginTop: 12,
-  textAlign: "center",
-  fontSize: 10,
-  lineHeight: 15,
-  color: "#9CA3AF",
-},
+  ratingHint: {
+    marginTop: 12,
+    textAlign: "center",
+    fontSize: 10,
+    lineHeight: 15,
+    color: "#9CA3AF",
+  },
 
   customerPaymentCard: {
     marginTop: 13,
@@ -5191,5 +5050,4 @@ ratingHint: {
     fontSize: 14,
     fontWeight: "700",
   },
-
 });
