@@ -824,12 +824,19 @@ async function createBooking(
      * The server is authoritative so the client cannot submit a
      * stale/static emergency price.
      */
-    if (booking_type === 'emergency') {
+if (booking_type === 'emergency') {
+    const suppliedPrice = Number(estimated_amount);
+
+    if (Number.isFinite(suppliedPrice) && suppliedPrice > 0) {
+        // Use the exact emergency quote already shown to the customer.
+        finalEstimatedAmount = suppliedPrice;
+    } else {
         finalEstimatedAmount = await getEmergencyModelPrice(
             resolvedSkillSlug,
             service_address
         );
     }
+}
 
 
     /*
@@ -838,28 +845,7 @@ async function createBooking(
      * server-side MVP service price so the amount is never silently
      * stored as NULL.
      */
-    if (
-        standardPrice !== undefined &&
-        floorPrice !== undefined &&
-        ceilingPrice !== undefined
-    ) {
-        const pricing =
-            calculatePrice({
-                standardPrice: Number(standardPrice),
-                demandRatio:
-                    demandRatio === undefined
-                        ? 1
-                        : Number(demandRatio),
-                floorPrice:
-                    Number(floorPrice),
-                ceilingPrice:
-                    Number(ceilingPrice)
-            });
-
-        finalEstimatedAmount =
-            pricing.finalPrice;
-
-    } else if (
+ else if (
         finalEstimatedAmount === null
     ) {
 

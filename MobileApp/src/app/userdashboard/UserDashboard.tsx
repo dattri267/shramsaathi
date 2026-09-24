@@ -1339,21 +1339,30 @@ export default function UserDashboard({
     try {
       setBookingSubmitting(true);
 
-      const createdBooking = await createBackendBooking({
-        skill_id: selectedService.id,
-        subskill_id: selectedSubskill.id,
-        booking_type: bookingType,
-        service_address: selectedAddress.address,
-        latitude,
-        longitude,
-        scheduled_start_at: scheduledStart.toISOString(),
-        city: addressDetails?.city || undefined,
-        ...(bookingType === "normal"
-          ? { estimated_amount: normalPriceValue }
-          : bookingType === "emergency" && emergencyPrice
-            ? { estimated_amount: emergencyPrice }
-            : {}),
-      });
+const bookingPrice =
+  bookingType === "emergency"
+    ? Number(emergencyPrice)
+    : normalPriceValue;
+
+if (!Number.isFinite(bookingPrice) || bookingPrice <= 0) {
+  Alert.alert(
+    "Price unavailable",
+    "Unable to determine the service price. Please try again."
+  );
+  return;
+}
+
+const createdBooking = await createBackendBooking({
+  skill_id: selectedService.id,
+  subskill_id: selectedSubskill.id,
+  estimated_amount: bookingPrice,
+  booking_type: bookingType,
+  service_address: selectedAddress.address,
+  latitude,
+  longitude,
+  scheduled_start_at: scheduledStart.toISOString(),
+  city: addressDetails?.city || undefined,
+});
 
       const createdId =
         createdBooking?.booking?.id || createdBooking?.id || null;
