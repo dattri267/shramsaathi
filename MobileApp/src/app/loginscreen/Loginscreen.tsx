@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
+import LanguageButton from "../../components/LanguageButton";
+import { useTranslation } from "react-i18next";
 
 import {
   Alert,
@@ -28,6 +30,8 @@ type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 const { width, height } = Dimensions.get("window");
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useTranslation();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -127,36 +131,36 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
       console.log("Login successful:", response);
 
-const role = response.profile?.role;
+      const role = response.profile?.role;
 
-if (role === "customer") {
-  navigation.replace("UserDashboard", {
-    user: {
-      id: response.user.id,
-      name: response.profile.full_name || "User",
-      email: response.user.email || email.trim(),
-      phone: response.profile.phone || "",
-    },
-  });
-} else if (role === "worker") {
-  navigation.replace("WorkerDashboard", {
-    worker: {
-      id: response.user.id,
-      name: response.profile.full_name || "Worker",
-      email: response.user.email || email.trim(),
-      phone: response.profile.phone || "",
-    },
-  });
-} else {
-  throw new Error("Invalid user role returned by server.");
-}
+      if (role === "customer") {
+        navigation.replace("UserDashboard", {
+          user: {
+            id: response.user.id,
+            name: response.profile.full_name || "User",
+            email: response.user.email || email.trim(),
+            phone: response.profile.phone || "",
+          },
+        });
+      } else if (role === "worker") {
+        navigation.replace("WorkerDashboard", {
+          worker: {
+            id: response.user.id,
+            name: response.profile.full_name || "Worker",
+            email: response.user.email || email.trim(),
+            phone: response.profile.phone || "",
+          },
+        });
+      } else {
+        throw new Error("Invalid user role returned by server.");
+      }
     } catch (error: any) {
       console.log("Login error:", error);
 
       Alert.alert(
-        "Login Failed",
+        t("auth.loginFailed"),
         error?.message ||
-          "Unable to login. Please check your email and password.",
+          t("auth.loginFailedMessage"),
       );
     } finally {
       setIsLoggingIn(false);
@@ -179,6 +183,7 @@ if (role === "customer") {
           showsVerticalScrollIndicator={false}
         >
           {/* Animated Logo */}
+          <LanguageButton />
 
           <Animated.View
             style={[
@@ -213,17 +218,17 @@ if (role === "customer") {
             {/* Heading */}
 
             <View style={styles.headingContainer}>
-              <Text style={styles.title}>Login</Text>
+              <Text style={styles.title}>{t("auth.login")}</Text>
 
               <Text style={styles.subtitle}>
-                Log in to continue to ShramSaathi
+                {t("auth.loginSubtitle")}
               </Text>
             </View>
 
             {/* Email */}
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email</Text>
+              <Text style={styles.label}>{t("auth.email")}</Text>
 
               <View style={styles.inputContainer}>
                 <Ionicons
@@ -235,7 +240,7 @@ if (role === "customer") {
 
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your email"
+                  placeholder={t("auth.enterEmail")}
                   placeholderTextColor={colors.placeholder}
                   value={email}
                   onChangeText={setEmail}
@@ -250,7 +255,7 @@ if (role === "customer") {
             {/* Password */}
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>{t("auth.password")}</Text>
 
               <View style={styles.inputContainer}>
                 <Ionicons
@@ -262,7 +267,7 @@ if (role === "customer") {
 
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your password"
+                  placeholder={t("auth.enterPassword")}
                   placeholderTextColor={colors.placeholder}
                   value={password}
                   onChangeText={setPassword}
@@ -277,7 +282,11 @@ if (role === "customer") {
                   style={styles.eyeButton}
                 >
                   <Ionicons
-                    name={showPassword ? "eye-outline" : "eye-off-outline"}
+                    name={
+                      showPassword
+                        ? "eye-outline"
+                        : "eye-off-outline"
+                    }
                     size={21}
                     color={colors.secondaryText}
                   />
@@ -291,7 +300,9 @@ if (role === "customer") {
               style={styles.forgotContainer}
               onPress={() => console.log("Forgot password")}
             >
-              <Text style={styles.forgotText}>Forgot password?</Text>
+              <Text style={styles.forgotText}>
+                {t("auth.forgotPassword")}
+              </Text>
             </Pressable>
 
             {/* Login Button */}
@@ -306,17 +317,23 @@ if (role === "customer") {
               disabled={!email.trim() || !password || isLoggingIn}
             >
               <Text style={styles.loginButtonText}>
-                {isLoggingIn ? "Logging in..." : "Log in"}
+                {isLoggingIn
+                  ? t("auth.loggingIn")
+                  : t("auth.logIn")}
               </Text>
             </Pressable>
 
             {/* Register */}
 
             <View style={styles.registerContainer}>
-              <Text style={styles.registerText}>New to ShramSaathi?</Text>
+              <Text style={styles.registerText}>
+                {t("auth.newToShramSaathi")}
+              </Text>
 
               <Pressable onPress={handleRegister}>
-                <Text style={styles.registerLink}>Create account</Text>
+                <Text style={styles.registerLink}>
+                  {t("auth.createAccount")}
+                </Text>
               </Pressable>
             </View>
 
@@ -324,7 +341,6 @@ if (role === "customer") {
 
             <View style={styles.bottomContainer}>
               {/*
-
               <Text style={styles.bottomText}>
                 Connecting households with
               </Text>
@@ -332,7 +348,6 @@ if (role === "customer") {
               <Text style={styles.bottomText}>
                 trusted cooperative workers
               </Text>
-
               */}
             </View>
           </Animated.View>

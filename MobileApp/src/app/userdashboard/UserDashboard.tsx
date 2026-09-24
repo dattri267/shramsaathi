@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import * as Location from "expo-location";
+import LanguageSelector from "../../components/LanguageSelector";
+import { useTranslation } from "react-i18next";
 
 import {
   ActivityIndicator,
@@ -203,6 +205,7 @@ export default function UserDashboard({
     phone: route.params?.user?.phone || "",
     avatarUrl: null,
   });
+  const { t } = useTranslation();
 
 
   /* =======================================================
@@ -1903,9 +1906,9 @@ const createdBooking = await createBackendBooking({
 
             </View>
 
-            <Text style={styles.activeNavText}>
-              Home
-            </Text>
+<Text style={styles.activeNavText}>
+  {t("navigation.home")}
+</Text>
 
           </Pressable>
 
@@ -1927,9 +1930,9 @@ const createdBooking = await createBackendBooking({
 
             </View>
 
-            <Text style={styles.navText}>
-              Bookings
-            </Text>
+<Text style={styles.navText}>
+  {t("navigation.bookings")}
+</Text>
 
           </Pressable>
 
@@ -1951,9 +1954,9 @@ const createdBooking = await createBackendBooking({
 
             </View>
 
-            <Text style={styles.navText}>
-              Profile
-            </Text>
+<Text style={styles.navText}>
+  {t("navigation.profile")}
+</Text>
 
           </Pressable>
 
@@ -3142,8 +3145,7 @@ const createdBooking = await createBackendBooking({
                 />
 
               </View>
-
-
+              <LanguageSelector />
               {/* ADDRESS */}
 
               <Text style={styles.profileSectionTitle}>

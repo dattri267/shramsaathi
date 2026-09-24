@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -41,6 +42,8 @@ export default function CustomerDetailsScreen({
   navigation,
   route,
 }: Props) {
+  const { t } = useTranslation();
+
   const [fullName, setFullName] = useState('');
 
   const [mobile, setMobile] = useState(
@@ -74,32 +77,32 @@ export default function CustomerDetailsScreen({
       !pincode.trim()
     ) {
       Alert.alert(
-        'Incomplete Details',
-        'Please fill in all required fields.'
+        t('customerDetails.alerts.incompleteDetailsTitle'),
+        t('customerDetails.alerts.incompleteDetailsMessage')
       );
       return;
     }
 
     if (mobile.length !== 10) {
       Alert.alert(
-        'Invalid Mobile Number',
-        'Please enter a valid 10-digit mobile number.'
+        t('customerDetails.alerts.invalidMobileTitle'),
+        t('customerDetails.alerts.invalidMobileMessage')
       );
       return;
     }
 
     if (pincode.length !== 6) {
       Alert.alert(
-        'Invalid PIN Code',
-        'Please enter a valid 6-digit PIN code.'
+        t('customerDetails.alerts.invalidPinTitle'),
+        t('customerDetails.alerts.invalidPinMessage')
       );
       return;
     }
 
     if (latitude === null || longitude === null) {
       Alert.alert(
-        'Location Required',
-        'Please use your current location before continuing so the service address can be used for bookings.'
+        t('customerDetails.alerts.locationRequiredTitle'),
+        t('customerDetails.alerts.locationRequiredMessage')
       );
       return;
     }
@@ -139,7 +142,7 @@ export default function CustomerDetailsScreen({
 
         if (!avatarUrl) {
           throw new Error(
-            'Profile photo was uploaded, but the server did not return a photo URL.'
+            t('customerDetails.errors.avatarUpload')
           );
         }
       }
@@ -174,10 +177,10 @@ export default function CustomerDetailsScreen({
     } catch (error) {
       console.error('Customer profile save error:', error);
       Alert.alert(
-        'Unable to Save Profile',
+        t('customerDetails.alerts.saveProfileTitle'),
         error instanceof Error
           ? error.message
-          : 'Something went wrong while saving your profile.'
+          : t('customerDetails.alerts.saveProfileMessage')
       );
     } finally {
       setSaving(false);
@@ -193,8 +196,8 @@ const handleUseCurrentLocation = async () => {
 
     if (status !== 'granted') {
       Alert.alert(
-        'Location Permission Required',
-        'ShramSaathi needs your location to automatically fill your service address.'
+        t('customerDetails.alerts.locationPermissionTitle'),
+        t('customerDetails.alerts.locationPermissionMessage')
       );
       return;
     }
@@ -221,8 +224,8 @@ const handleUseCurrentLocation = async () => {
 
     if (address.length === 0) {
       Alert.alert(
-        'Address Not Found',
-        'We could not determine your address. Please enter it manually.'
+        t('customerDetails.alerts.addressNotFoundTitle'),
+        t('customerDetails.alerts.addressNotFoundMessage')
       );
       return;
     }
@@ -261,16 +264,16 @@ setPincode(
 );
 
     Alert.alert(
-      'Location Found',
-      'Your address has been filled automatically. Please verify the details before continuing.'
+      t('customerDetails.alerts.locationFoundTitle'),
+      t('customerDetails.alerts.locationFoundMessage')
     );
 
   } catch (error) {
     console.log('Location Error:', error);
 
     Alert.alert(
-      'Location Error',
-      'Unable to fetch your current address. Please check your GPS and try again, or enter the address manually.'
+      t('customerDetails.alerts.locationErrorTitle'),
+      t('customerDetails.alerts.locationErrorMessage')
     );
   } finally {
     setLocationLoading(false);
@@ -287,8 +290,8 @@ const handleTakePhoto = async () => {
 
     if (!permission.granted) {
       Alert.alert(
-        'Camera Permission Required',
-        'ShramSaathi needs camera access to take your profile photo.'
+        t('customerDetails.alerts.cameraPermissionTitle'),
+        t('customerDetails.alerts.cameraPermissionMessage')
       );
       return;
     }
@@ -309,8 +312,8 @@ const handleTakePhoto = async () => {
     console.log('Camera Error:', error);
 
     Alert.alert(
-      'Camera Error',
-      'Unable to open the camera.'
+      t('customerDetails.alerts.cameraErrorTitle'),
+      t('customerDetails.alerts.cameraErrorMessage')
     );
   }
 };
@@ -323,8 +326,8 @@ const handleChoosePhoto = async () => {
 
     if (!permission.granted) {
       Alert.alert(
-        'Photo Permission Required',
-        'ShramSaathi needs access to your photos so you can select a profile picture.'
+        t('customerDetails.alerts.photoPermissionTitle'),
+        t('customerDetails.alerts.photoPermissionMessage')
       );
       return;
     }
@@ -345,8 +348,8 @@ if (!result.canceled) {
     console.log('Gallery Error:', error);
 
     Alert.alert(
-      'Gallery Error',
-      'Unable to open your photos.'
+      t('customerDetails.alerts.galleryErrorTitle'),
+      t('customerDetails.alerts.galleryErrorMessage')
     );
   }
 };
@@ -383,11 +386,11 @@ if (!result.canceled) {
 
           <View>
             <Text style={styles.headerTitle}>
-              Personal Details
+              {t('customerDetails.title')}
             </Text>
 
             <Text style={styles.headerSubtitle}>
-              Complete your ShramSaathi profile
+              {t('customerDetails.subtitle')}
             </Text>
           </View>
         </View>
@@ -396,14 +399,13 @@ if (!result.canceled) {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            Personal Information
+            {t('customerDetails.personalInfo')}
           </Text>
 
           <Text
             style={styles.sectionDescription}
           >
-            This information will be used for
-            your ShramSaathi profile.
+            {t('customerDetails.personalInfoDescription')}
           </Text>
 
           {/* PROFILE PHOTO */}
@@ -437,12 +439,12 @@ if (!result.canceled) {
               />
 
              <Text style={styles.photoButtonText}>
-  {profilePhoto ? 'Change Photo' : 'Add Photo'}
+  {profilePhoto ? t('customerDetails.changePhoto') : t('customerDetails.addPhoto')}
 </Text>
             </Pressable>
 
             <Text style={styles.optionalText}>
-              Optional
+              {t('common.optional')}
             </Text>
           </View>
 
@@ -450,7 +452,7 @@ if (!result.canceled) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              Full Name{' '}
+              {t('customerDetails.fullName')}{' '}
               <Text style={styles.required}>
                 *
               </Text>
@@ -467,7 +469,7 @@ if (!result.canceled) {
 
               <TextInput
                 style={styles.input}
-                placeholder="Enter your full name"
+                placeholder={t('customerDetails.placeholders.fullName')}
                 placeholderTextColor="#9CA3AF"
                 value={fullName}
                 onChangeText={setFullName}
@@ -480,7 +482,7 @@ if (!result.canceled) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              Mobile Number{' '}
+              {t('customerDetails.mobileNumber')}{' '}
               <Text style={styles.required}>
                 *
               </Text>
@@ -497,7 +499,7 @@ if (!result.canceled) {
 
               <TextInput
                 style={styles.input}
-                placeholder="Enter 10-digit mobile number"
+                placeholder={t('customerDetails.placeholders.mobile')}
                 placeholderTextColor="#9CA3AF"
                 value={mobile}
                 onChangeText={(text) =>
@@ -519,14 +521,13 @@ if (!result.canceled) {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            Service Address
+            {t('customerDetails.serviceAddress')}
           </Text>
 
           <Text
             style={styles.sectionDescription}
           >
-            Where should our service professional
-            reach you?
+            {t('customerDetails.serviceAddressDescription')}
           </Text>
 
           {/* CURRENT LOCATION */}
@@ -557,14 +558,14 @@ if (!result.canceled) {
   <View style={styles.locationTextContainer}>
     <Text style={styles.locationTitle}>
       {locationLoading
-        ? 'Fetching Location...'
-        : 'Use Current Location'}
+        ? t('customerDetails.fetchingLocation')
+        : t('customerDetails.useCurrentLocation')}
     </Text>
 
     <Text style={styles.locationSubtitle}>
       {locationLoading
-        ? 'Please wait while we detect your address'
-        : 'Automatically detect your address'}
+        ? t('customerDetails.waitingForLocation')
+        : t('customerDetails.autoDetectAddress')}
     </Text>
   </View>
 
@@ -581,7 +582,7 @@ if (!result.canceled) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              House / Flat / Building{' '}
+              {t('customerDetails.houseLabel')}{' '}
               <Text style={styles.required}>
                 *
               </Text>
@@ -598,7 +599,7 @@ if (!result.canceled) {
 
               <TextInput
                 style={styles.input}
-                placeholder="House no., flat no., building"
+                placeholder={t('customerDetails.placeholders.house')}
                 placeholderTextColor="#9CA3AF"
                 value={house}
                 onChangeText={setHouse}
@@ -610,7 +611,7 @@ if (!result.canceled) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              Street / Locality{' '}
+              {t('customerDetails.streetLabel')}{' '}
               <Text style={styles.required}>
                 *
               </Text>
@@ -627,7 +628,7 @@ if (!result.canceled) {
 
               <TextInput
                 style={styles.input}
-                placeholder="Street, colony, locality"
+                placeholder={t('customerDetails.placeholders.street')}
                 placeholderTextColor="#9CA3AF"
                 value={locality}
                 onChangeText={setLocality}
@@ -639,7 +640,7 @@ if (!result.canceled) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              City{' '}
+              {t('customerDetails.city')}{' '}
               <Text style={styles.required}>
                 *
               </Text>
@@ -656,7 +657,7 @@ if (!result.canceled) {
 
               <TextInput
                 style={styles.input}
-                placeholder="Enter city"
+                placeholder={t('customerDetails.placeholders.city')}
                 placeholderTextColor="#9CA3AF"
                 value={city}
                 onChangeText={setCity}
@@ -669,7 +670,7 @@ if (!result.canceled) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              State{' '}
+              {t('customerDetails.state')}{' '}
               <Text style={styles.required}>
                 *
               </Text>
@@ -686,7 +687,7 @@ if (!result.canceled) {
 
               <TextInput
                 style={styles.input}
-                placeholder="Enter state"
+                placeholder={t('customerDetails.placeholders.state')}
                 placeholderTextColor="#9CA3AF"
                 value={state}
                 onChangeText={setState}
@@ -699,7 +700,7 @@ if (!result.canceled) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              PIN Code{' '}
+              {t('customerDetails.pinCode')}{' '}
               <Text style={styles.required}>
                 *
               </Text>
@@ -716,7 +717,7 @@ if (!result.canceled) {
 
               <TextInput
                 style={styles.input}
-                placeholder="6-digit PIN code"
+                placeholder={t('customerDetails.placeholders.pin')}
                 placeholderTextColor="#9CA3AF"
                 value={pincode}
                 onChangeText={(text) =>
@@ -737,14 +738,14 @@ if (!result.canceled) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              Landmark
+              {t('customerDetails.landmark')}
               <Text
                 style={
                   styles.optionalLabel
                 }
               >
                 {' '}
-                (Optional)
+                ({t('common.optional')})
               </Text>
             </Text>
 
@@ -759,7 +760,7 @@ if (!result.canceled) {
 
               <TextInput
                 style={styles.input}
-                placeholder="Nearby landmark"
+                placeholder={t('customerDetails.placeholders.landmark')}
                 placeholderTextColor="#9CA3AF"
                 value={landmark}
                 onChangeText={setLandmark}
@@ -777,7 +778,7 @@ if (!result.canceled) {
           <Text
             style={styles.continueText}
           >
-            Continue
+            {t('common.continue')}
           </Text>
 
           <Ionicons
@@ -788,8 +789,7 @@ if (!result.canceled) {
         </Pressable>
 
         <Text style={styles.bottomText}>
-          You can update these details later
-          from your profile.
+          {t('customerDetails.updateLater')}
         </Text>
       </ScrollView>
       <Modal
@@ -809,12 +809,12 @@ if (!result.canceled) {
         <View style={styles.sheetHeaderText}>
           <Text style={styles.sheetTitle}>
             {profilePhoto
-              ? 'Change Profile Photo'
-              : 'Add Profile Photo'}
+              ? t('customerDetails.changeProfilePhoto')
+              : t('customerDetails.addProfilePhoto')}
           </Text>
 
           <Text style={styles.sheetSubtitle}>
-            Choose how you want to add your photo
+            {t('customerDetails.choosePhoto')}
           </Text>
         </View>
 
@@ -845,11 +845,11 @@ if (!result.canceled) {
 
         <View style={styles.photoOptionText}>
           <Text style={styles.photoOptionTitle}>
-            Take Photo
+            {t('common.takePhoto')}
           </Text>
 
           <Text style={styles.photoOptionSubtitle}>
-            Use your camera to take a new photo
+            {t('common.useCamera')}
           </Text>
         </View>
 
@@ -875,11 +875,11 @@ if (!result.canceled) {
 
         <View style={styles.photoOptionText}>
           <Text style={styles.photoOptionTitle}>
-            Choose from Device
+            {t('common.chooseFromDevice')}
           </Text>
 
           <Text style={styles.photoOptionSubtitle}>
-            Select a photo from your gallery
+            {t('common.selectFromGallery')}
           </Text>
         </View>
 
@@ -896,7 +896,7 @@ if (!result.canceled) {
         onPress={() => setPhotoModalVisible(false)}
       >
         <Text style={styles.sheetCancelText}>
-          Cancel
+          {t('common.cancel')}
         </Text>
       </Pressable>
 

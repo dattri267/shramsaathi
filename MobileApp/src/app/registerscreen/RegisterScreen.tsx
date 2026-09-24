@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
+import { useTranslation } from "react-i18next";
+
 import {
   Animated,
   KeyboardAvoidingView,
@@ -21,6 +23,7 @@ type Role = "customer" | "worker";
 type Props = NativeStackScreenProps<RootStackParamList, "Register">;
 
 export default function RegisterScreen({ navigation }: Props) {
+  const { t } = useTranslation();
   const [role, setRole] = useState<Role>("customer");
 
   const [email, setEmail] = useState("");
@@ -36,27 +39,24 @@ export default function RegisterScreen({ navigation }: Props) {
 
   const handleRegister = async () => {
     if (!email.trim() || !mobile.trim() || !password || !rePassword) {
-      Alert.alert("Incomplete Details", "Please fill in all required fields.");
+      Alert.alert(t("auth.incompleteDetails"), t("auth.fillRequiredFields"));
       return;
     }
 
     if (password !== rePassword) {
-      Alert.alert("Password Mismatch", "Passwords do not match.");
+      Alert.alert(t("auth.passwordMismatch"), t("auth.passwordsDoNotMatch"));
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailRegex.test(email.trim())) {
-      Alert.alert("Invalid Email", "Please enter a valid email address.");
+      Alert.alert(t("auth.invalidEmail"), t("auth.invalidEmailMessage"));
       return;
     }
 
     if (password.length < 8) {
-      Alert.alert(
-        "Weak Password",
-        "Password must be at least 8 characters long.",
-      );
+      Alert.alert(t("auth.weakPassword"), t("auth.passwordMinLength"));
       return;
     }
 
@@ -64,8 +64,8 @@ export default function RegisterScreen({ navigation }: Props) {
 
     if (!mobileRegex.test(mobile.trim())) {
       Alert.alert(
-        "Invalid Mobile Number",
-        "Please enter a valid 10-digit mobile number.",
+        t("auth.invalidMobileNumber"),
+        t("auth.invalidMobileNumberMessage"),
       );
       return;
     }
@@ -101,10 +101,10 @@ export default function RegisterScreen({ navigation }: Props) {
       console.error("Signup error:", error);
 
       Alert.alert(
-        "Registration Failed",
+        t("auth.registrationFailed"),
         error instanceof Error
           ? error.message
-          : "Unable to create your account. Please try again.",
+          : t("auth.registrationFailedMessage"),
       );
     } finally {
       setIsRegistering(false);
@@ -136,16 +136,14 @@ export default function RegisterScreen({ navigation }: Props) {
             </Pressable>
 
             <View style={styles.headerText}>
-              <Text style={styles.title}>Create Account</Text>
-              <Text style={styles.subtitle}>
-                Join the ShramSaathi community
-              </Text>
+              <Text style={styles.title}>{t("auth.createAccount")}</Text>
+              <Text style={styles.subtitle}>{t("auth.joinCommunity")}</Text>
             </View>
           </View>
 
           {/* Role Selection */}
           <View style={styles.roleSection}>
-            <Text style={styles.sectionLabel}>Register as</Text>
+            <Text style={styles.sectionLabel}>{t("auth.registerAs")}</Text>
 
             <View style={styles.roleSwitcher}>
               {/* Sliding background */}
@@ -176,7 +174,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     role === "customer" && styles.roleTextActive,
                   ]}
                 >
-                  Customer
+                  {t("auth.customer")}
                 </Text>
               </Pressable>
 
@@ -198,7 +196,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     role === "worker" && styles.roleTextActive,
                   ]}
                 >
-                  Worker
+                  {t("auth.worker")}
                 </Text>
               </Pressable>
             </View>
@@ -219,14 +217,14 @@ export default function RegisterScreen({ navigation }: Props) {
             <View style={styles.descriptionContent}>
               <Text style={styles.descriptionTitle}>
                 {role === "customer"
-                  ? "Create a Customer Account"
-                  : "Join as a Cooperative Worker"}
+                  ? t("auth.createCustomerAccount")
+                  : t("auth.joinAsWorker")}
               </Text>
 
               <Text style={styles.descriptionText}>
                 {role === "customer"
-                  ? "Book trusted services from verified cooperative workers."
-                  : "Offer your skills and connect with households in your community."}
+                  ? t("auth.customerDescription")
+                  : t("auth.workerDescription")}
               </Text>
             </View>
           </View>
@@ -234,7 +232,7 @@ export default function RegisterScreen({ navigation }: Props) {
           {/* Form */}
           <View style={styles.form}>
             {/* Email */}
-            <Text style={styles.inputLabel}>Email address</Text>
+            <Text style={styles.inputLabel}>{t("auth.emailAddress")}</Text>
 
             <View style={inputStyle("email")}>
               <Ionicons
@@ -249,7 +247,7 @@ export default function RegisterScreen({ navigation }: Props) {
 
               <TextInput
                 style={styles.input}
-                placeholder="Enter your email"
+                placeholder={t("auth.enterEmail")}
                 placeholderTextColor={colors.placeholder}
                 value={email}
                 onChangeText={setEmail}
@@ -261,7 +259,7 @@ export default function RegisterScreen({ navigation }: Props) {
             </View>
 
             {/* Mobile */}
-            <Text style={styles.inputLabel}>Mobile number</Text>
+            <Text style={styles.inputLabel}>{t("auth.mobileNumber")}</Text>
 
             <View style={inputStyle("mobile")}>
               <Ionicons
@@ -278,7 +276,7 @@ export default function RegisterScreen({ navigation }: Props) {
 
               <TextInput
                 style={styles.input}
-                placeholder="Enter your mobile number"
+                placeholder={t("auth.enterMobileNumber")}
                 placeholderTextColor={colors.placeholder}
                 value={mobile}
                 onChangeText={setMobile}
@@ -290,7 +288,7 @@ export default function RegisterScreen({ navigation }: Props) {
             </View>
 
             {/* Password */}
-            <Text style={styles.inputLabel}>Password</Text>
+            <Text style={styles.inputLabel}>{t("auth.password")}</Text>
 
             <View style={inputStyle("password")}>
               <Ionicons
@@ -305,7 +303,7 @@ export default function RegisterScreen({ navigation }: Props) {
 
               <TextInput
                 style={styles.input}
-                placeholder="Create a password"
+                placeholder={t("auth.createPassword")}
                 placeholderTextColor={colors.placeholder}
                 value={password}
                 onChangeText={setPassword}
@@ -328,7 +326,7 @@ export default function RegisterScreen({ navigation }: Props) {
             </View>
 
             {/* Re-enter Password */}
-            <Text style={styles.inputLabel}>Confirm password</Text>
+            <Text style={styles.inputLabel}>{t("auth.confirmPassword")}</Text>
 
             <View style={inputStyle("rePassword")}>
               <Ionicons
@@ -343,7 +341,7 @@ export default function RegisterScreen({ navigation }: Props) {
 
               <TextInput
                 style={styles.input}
-                placeholder="Re-enter your password"
+                placeholder={t("auth.reEnterPassword")}
                 placeholderTextColor={colors.placeholder}
                 value={rePassword}
                 onChangeText={setRePassword}
@@ -374,7 +372,9 @@ export default function RegisterScreen({ navigation }: Props) {
                   color="#D9534F"
                 />
 
-                <Text style={styles.errorText}>Passwords do not match</Text>
+                <Text style={styles.errorText}>
+                  {t("auth.passwordsDoNotMatch")}
+                </Text>
               </View>
             )}
 
@@ -402,8 +402,10 @@ export default function RegisterScreen({ navigation }: Props) {
             >
               <Text style={styles.registerButtonText}>
                 {isRegistering
-                  ? "Creating Account..."
-                  : `Create ${role === "customer" ? "Customer" : "Worker"} Account`}
+                  ? t("auth.creatingAccount")
+                  : role === "customer"
+                    ? t("auth.createCustomerAccount")
+                    : t("auth.createWorkerAccount")}
               </Text>
 
               <Ionicons name="arrow-forward" size={21} color={colors.white} />
@@ -412,10 +414,10 @@ export default function RegisterScreen({ navigation }: Props) {
 
           {/* Login */}
           <View style={styles.loginContainer}>
-            <Text style={styles.loginText}>Already have an account?</Text>
+            <Text style={styles.loginText}>{t("auth.alreadyHaveAccount")}</Text>
 
             <Pressable onPress={() => navigation.navigate("Login")}>
-              <Text style={styles.loginLink}>Login</Text>
+              <Text style={styles.loginLink}>{t("auth.login")}</Text>
             </Pressable>
           </View>
 
@@ -424,7 +426,7 @@ export default function RegisterScreen({ navigation }: Props) {
             <Ionicons name="people-outline" size={18} color={colors.primary} />
 
             <Text style={styles.bottomMessageText}>
-              Building stronger communities through cooperative services
+              {t("auth.communityMessage")}
             </Text>
           </View>
         </ScrollView>

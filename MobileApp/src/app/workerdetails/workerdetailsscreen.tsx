@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   View,
@@ -40,6 +41,7 @@ type DocumentData = {
 };
 
 export default function WorkerDetailsScreen({ navigation, route }: Props) {
+  const { t } = useTranslation();
   // --------------------------------------------------
   // Personal Information
   // --------------------------------------------------
@@ -170,8 +172,8 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
         console.log("Load Skills Error:", error);
 
         Alert.alert(
-          "Unable to Load Services",
-          "We could not load the available services. Please try again.",
+          t("workerDetails.alerts.loadServicesTitle"),
+          t("workerDetails.alerts.loadServicesMessage"),
         );
 
         setAvailableSkills([]);
@@ -195,7 +197,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
     const skill = customSkill.trim();
 
     if (!skill) {
-      Alert.alert("Skill Required", "Please enter a skill before adding it.");
+      Alert.alert(t("workerDetails.alerts.skillRequiredTitle"), t("workerDetails.alerts.skillRequiredMessage"));
       return;
     }
 
@@ -205,7 +207,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
         (item) => item.toLowerCase() === skill.toLowerCase(),
       )
     ) {
-      Alert.alert("Skill Already Added", "This skill is already in your list.");
+      Alert.alert(t("workerDetails.alerts.skillAlreadyAddedTitle"), t("workerDetails.alerts.skillAlreadyAddedMessage"));
       return;
     }
 
@@ -220,8 +222,8 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
       if (!permission.granted) {
         Alert.alert(
-          "Camera Permission Required",
-          "ShramSaathi needs camera access to take your profile photo.",
+          t("workerDetails.alerts.cameraPermissionTitle"),
+          t("workerDetails.alerts.cameraPermissionMessage"),
         );
         return;
       }
@@ -241,7 +243,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
     } catch (error) {
       console.log("Camera Error:", error);
 
-      Alert.alert("Camera Error", "Unable to open the camera.");
+      Alert.alert(t("workerDetails.alerts.cameraErrorTitle"), t("workerDetails.alerts.cameraErrorMessage"));
     }
   };
 
@@ -252,8 +254,8 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
       if (!permission.granted) {
         Alert.alert(
-          "Photo Permission Required",
-          "ShramSaathi needs access to your photos so you can select a profile picture.",
+          t("workerDetails.alerts.photoPermissionTitle"),
+          t("workerDetails.alerts.photoPermissionMessage"),
         );
         return;
       }
@@ -273,7 +275,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
     } catch (error) {
       console.log("Gallery Error:", error);
 
-      Alert.alert("Gallery Error", "Unable to open your photos.");
+      Alert.alert(t("workerDetails.alerts.galleryErrorTitle"), t("workerDetails.alerts.galleryErrorMessage"));
     }
   };
 
@@ -292,8 +294,8 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
         setIsGettingLocation(false);
 
         Alert.alert(
-          "Location Permission Required",
-          "Please allow location access so ShramSaathi can automatically fill your service address.",
+          t("workerDetails.alerts.locationPermissionTitle"),
+          t("workerDetails.alerts.locationPermissionMessage"),
         );
 
         return;
@@ -320,8 +322,8 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
         setIsGettingLocation(false);
 
         Alert.alert(
-          "Address Not Found",
-          "We could not determine your address. Please enter it manually.",
+          t("workerDetails.alerts.addressNotFoundTitle"),
+          t("workerDetails.alerts.addressNotFoundMessage"),
         );
 
         return;
@@ -347,8 +349,8 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
       setIsGettingLocation(false);
 
       Alert.alert(
-        "Location Error",
-        "Unable to fetch your current location. Please enter your address manually.",
+        t("workerDetails.alerts.locationErrorTitle"),
+        t("workerDetails.alerts.locationErrorMessage"),
       );
     }
   };
@@ -385,8 +387,8 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
       if (!permission.granted) {
         Alert.alert(
-          "Camera Permission Required",
-          "Camera access is required to capture this document.",
+          t("workerDetails.alerts.documentCameraPermissionTitle"),
+          t("workerDetails.alerts.documentCameraPermissionMessage"),
         );
         return;
       }
@@ -407,7 +409,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
     } catch (error) {
       console.log("Document Camera Error:", error);
 
-      Alert.alert("Camera Error", "Unable to open the camera.");
+      Alert.alert(t("workerDetails.alerts.cameraErrorTitle"), t("workerDetails.alerts.cameraErrorMessage"));
     }
   };
 
@@ -418,8 +420,8 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
       if (!permission.granted) {
         Alert.alert(
-          "Photo Permission Required",
-          "Photo access is required to select your document.",
+          t("workerDetails.alerts.documentPhotoPermissionTitle"),
+          t("workerDetails.alerts.documentPhotoPermissionMessage"),
         );
         return;
       }
@@ -440,7 +442,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
     } catch (error) {
       console.log("Document Gallery Error:", error);
 
-      Alert.alert("Gallery Error", "Unable to open your photos.");
+      Alert.alert(t("workerDetails.alerts.galleryErrorTitle"), t("workerDetails.alerts.galleryErrorMessage"));
     }
   };
 
@@ -632,25 +634,25 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
   const handleCompleteProfile = async () => {
     if (fullName.trim().length < 2) {
-      Alert.alert("Invalid Name", "Please enter your full name.");
+      Alert.alert(t("workerDetails.alerts.invalidNameTitle"), t("workerDetails.alerts.invalidNameMessage"));
       return;
     }
 
     if (!/^\d{10}$/.test(mobile.trim())) {
       Alert.alert(
-        "Invalid Mobile Number",
-        "Please enter a valid 10-digit mobile number.",
+        t("workerDetails.alerts.invalidMobileTitle"),
+        t("workerDetails.alerts.invalidMobileMessage"),
       );
       return;
     }
 
     if (!primarySkill) {
-      Alert.alert("Select Your Skill", "Please select your primary service.");
+      Alert.alert(t("workerDetails.alerts.selectSkillTitle"), t("workerDetails.alerts.selectSkillMessage"));
       return;
     }
 
     if (!primarySubskill) {
-      Alert.alert("Select Your Subskill", "Please select a subskill for your primary service.");
+      Alert.alert(t("workerDetails.alerts.selectSubskillTitle"), t("workerDetails.alerts.selectSubskillMessage"));
       return;
     }
 
@@ -663,8 +665,8 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
       yearsOfExperience > 60
     ) {
       Alert.alert(
-        "Invalid Experience",
-        "Please enter experience between 0 and 60 years.",
+        t("workerDetails.alerts.invalidExperienceTitle"),
+        t("workerDetails.alerts.invalidExperienceMessage"),
       );
       return;
     }
@@ -677,40 +679,40 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
       !/^\d{6}$/.test(pincode.trim())
     ) {
       Alert.alert(
-        "Incomplete Address",
-        "Please provide house, locality, city, state and a valid 6-digit PIN code.",
+        t("workerDetails.alerts.incompleteAddressTitle"),
+        t("workerDetails.alerts.incompleteAddressMessage"),
       );
       return;
     }
 
     if (!identityDocument) {
       Alert.alert(
-        "Identity Proof Required",
-        "Please upload your identity proof.",
+        t("workerDetails.alerts.identityRequiredTitle"),
+        t("workerDetails.alerts.identityRequiredMessage"),
       );
       return;
     }
 
     if (!addressDocument) {
       Alert.alert(
-        "Address Proof Required",
-        "Please upload your address proof.",
+        t("workerDetails.alerts.addressRequiredTitle"),
+        t("workerDetails.alerts.addressRequiredMessage"),
       );
       return;
     }
 
     if (!workDocument) {
       Alert.alert(
-        "Work Proof Required",
-        "Please upload your skill or work proof.",
+        t("workerDetails.alerts.workRequiredTitle"),
+        t("workerDetails.alerts.workRequiredMessage"),
       );
       return;
     }
 
     if (latitude === null || longitude === null) {
       Alert.alert(
-        "Location Required",
-        'Please tap "Use Current Location" so we can save your service location.',
+        t("workerDetails.alerts.locationRequiredTitle"),
+        t("workerDetails.alerts.locationRequiredMessage"),
       );
       return;
     }
@@ -719,24 +721,24 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
     if (!Number.isFinite(radius) || radius <= 0) {
       Alert.alert(
-        "Invalid Service Radius",
-        "Please select a valid service radius.",
+        t("workerDetails.alerts.invalidRadiusTitle"),
+        t("workerDetails.alerts.invalidRadiusMessage"),
       );
       return;
     }
 
     if (workingDays.length === 0) {
       Alert.alert(
-        "Availability Required",
-        "Please select at least one working day.",
+        t("workerDetails.alerts.availabilityTitle"),
+        t("workerDetails.alerts.workingDayMessage"),
       );
       return;
     }
 
     if (workingHours.length === 0) {
       Alert.alert(
-        "Availability Required",
-        "Please select at least one working-hour slot.",
+        t("workerDetails.alerts.availabilityTitle"),
+        t("workerDetails.alerts.workingHourMessage"),
       );
       return;
     }
@@ -809,11 +811,11 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
       // 4. Profile saved successfully
       // ---------------------------------------------------------
       Alert.alert(
-        "Profile Completed",
-        "Your worker profile has been saved successfully.",
+        t("workerDetails.alerts.profileCompletedTitle"),
+        t("workerDetails.alerts.profileCompletedMessage"),
         [
           {
-            text: "Continue",
+            text: t("common.continue"),
             onPress: () => {
               navigation.replace("WorkerDashboard", {
                 worker: {
@@ -830,10 +832,10 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
       console.log("Worker Profile Error:", error);
 
       Alert.alert(
-        "Unable to Save Profile",
+        t("workerDetails.alerts.saveProfileTitle"),
         error instanceof Error
           ? error.message
-          : "Something went wrong while saving your profile.",
+          : t("workerDetails.alerts.saveProfileMessage"),
       );
     } finally {
       setSaving(false);
@@ -864,7 +866,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
           <View style={styles.documentTitleRow}>
             <Text style={styles.documentTitle}>{title}</Text>
 
-            <Text style={styles.requiredText}>Required</Text>
+            <Text style={styles.requiredText}>{t("common.required")}</Text>
           </View>
 
           {document ? (
@@ -914,10 +916,10 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
           </Pressable>
 
           <View>
-            <Text style={styles.headerTitle}>Worker Details</Text>
+            <Text style={styles.headerTitle}>{t("workerDetails.title")}</Text>
 
             <Text style={styles.headerSubtitle}>
-              Complete your ShramSaathi profile
+              {t("workerDetails.subtitle")}
             </Text>
           </View>
         </View>
@@ -927,10 +929,10 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
         {/* ----------------------------------------- */}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Personal Information</Text>
+          <Text style={styles.sectionTitle}>{t("workerDetails.personalInfo")}</Text>
 
           <Text style={styles.sectionDescription}>
-            Tell us a little about yourself
+            {t("workerDetails.personalInfoDescription")}
           </Text>
 
           {/* Profile Photo */}
@@ -954,18 +956,18 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
             </Pressable>
 
             <Text style={styles.photoTitle}>
-              {profilePhoto ? "Change Photo" : "Add Profile Photo"}
+              {profilePhoto ? t("workerDetails.changePhoto") : t("workerDetails.addProfilePhoto")}
             </Text>
 
             <Text style={styles.photoSubtitle}>
-              A clear photo helps customers identify you
+              {t("workerDetails.photoDescription")}
             </Text>
           </View>
 
           {/* Name */}
 
           <Text style={styles.inputLabel}>
-            Full Name <Text style={styles.required}>*</Text>
+            {t("workerDetails.fullName")} <Text style={styles.required}>*</Text>
           </Text>
 
           <View style={styles.inputContainer}>
@@ -973,7 +975,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
             <TextInput
               style={styles.input}
-              placeholder="Enter your full name"
+              placeholder={t("workerDetails.placeholders.fullName")}
               placeholderTextColor="#9CA3AF"
               value={fullName}
               onChangeText={setFullName}
@@ -983,7 +985,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
           {/* Mobile */}
 
           <Text style={styles.inputLabel}>
-            Mobile Number <Text style={styles.required}>*</Text>
+            {t("workerDetails.mobileNumber")} <Text style={styles.required}>*</Text>
           </Text>
 
           <View style={styles.inputContainer}>
@@ -991,7 +993,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
             <TextInput
               style={styles.input}
-              placeholder="Enter mobile number"
+              placeholder={t("workerDetails.placeholders.mobile")}
               placeholderTextColor="#9CA3AF"
               keyboardType="phone-pad"
               maxLength={10}
@@ -1006,18 +1008,18 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
         {/* ----------------------------------------- */}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Professional Information</Text>
+          <Text style={styles.sectionTitle}>{t("workerDetails.professionalInfo")}</Text>
 
           <Text style={styles.sectionDescription}>
-            Help customers understand your expertise
+            {t("workerDetails.professionalInfoDescription")}
           </Text>
 
           <Text style={styles.inputLabel}>
-            Primary Service <Text style={styles.required}>*</Text>
+            {t("workerDetails.primaryService")} <Text style={styles.required}>*</Text>
           </Text>
 
           <Text style={styles.helperText}>
-            Select the service you mainly provide
+            {t("workerDetails.primaryServiceHelper")}
           </Text>
 
           <View style={styles.primaryServiceContainer}>
@@ -1037,7 +1039,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                     color: "#6B7280",
                   }}
                 >
-                  Loading services...
+                  {t("workerDetails.loadingServices")}
                 </Text>
               </View>
             ) : availableSkills.length === 0 ? (
@@ -1061,7 +1063,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                     textAlign: "center",
                   }}
                 >
-                  No services are currently available.
+                  {t("workerDetails.noServices")}
                 </Text>
               </View>
             ) : (
@@ -1136,11 +1138,11 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
           {primarySkill && (
             <>
               <Text style={styles.inputLabel}>
-                Subskill <Text style={styles.required}>*</Text>
+                {t("workerDetails.subskill")} <Text style={styles.required}>*</Text>
               </Text>
 
               <Text style={styles.helperText}>
-                Select a subskill under your primary service
+                {t("workerDetails.subskillHelper")}
               </Text>
 
               <View style={styles.chipContainer}>
@@ -1217,7 +1219,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
           </View> */}
 
           <Text style={styles.inputLabel}>
-            Years of Experience <Text style={styles.required}>*</Text>
+            {t("workerDetails.yearsExperience")} <Text style={styles.required}>*</Text>
           </Text>
 
           <View style={styles.inputContainer}>
@@ -1225,22 +1227,22 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
             <TextInput
               style={styles.input}
-              placeholder="e.g. 3"
+              placeholder={t("workerDetails.placeholders.experience")}
               placeholderTextColor="#9CA3AF"
               keyboardType="numeric"
               value={experience}
               onChangeText={setExperience}
             />
 
-            <Text style={styles.inputSuffix}>years</Text>
+            <Text style={styles.inputSuffix}>{t("workerDetails.years")}</Text>
           </View>
 
-          <Text style={styles.inputLabel}>About Your Work</Text>
+          <Text style={styles.inputLabel}>{t("workerDetails.aboutWork")}</Text>
 
           <View style={[styles.inputContainer, styles.textAreaContainer]}>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Briefly describe your experience and the type of work you provide..."
+              placeholder={t("workerDetails.placeholders.workDescription")}
               placeholderTextColor="#9CA3AF"
               multiline
               numberOfLines={4}
@@ -1256,10 +1258,10 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
         {/* ----------------------------------------- */}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Work Location</Text>
+          <Text style={styles.sectionTitle}>{t("workerDetails.workLocation")}</Text>
 
           <Text style={styles.sectionDescription}>
-            Customers will be matched with workers near them
+            {t("workerDetails.workLocationDescription")}
           </Text>
 
           <Pressable
@@ -1288,15 +1290,15 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                 ]}
               >
                 {isGettingLocation
-                  ? "Getting your location..."
+                  ? t("workerDetails.gettingLocation")
                   : locationUpdated
-                    ? "Location Updated"
-                    : "Use Current Location"}
+                    ? t("workerDetails.locationUpdated")
+                    : t("workerDetails.useCurrentLocation")}
               </Text>
 
               <Text style={styles.locationButtonSubtitle}>
                 {isGettingLocation
-                  ? "This may take a few seconds"
+                  ? t("workerDetails.locationWait")
                   : locationUpdated
                     ? "Please verify your address below"
                     : "Automatically fill your work address"}
@@ -1306,28 +1308,28 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
           {/* Address Inputs */}
 
-          <Text style={styles.inputLabel}>House / Flat / Building</Text>
+          <Text style={styles.inputLabel}>{t("workerDetails.houseLabel")}</Text>
 
           <View style={styles.inputContainer}>
             <Ionicons name="home-outline" size={20} color="#9CA3AF" />
 
             <TextInput
               style={styles.input}
-              placeholder="House / Flat / Building"
+              placeholder={t("workerDetails.placeholders.house")}
               placeholderTextColor="#9CA3AF"
               value={house}
               onChangeText={setHouse}
             />
           </View>
 
-          <Text style={styles.inputLabel}>Street / Locality</Text>
+          <Text style={styles.inputLabel}>{t("workerDetails.streetLabel")}</Text>
 
           <View style={styles.inputContainer}>
             <Ionicons name="navigate-outline" size={20} color="#9CA3AF" />
 
             <TextInput
               style={styles.input}
-              placeholder="Street / Locality"
+              placeholder={t("workerDetails.placeholders.street")}
               placeholderTextColor="#9CA3AF"
               value={locality}
               onChangeText={setLocality}
@@ -1343,7 +1345,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
               <View style={styles.inputContainer}>
                 <TextInput
                   style={styles.input}
-                  placeholder="City"
+                  placeholder={t("workerDetails.placeholders.city")}
                   placeholderTextColor="#9CA3AF"
                   value={city}
                   onChangeText={setCity}
@@ -1359,7 +1361,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
               <View style={styles.inputContainer}>
                 <TextInput
                   style={styles.input}
-                  placeholder="State"
+                  placeholder={t("workerDetails.placeholders.state")}
                   placeholderTextColor="#9CA3AF"
                   value={state}
                   onChangeText={setState}
@@ -1371,13 +1373,13 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
           <View style={styles.row}>
             <View style={styles.halfInput}>
               <Text style={styles.inputLabel}>
-                PIN Code <Text style={styles.required}>*</Text>
+                {t("workerDetails.pinCode")} <Text style={styles.required}>*</Text>
               </Text>
 
               <View style={styles.inputContainer}>
                 <TextInput
                   style={styles.input}
-                  placeholder="6-digit PIN"
+                  placeholder={t("workerDetails.placeholders.pin")}
                   placeholderTextColor="#9CA3AF"
                   keyboardType="numeric"
                   maxLength={6}
@@ -1388,12 +1390,12 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
             </View>
 
             <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Landmark</Text>
+              <Text style={styles.inputLabel}>{t("workerDetails.landmark")}</Text>
 
               <View style={styles.inputContainer}>
                 <TextInput
                   style={styles.input}
-                  placeholder="Optional"
+                  placeholder={t("common.optional")}
                   placeholderTextColor="#9CA3AF"
                   value={landmark}
                   onChangeText={setLandmark}
@@ -1404,10 +1406,10 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
           {/* Service Radius */}
 
-          <Text style={styles.inputLabel}>Service Radius</Text>
+          <Text style={styles.inputLabel}>{t("workerDetails.serviceRadius")}</Text>
 
           <Text style={styles.helperText}>
-            How far are you willing to travel for a job?
+            {t("workerDetails.serviceRadiusHelper")}
           </Text>
 
           <View style={styles.radiusContainer}>
@@ -1442,13 +1444,13 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
         {/* ----------------------------------------- */}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Availability</Text>
+          <Text style={styles.sectionTitle}>{t("workerDetails.availability")}</Text>
 
           <Text style={styles.sectionDescription}>
-            Let customers know when you're usually available
+            {t("workerDetails.availabilityDescription")}
           </Text>
 
-          <Text style={styles.inputLabel}>Working Days</Text>
+          <Text style={styles.inputLabel}>{t("workerDetails.workingDays")}</Text>
 
           <View style={styles.dayContainer}>
             {days.map((day) => {
@@ -1466,14 +1468,14 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                   <Text
                     style={[styles.dayText, selected && styles.dayTextSelected]}
                   >
-                    {day}
+                    {t(`workerDetails.days.${day}`)}
                   </Text>
                 </Pressable>
               );
             })}
           </View>
 
-          <Text style={styles.inputLabel}>Preferred Working Hours</Text>
+          <Text style={styles.inputLabel}>{t("workerDetails.preferredHours")}</Text>
 
           <View style={styles.hoursContainer}>
             {hours.map((hour) => {
@@ -1506,7 +1508,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                       selected && styles.hourTextSelected,
                     ]}
                   >
-                    {hour}
+                    {t(`workerDetails.hours.${hour}`)}
                   </Text>
                 </Pressable>
               );
@@ -1529,10 +1531,10 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
             </View>
 
             <View style={styles.verificationHeaderText}>
-              <Text style={styles.sectionTitle}>Verification Documents</Text>
+              <Text style={styles.sectionTitle}>{t("workerDetails.verificationDocuments")}</Text>
 
               <Text style={styles.sectionDescription}>
-                Verify your identity and professional experience
+                {t("workerDetails.verificationDescription")}
               </Text>
             </View>
           </View>
@@ -1541,36 +1543,36 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
             <Ionicons name="lock-closed-outline" size={17} color="#2563EB" />
 
             <Text style={styles.securityText}>
-              Your documents are securely stored and used only for verification.
+              {t("workerDetails.securityNote")}
             </Text>
           </View>
 
           {renderDocumentCard(
             "identity",
-            "Identity Proof",
-            "Aadhaar, PAN, Driving Licence or Voter ID",
+            t("workerDetails.documents.identityTitle"),
+            t("workerDetails.documents.identitySubtitle"),
             identityDocument,
             "card-outline",
           )}
 
           {renderDocumentCard(
             "address",
-            "Address Proof",
-            "Government ID, utility bill or other valid proof",
+            t("workerDetails.documents.addressTitle"),
+            t("workerDetails.documents.addressSubtitle"),
             addressDocument,
             "location-outline",
           )}
 
           {renderDocumentCard(
             "work",
-            "Skill / Work Proof",
-            "Certificate, experience letter or previous work",
+            t("workerDetails.documents.workTitle"),
+            t("workerDetails.documents.workSubtitle"),
             workDocument,
             "briefcase-outline",
           )}
 
           <Text style={styles.documentFooter}>
-            Supported formats: JPG, PNG, WEBP
+            {t("workerDetails.supportedFormats")}
           </Text>
         </View>
 
@@ -1586,8 +1588,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
           />
 
           <Text style={styles.declarationText}>
-            By completing your profile, you confirm that the information and
-            documents provided are genuine and belong to you.
+            {t("workerDetails.declaration")}
           </Text>
         </View>
 
@@ -1602,11 +1603,11 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
             <>
               <ActivityIndicator size="small" color="#FFFFFF" />
 
-              <Text style={styles.completeButtonText}>Saving Profile...</Text>
+              <Text style={styles.completeButtonText}>{t("workerDetails.savingProfile")}</Text>
             </>
           ) : (
             <>
-              <Text style={styles.completeButtonText}>Complete Profile</Text>
+              <Text style={styles.completeButtonText}>{t("workerDetails.completeProfile")}</Text>
 
               <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
             </>
@@ -1614,8 +1615,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
         </Pressable>
 
         <Text style={styles.bottomText}>
-          Your profile will be reviewed before you start receiving service
-          requests.
+          {t("workerDetails.reviewNote")}
         </Text>
       </ScrollView>
 
@@ -1639,10 +1639,10 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
           <View style={styles.customSkillModal}>
             <View style={styles.customSkillHeader}>
               <View style={styles.customSkillHeaderText}>
-                <Text style={styles.customSkillTitle}>Add Your Own Skill</Text>
+                <Text style={styles.customSkillTitle}>{t("workerDetails.customSkill.title")}</Text>
 
                 <Text style={styles.customSkillSubtitle}>
-                  Add a skill that isn't listed above
+                  {t("workerDetails.customSkill.subtitle")}
                 </Text>
               </View>
 
@@ -1657,11 +1657,11 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
               </Pressable>
             </View>
 
-            <Text style={styles.customSkillLabel}>Skill Name</Text>
+            <Text style={styles.customSkillLabel}>{t("workerDetails.customSkill.skillName")}</Text>
 
             <TextInput
               style={styles.customSkillInput}
-              placeholder="e.g. Geyser Repair"
+              placeholder={t("workerDetails.customSkill.placeholder")}
               placeholderTextColor="#9CA3AF"
               value={customSkill}
               onChangeText={setCustomSkill}
@@ -1678,7 +1678,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                   setCustomSkillModalVisible(false);
                 }}
               >
-                <Text style={styles.cancelSkillText}>Cancel</Text>
+                <Text style={styles.cancelSkillText}>{t("common.cancel")}</Text>
               </Pressable>
 
               <Pressable
@@ -1687,7 +1687,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
               >
                 <Ionicons name="add" size={18} color="#FFFFFF" />
 
-                <Text style={styles.addSkillButtonText}>Add Skill</Text>
+                <Text style={styles.addSkillButtonText}>{t("workerDetails.customSkill.addSkill")}</Text>
               </Pressable>
             </View>
           </View>
@@ -1711,11 +1711,11 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>
-                  {profilePhoto ? "Change Profile Photo" : "Add Profile Photo"}
+                  {profilePhoto ? t("workerDetails.changeProfilePhoto") : t("workerDetails.addProfilePhoto")}
                 </Text>
 
                 <Text style={styles.modalSubtitle}>
-                  Choose how you'd like to add your photo
+                  {t("workerDetails.choosePhoto")}
                 </Text>
               </View>
 
@@ -1736,9 +1736,9 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                   <Ionicons name="camera-outline" size={28} color="#2563EB" />
                 </View>
 
-                <Text style={styles.modalOptionTitle}>Take Photo</Text>
+                <Text style={styles.modalOptionTitle}>{t("common.takePhoto")}</Text>
 
-                <Text style={styles.modalOptionSubtitle}>Use your camera</Text>
+                <Text style={styles.modalOptionSubtitle}>{t("common.useCameraShort")}</Text>
               </Pressable>
 
               <Pressable
@@ -1749,10 +1749,10 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                   <Ionicons name="images-outline" size={28} color="#2563EB" />
                 </View>
 
-                <Text style={styles.modalOptionTitle}>Choose from Device</Text>
+                <Text style={styles.modalOptionTitle}>{t("common.chooseFromDevice")}</Text>
 
                 <Text style={styles.modalOptionSubtitle}>
-                  Select from your photos
+                  {t("common.selectFromPhotos")}
                 </Text>
               </Pressable>
             </View>
@@ -1761,7 +1761,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
               style={styles.cancelButton}
               onPress={() => setPhotoModalVisible(false)}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>{t("common.cancel")}</Text>
             </Pressable>
           </View>
         </View>
@@ -1786,10 +1786,10 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
 
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderText}>
-                <Text style={styles.modalTitle}>Upload Document</Text>
+                <Text style={styles.modalTitle}>{t("workerDetails.uploadDocument")}</Text>
 
                 <Text style={styles.modalSubtitle}>
-                  Take a clear photo or choose a document
+                  {t("workerDetails.uploadDocumentSubtitle")}
                 </Text>
               </View>
 
@@ -1813,7 +1813,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                   <Ionicons name="camera-outline" size={28} color="#2563EB" />
                 </View>
 
-                <Text style={styles.modalOptionTitle}>Take Photo</Text>
+                <Text style={styles.modalOptionTitle}>{t("common.takePhoto")}</Text>
 
                 <Text style={styles.modalOptionSubtitle}>
                   Capture the document
@@ -1828,7 +1828,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                   <Ionicons name="document-outline" size={28} color="#2563EB" />
                 </View>
 
-                <Text style={styles.modalOptionTitle}>Choose from Device</Text>
+                <Text style={styles.modalOptionTitle}>{t("common.chooseFromDevice")}</Text>
 
                 <Text style={styles.modalOptionSubtitle}>
                   Select an existing image
@@ -1843,7 +1843,7 @@ export default function WorkerDetailsScreen({ navigation, route }: Props) {
                 setSelectedDocument(null);
               }}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>{t("common.cancel")}</Text>
             </Pressable>
           </View>
         </View>
