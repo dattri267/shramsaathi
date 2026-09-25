@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import LanguageButton from "../../components/LanguageButton";
-import { useTranslation } from "react-i18next";
 import * as Location from "expo-location";
+import * as ImagePicker from "expo-image-picker";
 
 import {
   ActivityIndicator,
@@ -31,6 +30,7 @@ import {
   getWorkerBookings,
   getSkillsWithSubskills,
   updateWorkerProfile,
+  uploadWorkerAvatar,
   acceptBooking,
   startBooking,
   completeBooking,
@@ -103,24 +103,6 @@ const DEFAULT_WORKER = {
 ========================================================= */
 
 export default function WorkerDashboard({ navigation, route }: Props) {
-  const { t, i18n } = useTranslation();
-  const translateSkillName = (name: string) => {
-    const normalized = name.trim().toLowerCase();
-    return t(`workerDetails.skillTranslations.${normalized}`, {
-      defaultValue: name,
-    });
-  };
-
-  const translateSubskillName = (name: string) => {
-    const normalized = name.trim().toLowerCase();
-    return t(`workerDetails.skillTranslations.${normalized}`, {
-      defaultValue: name,
-    });
-  };
-
-  const getStatusText = (status: BookingStatus) =>
-    t(`workerDashboard.status.${status}`, { defaultValue: status });
-
   /* =======================================================
      STATE
   ======================================================= */
@@ -143,6 +125,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
 
   const [workerEditVisible, setWorkerEditVisible] = useState(false);
   const [workerEditSaving, setWorkerEditSaving] = useState(false);
+  const [workerEditAvatarUri, setWorkerEditAvatarUri] = useState<string | null>(null);
   const [workerLocationLoading, setWorkerLocationLoading] = useState(false);
 
   const [workerEditName, setWorkerEditName] = useState("");
@@ -242,18 +225,16 @@ export default function WorkerDashboard({ navigation, route }: Props) {
       customerName: item?.customer?.name || "Customer",
       customerPhone: item?.customer?.phone || "",
       service: item?.service?.name || "Service",
-      serviceDescription: item?.customer_notes || t("workerDashboard.serviceRequest", {
-        defaultValue: "Service request",
-      }),
+      serviceDescription: item?.customer_notes || "Service request",
       date: scheduled
-        ? scheduled.toLocaleDateString(i18n.language === "hi" ? "hi-IN" : "en-GB", {
+        ? scheduled.toLocaleDateString("en-GB", {
             day: "2-digit",
             month: "short",
             year: "numeric",
           })
         : "Not scheduled",
       time: scheduled
-        ? scheduled.toLocaleTimeString(i18n.language === "hi" ? "hi-IN" : "en-US", {
+        ? scheduled.toLocaleTimeString("en-US", {
             hour: "2-digit",
             minute: "2-digit",
           })
@@ -293,7 +274,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
     } catch (error) {
       console.error("Failed to load worker dashboard:", error);
       if (!silent) {
-        Alert.alert(t("workerDashboard.alerts.loadDashboardTitle"), error instanceof Error ? error.message : t("workerDashboard.alerts.tryAgain"));
+        Alert.alert(
+          "Unable to load dashboard",
+          error instanceof Error ? error.message : "Please try again.",
+        );
       }
     } finally {
       if (!silent) setLoadingBookings(false);
@@ -332,7 +316,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
         const { status } = await Location.requestForegroundPermissionsAsync();
 
         if (status !== "granted") {
-          Alert.alert(t("workerDashboard.alerts.locationPermissionTitle"), t("workerDashboard.alerts.liveLocationPermissionMessage"));
+          Alert.alert(
+            "Location Permission Required",
+            "Allow location access so the customer can see your live location during an emergency job.",
+          );
           return;
         }
 
@@ -395,7 +382,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
     const phone = booking.customerPhone?.trim();
 
     if (!phone) {
-      Alert.alert(t("workerDashboard.alerts.phoneUnavailableTitle"), t("workerDashboard.alerts.phoneUnavailableMessage"));
+      Alert.alert(
+        "Phone unavailable",
+        "The customer phone number is not available yet.",
+      );
       return;
     }
 
@@ -405,7 +395,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
     if (supported) {
       await Linking.openURL(url);
     } else {
-      Alert.alert(t("workerDashboard.alerts.unableToCallTitle"), t("workerDashboard.alerts.unableToCallMessage"));
+      Alert.alert("Unable to call", "Calling is not supported on this device.");
     }
   };
 
@@ -424,7 +414,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
     if (supported) {
       await Linking.openURL(url);
     } else {
-      Alert.alert(t("workerDashboard.alerts.unableToOpenMapsTitle"), t("workerDashboard.alerts.unableToOpenMapsMessage"));
+      Alert.alert(
+        "Unable to open Maps",
+        "Google Maps could not be opened on this device.",
+      );
     }
   };
 
@@ -499,21 +492,25 @@ export default function WorkerDashboard({ navigation, route }: Props) {
 
   const handleAcceptBooking = (booking: Booking) => {
     Alert.alert(
-      t("workerDashboard.alerts.acceptBookingTitle"),
-      t("workerDashboard.alerts.acceptBookingMessage", { service: translateSkillName(booking.service), customer: booking.customerName }),
+      "Accept Booking",
+      `Accept ${booking.service} request from ${booking.customerName}?`,
       [
-        { text: t("common.cancel"), style: "cancel" },
+        { text: "Cancel", style: "cancel" },
         {
-          text: t("workerDashboard.accept"),
+          text: "Accept",
           onPress: async () => {
             try {
               await acceptBooking(booking.id);
               await loadWorkerDashboard();
               setDetailsVisible(false);
-              Alert.alert(t("workerDashboard.alerts.bookingAcceptedTitle"), t("workerDashboard.alerts.bookingAcceptedMessage"),
+              Alert.alert(
+                "Booking Accepted",
+                "The customer has been notified that you accepted the job.",
               );
             } catch (error) {
-              Alert.alert(t("workerDashboard.alerts.unableToAcceptTitle"), error instanceof Error ? error.message : t("workerDashboard.alerts.tryAgain"),
+              Alert.alert(
+                "Unable to accept",
+                error instanceof Error ? error.message : "Please try again.",
               );
             }
           },
@@ -527,11 +524,13 @@ export default function WorkerDashboard({ navigation, route }: Props) {
   ======================================================= */
 
   const handleRejectBooking = (booking: Booking) => {
-    Alert.alert(t("workerDashboard.alerts.rejectBookingTitle"), t("workerDashboard.alerts.rejectBookingMessage"),
+    Alert.alert(
+      "Reject Booking",
+      "Are you sure you want to reject this request?",
       [
-        { text: t("common.cancel"), style: "cancel" },
+        { text: "Cancel", style: "cancel" },
         {
-          text: t("workerDashboard.reject"),
+          text: "Reject",
           style: "destructive",
           onPress: async () => {
             try {
@@ -541,10 +540,14 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               );
               setSelectedBooking(null);
               setDetailsVisible(false);
-              Alert.alert(t("workerDashboard.alerts.requestRejectedTitle"), t("workerDashboard.alerts.requestRejectedMessage"),
+              Alert.alert(
+                "Request Rejected",
+                "The request has been removed from your incoming requests.",
               );
             } catch (error) {
-              Alert.alert(t("workerDashboard.alerts.unableToRejectTitle"), error instanceof Error ? error.message : t("workerDashboard.alerts.tryAgain"),
+              Alert.alert(
+                "Unable to reject",
+                error instanceof Error ? error.message : "Please try again.",
               );
             }
           },
@@ -558,18 +561,20 @@ export default function WorkerDashboard({ navigation, route }: Props) {
   ======================================================= */
 
   const handleStartJob = (booking: Booking) => {
-    Alert.alert(t("workerDashboard.alerts.startJobTitle"), t("workerDashboard.alerts.startJobMessage"), [
-      { text: t("common.cancel"), style: "cancel" },
+    Alert.alert("Start Job", "Are you ready to start this service?", [
+      { text: "Cancel", style: "cancel" },
       {
-        text: t("workerDashboard.startJob"),
+        text: "Start Job",
         onPress: async () => {
           try {
             await startBooking(booking.id);
             await loadWorkerDashboard();
             setDetailsVisible(false);
-            Alert.alert(t("workerDashboard.alerts.jobStartedTitle"), t("workerDashboard.alerts.jobStartedMessage"));
+            Alert.alert("Job Started", "The job has been marked as started.");
           } catch (error) {
-            Alert.alert(t("workerDashboard.alerts.unableToStartTitle"), error instanceof Error ? error.message : t("workerDashboard.alerts.tryAgain"),
+            Alert.alert(
+              "Unable to start job",
+              error instanceof Error ? error.message : "Please try again.",
             );
           }
         },
@@ -583,20 +588,25 @@ export default function WorkerDashboard({ navigation, route }: Props) {
 
   const handleCompleteJob = (booking: Booking) => {
     Alert.alert(
-      t("workerDashboard.alerts.completeJobTitle"),
-      t("workerDashboard.alerts.completeJobMessage"),
+      "Complete Job",
+      "Confirm that you have completed this service?",
       [
-        { text: t("common.cancel"), style: "cancel" },
+        { text: "Cancel", style: "cancel" },
         {
-          text: t("workerDashboard.complete"),
+          text: "Complete",
           onPress: async () => {
             try {
               await completeBooking(booking.id, booking.amount);
               await loadWorkerDashboard();
               setDetailsVisible(false);
-              Alert.alert(t("workerDashboard.alerts.workCompletedTitle"), t("workerDashboard.alerts.workCompletedMessage"));
+              Alert.alert(
+                "Work Completed",
+                "The customer has been notified to complete the payment.",
+              );
             } catch (error) {
-              Alert.alert(t("workerDashboard.alerts.unableToCompleteTitle"), error instanceof Error ? error.message : t("workerDashboard.alerts.tryAgain"),
+              Alert.alert(
+                "Unable to complete job",
+                error instanceof Error ? error.message : "Please try again.",
               );
             }
           },
@@ -619,7 +629,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
   ======================================================= */
 
   const handleLogout = () => {
-    Alert.alert(t("common.logout"), t("common.logoutConfirm"), [
+    Alert.alert("Logout", "Are you sure you want to logout?", [
       {
         text: "Cancel",
         style: "cancel",
@@ -635,6 +645,38 @@ export default function WorkerDashboard({ navigation, route }: Props) {
         },
       },
     ]);
+  };
+
+  /* =======================================================
+     STATUS HELPERS
+  ======================================================= */
+
+  const getStatusText = (status: BookingStatus) => {
+    switch (status) {
+      case "pending":
+        return "New Request";
+
+      case "accepted":
+        return "Accepted";
+
+      case "started":
+        return "Work In Progress";
+
+      case "completed":
+        return "Completed";
+
+      case "payment_pending":
+        return "Payment Pending";
+
+      case "paid":
+        return "Payment Received";
+
+      case "rejected":
+        return "Rejected";
+
+      default:
+        return "Unknown";
+    }
   };
 
   const getStatusColor = (status: BookingStatus) => {
@@ -699,7 +741,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               {booking.customerName}
             </Text>
 
-            <Text style={styles.serviceName}>{translateSkillName(booking.service)}</Text>
+            <Text style={styles.serviceName}>{booking.service}</Text>
           </View>
 
           <View
@@ -727,7 +769,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
           <View style={styles.emergencyRequestBanner}>
             <Ionicons name="flash" size={16} color="#DC2626" />
             <Text style={styles.emergencyRequestText}>
-              {t("workerDashboard.emergencyBanner")}
+              EMERGENCY REQUEST • RESPOND IMMEDIATELY
             </Text>
           </View>
         )}
@@ -768,7 +810,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
 
         <View style={styles.moneyRow}>
           <View>
-            <Text style={styles.moneyLabel}>{t("workerDashboard.customerPayment")}</Text>
+            <Text style={styles.moneyLabel}>Customer pays</Text>
 
             <Text style={styles.moneyAmount}>
               ₹{formatMoney(booking.amount)}
@@ -778,7 +820,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
           <View style={styles.moneyDivider} />
 
           <View>
-            <Text style={styles.moneyLabel}>{t("workerDashboard.yourEarning")}</Text>
+            <Text style={styles.moneyLabel}>Your earning</Text>
 
             <Text style={styles.workerAmount}>
               ₹{formatMoney(booking.workerEarning)}
@@ -794,7 +836,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
             <Ionicons name="time-outline" size={17} color="#EA580C" />
 
             <Text style={styles.paymentPendingText}>
-              {t("workerDashboard.waitingCustomerPaymentTitle")}
+              Waiting for customer payment
             </Text>
           </View>
         )}
@@ -804,7 +846,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
             <Ionicons name="checkmark-circle" size={17} color="#16A34A" />
 
             <Text style={styles.paymentReceivedText}>
-              {t("workerDashboard.paymentReceivedShort", { amount: formatMoney(booking.workerEarning) })}
+              Payment received • ₹{formatMoney(booking.workerEarning)}
             </Text>
           </View>
         )}
@@ -825,7 +867,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               }}
             >
               <Ionicons name="call-outline" size={17} color="#2563EB" />
-              <Text style={styles.contactButtonText}>{t("workerDashboard.callCustomer")}</Text>
+              <Text style={styles.contactButtonText}>Call Customer</Text>
             </Pressable>
 
             <Pressable
@@ -836,7 +878,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               }}
             >
               <Ionicons name="map-outline" size={17} color="#2563EB" />
-              <Text style={styles.contactButtonText}>{t("workerDashboard.openMaps")}</Text>
+              <Text style={styles.contactButtonText}>Open Maps</Text>
             </Pressable>
           </View>
         )}
@@ -852,7 +894,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                 handleRejectBooking(booking);
               }}
             >
-              <Text style={styles.rejectButtonText}>{t("workerDashboard.decline")}</Text>
+              <Text style={styles.rejectButtonText}>Decline</Text>
             </Pressable>
 
             <Pressable
@@ -862,7 +904,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                 handleAcceptBooking(booking);
               }}
             >
-              <Text style={styles.acceptButtonText}>{t("workerDashboard.accept")}</Text>
+              <Text style={styles.acceptButtonText}>Accept</Text>
             </Pressable>
           </View>
         )}
@@ -879,7 +921,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
           >
             <Ionicons name="play" size={17} color="#FFFFFF" />
 
-            <Text style={styles.startButtonText}>{t("workerDashboard.startJob")}</Text>
+            <Text style={styles.startButtonText}>Start Job</Text>
           </Pressable>
         )}
 
@@ -899,7 +941,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               color="#FFFFFF"
             />
 
-            <Text style={styles.completeButtonText}>{t("workerDashboard.markWorkCompleted")}</Text>
+            <Text style={styles.completeButtonText}>Mark Work Completed</Text>
           </Pressable>
         )}
       </Pressable>
@@ -920,13 +962,13 @@ export default function WorkerDashboard({ navigation, route }: Props) {
 
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.welcomeText}>{t("workerDashboard.welcome")} 👋</Text>
+            <Text style={styles.welcomeText}>Welcome back 👋</Text>
 
             <Text style={styles.workerName}>{WORKER.name}</Text>
 
             <View style={styles.workerSkillRow}>
               <View style={styles.skillBadge}>
-                <Text style={styles.skillBadgeText}>{translateSkillName(WORKER.skill)}</Text>
+                <Text style={styles.skillBadgeText}>{WORKER.skill}</Text>
               </View>
 
               <Ionicons name="star" size={15} color="#F59E0B" />
@@ -960,10 +1002,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
           </View>
 
           <View style={styles.availabilityContent}>
-            <Text style={styles.availabilityTitle}>{t("workerDashboard.youAreAvailable")}</Text>
+            <Text style={styles.availabilityTitle}>You're available</Text>
 
             <Text style={styles.availabilitySubtitle}>
-              {t("workerDashboard.customersCanRequest")}
+              Customers can request your services
             </Text>
           </View>
 
@@ -980,7 +1022,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
 
             <Text style={styles.statValue}>{pendingRequests.length}</Text>
 
-            <Text style={styles.statLabel}>{t("workerDashboard.newRequests")}</Text>
+            <Text style={styles.statLabel}>New Requests</Text>
           </View>
 
           <View style={styles.statCard}>
@@ -990,7 +1032,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
 
             <Text style={styles.statValue}>{activeJobs.length}</Text>
 
-            <Text style={styles.statLabel}>{t("workerDashboard.activeJobs")}</Text>
+            <Text style={styles.statLabel}>Active Jobs</Text>
           </View>
 
           <View style={styles.statCard}>
@@ -1000,7 +1042,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
 
             <Text style={styles.statValue}>₹{formatMoney(totalEarnings)}</Text>
 
-            <Text style={styles.statLabel}>{t("workerDashboard.earnings")}</Text>
+            <Text style={styles.statLabel}>Earnings</Text>
           </View>
         </View>
 
@@ -1008,16 +1050,16 @@ export default function WorkerDashboard({ navigation, route }: Props) {
 
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>{t("workerDashboard.newRequests")}</Text>
+            <Text style={styles.sectionTitle}>New Requests</Text>
 
             <Text style={styles.sectionSubtitle}>
-              {t("workerDashboard.customersLooking")}
+              Customers looking for your service
             </Text>
           </View>
 
           {pendingRequests.length > 0 && (
             <Pressable onPress={() => setActiveTab("requests")}>
-              <Text style={styles.viewAllText}>{t("workerDashboard.viewAll")}</Text>
+              <Text style={styles.viewAllText}>View All</Text>
             </Pressable>
           )}
         </View>
@@ -1032,10 +1074,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               />
             </View>
 
-            <Text style={styles.emptyTitle}>{t("workerDashboard.noNewRequests")}</Text>
+            <Text style={styles.emptyTitle}>No new requests</Text>
 
             <Text style={styles.emptySubtitle}>
-              {t("workerDashboard.newRequestsAppear")}
+              New customer requests will appear here.
             </Text>
           </View>
         ) : (
@@ -1053,10 +1095,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
           ]}
         >
           <View>
-            <Text style={styles.sectionTitle}>{t("workerDashboard.activeJobs")}</Text>
+            <Text style={styles.sectionTitle}>Active Jobs</Text>
 
             <Text style={styles.sectionSubtitle}>
-              {t("workerDashboard.upcomingOngoing")}
+              Your upcoming and ongoing services
             </Text>
           </View>
         </View>
@@ -1067,10 +1109,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               <Ionicons name="briefcase-outline" size={28} color="#2563EB" />
             </View>
 
-            <Text style={styles.emptyTitle}>{t("workerDashboard.noActiveJobs")}</Text>
+            <Text style={styles.emptyTitle}>No active jobs</Text>
 
             <Text style={styles.emptySubtitle}>
-              {t("workerDashboard.acceptedJobsAppear")}
+              Accepted jobs will appear here.
             </Text>
           </View>
         ) : (
@@ -1089,10 +1131,11 @@ export default function WorkerDashboard({ navigation, route }: Props) {
           </View>
 
           <View style={styles.earningInfoContent}>
-            <Text style={styles.earningInfoTitle}>{t("workerDashboard.securePayments")}</Text>
+            <Text style={styles.earningInfoTitle}>Secure payments</Text>
 
             <Text style={styles.earningInfoText}>
-              {t("workerDashboard.securePaymentsText")}
+              You receive your earning only after the customer completes
+              payment. Platform commission is deducted automatically.
             </Text>
           </View>
         </View>
@@ -1111,10 +1154,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.pageHeader}>
-          <Text style={styles.pageTitle}>{t("workerDashboard.bookingRequests")}</Text>
+          <Text style={styles.pageTitle}>Booking Requests</Text>
 
           <Text style={styles.pageSubtitle}>
-            {t("workerDashboard.reviewManageRequests")}
+            Review and manage customer requests
           </Text>
         </View>
 
@@ -1125,15 +1168,16 @@ export default function WorkerDashboard({ navigation, route }: Props) {
 
           <View style={styles.requestCountContent}>
             <Text style={styles.requestCountTitle}>
-              {t("workerDashboard.newRequestsCount", { count: pendingRequests.length })}
+              {pendingRequests.length} new request
+              {pendingRequests.length !== 1 ? "s" : ""}
             </Text>
 
             <Text style={styles.requestCountSubtitle}>
               {pendingRequests.some(
                 (request) => request.bookingType === "emergency",
               )
-                ? t("workerDashboard.emergencyImmediate")
-                : t("workerDashboard.respondToGrow")}
+                ? "Emergency requests need immediate response"
+                : "Respond to requests to grow your earnings"}
             </Text>
           </View>
         </View>
@@ -1148,10 +1192,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               />
             </View>
 
-            <Text style={styles.largeEmptyTitle}>{t("workerDashboard.allCaughtUp")}</Text>
+            <Text style={styles.largeEmptyTitle}>You're all caught up</Text>
 
             <Text style={styles.largeEmptySubtitle}>
-              {t("workerDashboard.noPendingRequests")}
+              There are no pending booking requests right now.
             </Text>
           </View>
         ) : (
@@ -1172,10 +1216,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.pageHeader}>
-          <Text style={styles.pageTitle}>{t("workerDashboard.earnings")}</Text>
+          <Text style={styles.pageTitle}>Earnings</Text>
 
           <Text style={styles.pageSubtitle}>
-            {t("workerDashboard.trackPayments")}
+            Track your completed service payments
           </Text>
         </View>
 
@@ -1186,14 +1230,15 @@ export default function WorkerDashboard({ navigation, route }: Props) {
             <Ionicons name="wallet-outline" size={27} color="#FFFFFF" />
           </View>
 
-          <Text style={styles.totalEarningsLabel}>{t("workerDashboard.availableEarnings")}</Text>
+          <Text style={styles.totalEarningsLabel}>Available Earnings</Text>
 
           <Text style={styles.totalEarningsAmount}>
             ₹{formatMoney(totalEarnings)}
           </Text>
 
           <Text style={styles.totalEarningsSubtext}>
-            {t("workerDashboard.fromPaidJobs", { count: completedPaidJobs.length })}
+            From {completedPaidJobs.length} paid job
+            {completedPaidJobs.length !== 1 ? "s" : ""}
           </Text>
         </View>
 
@@ -1205,14 +1250,14 @@ export default function WorkerDashboard({ navigation, route }: Props) {
           </View>
 
           <View style={styles.pendingEarningsContent}>
-            <Text style={styles.pendingEarningsTitle}>{t("workerDashboard.paymentPending")}</Text>
+            <Text style={styles.pendingEarningsTitle}>Payment Pending</Text>
 
             <Text style={styles.pendingEarningsAmount}>
               ₹{formatMoney(pendingEarnings)}
             </Text>
 
             <Text style={styles.pendingEarningsSubtitle}>
-              {t("workerDashboard.waitingCustomerPayment")}
+              Waiting for customers to complete payment
             </Text>
           </View>
         </View>
@@ -1229,21 +1274,25 @@ export default function WorkerDashboard({ navigation, route }: Props) {
           </View>
 
           <View style={styles.commissionContent}>
-            <Text style={styles.commissionTitle}>{t("workerDashboard.howEarningsWork")}</Text>
+            <Text style={styles.commissionTitle}>How your earnings work</Text>
 
             <Text style={styles.commissionText}>
-              {t("workerDashboard.earningsFlow")}
+              Customer payment → platform commission → your final earning.
             </Text>
 
             <Text style={styles.commissionExample}>
-              {t("workerDashboard.earningsExample")}
+              Example: ₹800 customer payment
+              {"\n"}
+              ₹80 platform commission
+              {"\n"}
+              ₹720 worker earning
             </Text>
           </View>
         </View>
 
         {/* PAYMENT HISTORY */}
 
-        <Text style={styles.historyTitle}>{t("workerDashboard.paymentHistory")}</Text>
+        <Text style={styles.historyTitle}>Payment History</Text>
 
         {completedPaidJobs.length === 0 ? (
           <View style={styles.emptyCard}>
@@ -1251,10 +1300,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               <Ionicons name="receipt-outline" size={28} color="#2563EB" />
             </View>
 
-            <Text style={styles.emptyTitle}>{t("workerDashboard.noPaymentHistory")}</Text>
+            <Text style={styles.emptyTitle}>No payment history</Text>
 
             <Text style={styles.emptySubtitle}>
-              {t("workerDashboard.completedPaymentsAppear")}
+              Your completed payments will appear here.
             </Text>
           </View>
         ) : (
@@ -1265,7 +1314,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               </View>
 
               <View style={styles.historyContent}>
-                <Text style={styles.historyService}>{translateSkillName(booking.service)}</Text>
+                <Text style={styles.historyService}>{booking.service}</Text>
 
                 <Text style={styles.historyCustomer}>
                   {booking.customerName}
@@ -1279,7 +1328,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                   +₹{formatMoney(booking.workerEarning)}
                 </Text>
 
-                <Text style={styles.paidText}>{t("workerDashboard.paid")}</Text>
+                <Text style={styles.paidText}>Paid</Text>
               </View>
             </View>
           ))
@@ -1313,14 +1362,14 @@ export default function WorkerDashboard({ navigation, route }: Props) {
     if (!Array.isArray(hours) || hours.length === 0) {
       return "Preferred hours not set";
     }
-    return hours.map((hour: string) => t(`workerDetails.hours.${hour}`, { defaultValue: hour })).join(", ");
+    return hours.join(", ");
   };
 
   const formatWorkingDays = (days: any) => {
     if (!Array.isArray(days) || days.length === 0) {
-      return t("workerDashboard.workingDaysNotSet");
+      return "Working days not set";
     }
-    return days.map((day: string) => t(`workerDetails.days.${day}`, { defaultValue: day })).join(", ");
+    return days.join(", ");
   };
 
   /* =======================================================
@@ -1340,6 +1389,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
     const address = backend?.service_address || {};
     const location = backend?.location || {};
 
+    setWorkerEditAvatarUri(workerProfile?.avatar_url || null);
     setWorkerEditName(workerProfile?.full_name || workerFromRoute?.name || "");
     setWorkerEditPhone(workerProfile?.phone || workerFromRoute?.phone || "");
     setWorkerEditBio(backend?.bio || "");
@@ -1394,13 +1444,45 @@ export default function WorkerDashboard({ navigation, route }: Props) {
     setWorkerEditVisible(true);
   };
 
+  const handlePickWorkerProfilePicture = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please allow photo library access to change your profile picture.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setWorkerEditAvatarUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Worker profile picture picker error:", error);
+      Alert.alert(
+        "Unable to Select Photo",
+        "Please try again.",
+      );
+    }
+  };
+
   const handleWorkerEditCurrentLocation = async () => {
     setWorkerLocationLoading(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
 
       if (status !== "granted") {
-        Alert.alert(t("workerDashboard.alerts.locationPermissionTitle"), t("workerDashboard.alerts.locationPermissionMessage"),
+        Alert.alert(
+          "Location Permission Required",
+          "Please allow location access so ShramSaathi can automatically fill your service address.",
         );
         return;
       }
@@ -1419,7 +1501,9 @@ export default function WorkerDashboard({ navigation, route }: Props) {
       });
 
       if (addresses.length === 0) {
-        Alert.alert(t("workerDashboard.alerts.addressNotFoundTitle"), t("workerDashboard.alerts.addressNotFoundMessage"),
+        Alert.alert(
+          "Address Not Found",
+          "We could not determine your address. Please enter it manually.",
         );
         return;
       }
@@ -1435,11 +1519,15 @@ export default function WorkerDashboard({ navigation, route }: Props) {
       setWorkerEditState(currentAddress.region || "");
       setWorkerEditPincode(currentAddress.postalCode || "");
 
-      Alert.alert(t("workerDashboard.alerts.locationFoundTitle"), t("workerDashboard.alerts.locationFoundMessage"),
+      Alert.alert(
+        "Location Found",
+        "Address fields have been filled from your current location. Please verify them and save.",
       );
     } catch (error) {
       console.error("Worker address location error:", error);
-      Alert.alert(t("workerDashboard.alerts.locationErrorTitle"), t("workerDashboard.alerts.locationErrorMessage"),
+      Alert.alert(
+        "Location Error",
+        "Unable to fetch your current location. Please enter your address manually.",
       );
     } finally {
       setWorkerLocationLoading(false);
@@ -1452,12 +1540,14 @@ export default function WorkerDashboard({ navigation, route }: Props) {
     const pincode = workerEditPincode.trim();
 
     if (name.length < 2) {
-      Alert.alert(t("workerDashboard.alerts.invalidNameTitle"), t("workerDashboard.alerts.invalidNameMessage"));
+      Alert.alert("Invalid Name", "Please enter your full name.");
       return;
     }
 
     if (!/^\d{10}$/.test(phone)) {
-      Alert.alert(t("workerDashboard.alerts.invalidMobileTitle"), t("workerDashboard.alerts.invalidMobileMessage"),
+      Alert.alert(
+        "Invalid Mobile Number",
+        "Please enter a valid 10-digit mobile number.",
       );
       return;
     }
@@ -1469,13 +1559,17 @@ export default function WorkerDashboard({ navigation, route }: Props) {
       !workerEditState.trim() ||
       !/^\d{6}$/.test(pincode)
     ) {
-      Alert.alert(t("workerDashboard.alerts.incompleteAddressTitle"), t("workerDashboard.alerts.incompleteAddressMessage"),
+      Alert.alert(
+        "Incomplete Address",
+        "Please fill in house, locality, city, state and a valid 6-digit PIN code.",
       );
       return;
     }
 
     if (workerEditLatitude === null || workerEditLongitude === null) {
-      Alert.alert(t("workerDashboard.alerts.locationRequiredTitle"), t("workerDashboard.alerts.locationRequiredMessage"),
+      Alert.alert(
+        "Location Required",
+        'Please use "Current Location" before saving your service address.',
       );
       return;
     }
@@ -1487,13 +1581,17 @@ export default function WorkerDashboard({ navigation, route }: Props) {
       workerEditExperience.trim() &&
       (!Number.isFinite(experience) || experience < 0 || experience > 60)
     ) {
-      Alert.alert(t("workerDashboard.alerts.invalidExperienceTitle"), t("workerDashboard.alerts.invalidExperienceMessage"),
+      Alert.alert(
+        "Invalid Experience",
+        "Years of experience must be between 0 and 60.",
       );
       return;
     }
 
     if (workerEditRadius.trim() && (!Number.isFinite(radius) || radius <= 0)) {
-      Alert.alert(t("workerDashboard.alerts.invalidRadiusTitle"), t("workerDashboard.alerts.invalidRadiusMessage"),
+      Alert.alert(
+        "Invalid Service Radius",
+        "Service radius must be greater than 0.",
       );
       return;
     }
@@ -1517,13 +1615,17 @@ export default function WorkerDashboard({ navigation, route }: Props) {
       (Array.isArray(workerBackend?.skills) ? workerBackend.skills[0] : null);
 
     if (!primarySkillRecord?.id) {
-      Alert.alert(t("workerDashboard.alerts.primarySkillUnavailableTitle"), t("workerDashboard.alerts.primarySkillUnavailableMessage"),
+      Alert.alert(
+        "Primary Skill Unavailable",
+        "Your saved primary skill could not be found. Please try again.",
       );
       return;
     }
 
     if (!workerEditSubskillId) {
-      Alert.alert(t("workerDashboard.alerts.selectSubskillTitle"), t("workerDashboard.alerts.selectSubskillMessage"),
+      Alert.alert(
+        "Select Subskill",
+        "Please select a subskill under your primary skill.",
       );
       return;
     }
@@ -1537,7 +1639,9 @@ export default function WorkerDashboard({ navigation, route }: Props) {
       (!selectedSubskill ||
         String(selectedSubskill.skill_id) !== String(primarySkillRecord.id))
     ) {
-      Alert.alert(t("workerDashboard.alerts.invalidSubskillTitle"), t("workerDashboard.alerts.invalidSubskillMessage"),
+      Alert.alert(
+        "Invalid Subskill",
+        "Please select a subskill that belongs to your primary skill.",
       );
       return;
     }
@@ -1555,9 +1659,40 @@ export default function WorkerDashboard({ navigation, route }: Props) {
     try {
       setWorkerEditSaving(true);
 
+      let avatarUrl: string | null = null;
+
+      if (
+        workerEditAvatarUri &&
+        workerEditAvatarUri !== workerProfile?.avatar_url &&
+        !workerEditAvatarUri.startsWith("http://") &&
+        !workerEditAvatarUri.startsWith("https://")
+      ) {
+        const avatarResult = await uploadWorkerAvatar(
+          workerEditAvatarUri,
+          "worker-profile.jpg",
+          "image/jpeg",
+        );
+
+        avatarUrl =
+          avatarResult?.avatar?.avatar_url ||
+          avatarResult?.avatar_url ||
+          avatarResult?.public_url ||
+          avatarResult?.url ||
+          avatarResult?.profile?.avatar_url ||
+          avatarResult?.data?.public_url ||
+          null;
+
+        if (!avatarUrl) {
+          throw new Error(
+            "Profile photo was uploaded, but the server did not return a photo URL.",
+          );
+        }
+      }
+
       await updateWorkerProfile({
         full_name: name,
         phone,
+        ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
         bio: workerEditBio.trim(),
         primary_skill_id: primarySkillRecord.id,
         primary_subskill_id: workerEditSubskillId,
@@ -1580,15 +1715,17 @@ export default function WorkerDashboard({ navigation, route }: Props) {
       setWorkerEditVisible(false);
       await loadWorkerDashboard(true);
 
-      Alert.alert(t("workerDashboard.alerts.profileUpdatedTitle"), t("workerDashboard.alerts.profileUpdatedMessage"),
+      Alert.alert(
+        "Profile Updated",
+        "Your worker profile has been updated successfully.",
       );
     } catch (error) {
       console.error("Worker profile update error:", error);
       Alert.alert(
-        t("workerDashboard.alerts.updateProfileTitle"),
+        "Unable to Update Profile",
         error instanceof Error
           ? error.message
-          : t("workerDashboard.alerts.updateProfileMessage"),
+          : "Something went wrong while saving your profile.",
       );
     } finally {
       setWorkerEditSaving(false);
@@ -1603,28 +1740,28 @@ export default function WorkerDashboard({ navigation, route }: Props) {
       ? skills
           .map(
             (skill: any) =>
-              `${translateSkillName(skill.name)}${skill.years_experience != null ? ` (${skill.years_experience} yrs)` : ""}${skill.is_primary ? ` • ${t("workerDashboard.primary")}` : ""}`,
+              `${skill.name}${skill.years_experience != null ? ` (${skill.years_experience} yrs)` : ""}${skill.is_primary ? " • Primary" : ""}`,
           )
           .join("\n")
       : "No skills available";
 
     Alert.alert(
-      t("workerDashboard.professionalProfile"),
-      `${t("workerDashboard.skillsLabel")}:\n${skillText}\n\n${t("workerDashboard.experienceLabel")}: ${WORKER.yearsExperience != null ? `${WORKER.yearsExperience} ${t("workerDashboard.years")}` : t("workerDashboard.notProvided")}\n\n${t("workerDashboard.descriptionLabel")}:\n${WORKER.bio || t("workerDashboard.noDescription")}`,
+      "Professional Profile",
+      `Skills:\n${skillText}\n\nExperience: ${WORKER.yearsExperience != null ? `${WORKER.yearsExperience} years` : "Not provided"}\n\nDescription:\n${WORKER.bio || "No description provided."}`,
     );
   };
 
   const showServiceArea = () => {
     Alert.alert(
-      t("workerDashboard.serviceArea"),
-      `${t("workerDashboard.workLocation")}:\n${workerAddressText}\n\n${t("workerDashboard.serviceRadiusLabel")}: ${WORKER.serviceRadiusKm != null ? `${WORKER.serviceRadiusKm} km` : t("workerDashboard.notSet")}\n\n${t("workerDashboard.coordinatesLabel")}: ${workerBackend?.location?.latitude != null && workerBackend?.location?.longitude != null ? `${workerBackend.location.latitude}, ${workerBackend.location.longitude}` : t("common.notAvailable")}`,
+      "Service Area",
+      `Work location:\n${workerAddressText}\n\nService radius: ${WORKER.serviceRadiusKm != null ? `${WORKER.serviceRadiusKm} km` : "Not set"}\n\nCoordinates: ${workerBackend?.location?.latitude != null && workerBackend?.location?.longitude != null ? `${workerBackend.location.latitude}, ${workerBackend.location.longitude}` : "Not available"}`,
     );
   };
 
   const showAvailability = () => {
     Alert.alert(
-      t("workerDashboard.availability"),
-      `${t("workerDashboard.workingDays")}:\n${formatWorkingDays(WORKER.workingDays)}\n\n${t("workerDashboard.preferredHours")}:\n${formatWorkingHours(WORKER.workingHours)}`,
+      "Availability",
+      `Working days:\n${formatWorkingDays(WORKER.workingDays)}\n\nPreferred hours:\n${formatWorkingHours(WORKER.workingHours)}`,
     );
   };
 
@@ -1632,7 +1769,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
     const documents = Array.isArray(WORKER.documents) ? WORKER.documents : [];
 
     if (documents.length === 0) {
-      Alert.alert(t("workerDashboard.alerts.verificationTitle"), t("workerDashboard.alerts.noVerificationDocuments"));
+      Alert.alert("Verification", "No verification documents found.");
       return;
     }
 
@@ -1642,7 +1779,9 @@ export default function WorkerDashboard({ navigation, route }: Props) {
         const url = doc.public_url || doc.url;
 
         if (!url) {
-          Alert.alert(t("workerDashboard.alerts.documentUnavailableTitle"), t("workerDashboard.alerts.documentUnavailableMessage"),
+          Alert.alert(
+            "Document Unavailable",
+            "This document does not have a viewable URL.",
           );
           return;
         }
@@ -1653,20 +1792,24 @@ export default function WorkerDashboard({ navigation, route }: Props) {
           if (supported) {
             await Linking.openURL(url);
           } else {
-            Alert.alert(t("workerDashboard.alerts.unableToOpenDocumentTitle"), t("workerDashboard.alerts.unableToOpenDocumentMessage"),
+            Alert.alert(
+              "Unable to Open Document",
+              "This document could not be opened on this device.",
             );
           }
         } catch (error) {
           console.error("Document open error:", error);
-          Alert.alert(t("workerDashboard.alerts.unableToOpenDocumentTitle"), t("workerDashboard.alerts.unableToOpenDocumentMessage"),
+          Alert.alert(
+            "Unable to Open Document",
+            "This document could not be opened on this device.",
           );
         }
       },
     }));
 
     Alert.alert(
-      t("workerDashboard.verificationDocuments"),
-      `${t("workerDashboard.documentsOnFile", { count: documents.length })}.\n\n${documents
+      "Verification Documents",
+      `${documents.length} document${documents.length === 1 ? "" : "s"} on file.\n\n${documents
         .map((doc: any) => `• ${doc.title || doc.file_type || "Document"}`)
         .join("\n")}`,
       buttons,
@@ -1676,22 +1819,21 @@ export default function WorkerDashboard({ navigation, route }: Props) {
   const renderProfile = () => {
     return (
       <>
-        <LanguageButton />
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
           <View style={styles.pageHeader}>
-            <Text style={styles.pageTitle}>{t("workerDashboard.myProfile")}</Text>
+            <Text style={styles.pageTitle}>My Profile</Text>
 
-            <Text style={styles.pageSubtitle}>{t("workerDashboard.manageAccount")}</Text>
+            <Text style={styles.pageSubtitle}>Manage your worker account</Text>
 
             <Pressable
               style={styles.profileEditButton}
               onPress={openWorkerEdit}
             >
               <Ionicons name="create-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.profileEditButtonText}>{t("workerDashboard.editProfile")}</Text>
+              <Text style={styles.profileEditButtonText}>Edit Profile</Text>
             </Pressable>
           </View>
 
@@ -1711,19 +1853,19 @@ export default function WorkerDashboard({ navigation, route }: Props) {
 
             <Text style={styles.profileName}>{WORKER.name}</Text>
 
-            <Text style={styles.profileSkill}>{translateSkillName(WORKER.skill)}</Text>
+            <Text style={styles.profileSkill}>{WORKER.skill}</Text>
 
             <View style={styles.profileRating}>
               <Ionicons name="star" size={16} color="#F59E0B" />
 
               <Text style={styles.profileRatingText}>
-                {WORKER.rating} {t("workerDashboard.rating")}
+                {WORKER.rating} rating
               </Text>
 
               <Text style={styles.profileDivider}>•</Text>
 
               <Text style={styles.profileJobs}>
-                {WORKER.completedJobs} {t("workerDashboard.jobsCompleted")}
+                {WORKER.completedJobs} jobs completed
               </Text>
             </View>
           </View>
@@ -1741,14 +1883,14 @@ export default function WorkerDashboard({ navigation, route }: Props) {
 
               <View style={styles.profileOptionContent}>
                 <Text style={styles.profileOptionTitle}>
-                  {t("workerDashboard.professionalProfile")}
+                  Professional Profile
                 </Text>
 
                 <Text style={styles.profileOptionSubtitle} numberOfLines={2}>
-                  {translateSkillName(WORKER.skill)} •{" "}
+                  {WORKER.skill} •{" "}
                   {WORKER.yearsExperience != null
                     ? `${WORKER.yearsExperience} years experience`
-                    : t("workerDashboard.experienceNotSet")}
+                    : "Experience not set"}
                 </Text>
               </View>
 
@@ -1761,13 +1903,13 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               </View>
 
               <View style={styles.profileOptionContent}>
-                <Text style={styles.profileOptionTitle}>{t("workerDashboard.serviceArea")}</Text>
+                <Text style={styles.profileOptionTitle}>Service Area</Text>
 
                 <Text style={styles.profileOptionSubtitle} numberOfLines={2}>
                   {workerAddressText} •{" "}
                   {WORKER.serviceRadiusKm != null
                     ? `${WORKER.serviceRadiusKm} km radius`
-                    : t("workerDashboard.radiusNotSet")}
+                    : "Radius not set"}
                 </Text>
               </View>
 
@@ -1780,12 +1922,12 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               </View>
 
               <View style={styles.profileOptionContent}>
-                <Text style={styles.profileOptionTitle}>{t("workerDashboard.availability")}</Text>
+                <Text style={styles.profileOptionTitle}>Availability</Text>
 
                 <Text style={styles.profileOptionSubtitle} numberOfLines={2}>
                   {WORKER.workingDays?.length
-                    ? `${formatWorkingDays(WORKER.workingDays)}`
-                    : t("workerDashboard.workingDaysNotSet")}
+                    ? `${WORKER.workingDays.join(", ")}`
+                    : "Working days not set"}
                 </Text>
               </View>
 
@@ -1802,10 +1944,11 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               </View>
 
               <View style={styles.profileOptionContent}>
-                <Text style={styles.profileOptionTitle}>{t("workerDashboard.verification")}</Text>
+                <Text style={styles.profileOptionTitle}>Verification</Text>
 
                 <Text style={styles.profileOptionSubtitle} numberOfLines={2}>
-                  {WORKER.documents?.length || 0} {t("workerDashboard.verificationDocumentsOnFile", { count: WORKER.documents?.length || 0 })}
+                  {WORKER.documents?.length || 0} verification document
+                  {(WORKER.documents?.length || 0) === 1 ? "" : "s"} on file
                 </Text>
               </View>
 
@@ -1818,10 +1961,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
           <Pressable style={styles.logoutButton} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={20} color="#DC2626" />
 
-            <Text style={styles.logoutText}>{t("common.logout")}</Text>
+            <Text style={styles.logoutText}>Logout</Text>
           </Pressable>
 
-          <Text style={styles.profileFooter}>{t("workerDashboard.footer")}</Text>
+          <Text style={styles.profileFooter}>ShramSaathi • Worker Portal</Text>
         </ScrollView>
 
         <Modal
@@ -1848,7 +1991,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                 <Ionicons name="arrow-back" size={24} color="#222222" />
               </Pressable>
 
-              <Text style={styles.workerEditTitle}>{t("workerDashboard.editProfile")}</Text>
+              <Text style={styles.workerEditTitle}>Edit Profile</Text>
               <View style={{ width: 24 }} />
             </View>
 
@@ -1858,55 +2001,76 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               contentContainerStyle={styles.workerEditContent}
             >
               <Text style={styles.workerEditSectionTitle}>
-                {t("common.personalInformation")}
+                Personal Information
               </Text>
 
-              <Text style={styles.workerEditLabel}>{t("common.fullName")}</Text>
+              <View style={styles.workerEditAvatarSection}>
+                <View style={styles.workerEditAvatar}>
+                  {workerEditAvatarUri ? (
+                    <Image
+                      source={{ uri: workerEditAvatarUri }}
+                      style={styles.workerEditAvatarImage}
+                    />
+                  ) : (
+                    <Ionicons name="person" size={38} color="#2563EB" />
+                  )}
+                </View>
+                <Pressable
+                  style={styles.workerChangePhotoButton}
+                  onPress={handlePickWorkerProfilePicture}
+                  disabled={workerEditSaving || workerLocationLoading}
+                >
+                  <Ionicons name="camera-outline" size={17} color="#2563EB" />
+                  <Text style={styles.workerChangePhotoText}>Change Photo</Text>
+                </Pressable>
+              </View>
+
+              <Text style={styles.workerEditLabel}>Full Name</Text>
               <TextInput
                 style={styles.workerEditInput}
                 value={workerEditName}
                 onChangeText={setWorkerEditName}
-                placeholder={t("common.enterFullName")}
+                placeholder="Enter your full name"
                 placeholderTextColor="#9CA3AF"
               />
 
-              <Text style={styles.workerEditLabel}>{t("common.phoneNumber")}</Text>
+              <Text style={styles.workerEditLabel}>Phone Number</Text>
               <TextInput
                 style={styles.workerEditInput}
                 value={workerEditPhone}
                 onChangeText={setWorkerEditPhone}
-                placeholder={t("common.mobilePlaceholder")}
+                placeholder="10-digit mobile number"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="phone-pad"
                 maxLength={10}
               />
 
               <Text style={styles.workerEditLabel}>
-                {t("workerDashboard.professionalDescription")}
+                Professional Description
               </Text>
               <TextInput
                 style={[styles.workerEditInput, styles.workerEditTextArea]}
                 value={workerEditBio}
                 onChangeText={setWorkerEditBio}
-                placeholder={t("workerDashboard.describeExperience")}
+                placeholder="Describe your experience and services"
                 placeholderTextColor="#9CA3AF"
                 multiline
                 textAlignVertical="top"
               />
 
               <Text style={styles.workerEditSectionTitle}>
-                {t("workerDashboard.professionalDetails")}
+                Professional Details
               </Text>
 
-              <Text style={styles.workerEditLabel}>{t("workerDashboard.primarySkill")}</Text>
+              <Text style={styles.workerEditLabel}>Primary Skill</Text>
               <TextInput
                 style={[
                   styles.workerEditInput,
                   { backgroundColor: "#F3F4F6", color: "#6B7280" },
                 ]}
-                value={translateSkillName(workerEditPrimarySkill)}
+                value={workerEditPrimarySkill}
                 editable={false}
-                placeholder={t("workerDashboard.primarySkill")}
+                placeholder="Primary skill"
                 placeholderTextColor="#9CA3AF"
               />
               <Text
@@ -1917,10 +2081,11 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                   marginBottom: 12,
                 }}
               >
-                {t("workerDashboard.primarySkillFixed")}
+                Primary skill is fixed after registration. You can change your
+                subskill below.
               </Text>
 
-              <Text style={styles.workerEditLabel}>{t("workerDashboard.subskill")}</Text>
+              <Text style={styles.workerEditLabel}>Subskill</Text>
               {workerEditAvailableSubskills.length > 0 ? (
                 <View style={styles.workerEditSubskillList}>
                   {workerEditAvailableSubskills.map((subskill: any) => {
@@ -1940,7 +2105,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                             selected && styles.workerEditSubskillTextSelected,
                           ]}
                         >
-                          {translateSubskillName(subskill.name)}
+                          {subskill.name}
                         </Text>
                         {selected ? (
                           <Ionicons
@@ -1956,52 +2121,52 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               ) : (
                 <View style={styles.workerEditSubskillEmpty}>
                   <Text style={styles.workerEditSubskillEmptyText}>
-                    {t("workerDashboard.noSubskills")}
+                    No subskills are available for this primary skill.
                   </Text>
                 </View>
               )}
 
-              <Text style={styles.workerEditLabel}>{t("workerDashboard.yearsExperience")}</Text>
+              <Text style={styles.workerEditLabel}>Years of Experience</Text>
               <TextInput
                 style={styles.workerEditInput}
                 value={workerEditExperience}
                 onChangeText={setWorkerEditExperience}
-                placeholder={t("workerDashboard.experiencePlaceholder")}
+                placeholder="e.g. 5"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="decimal-pad"
               />
 
-              <Text style={styles.workerEditLabel}>{t("workerDashboard.serviceRadius")}</Text>
+              <Text style={styles.workerEditLabel}>Service Radius (km)</Text>
               <TextInput
                 style={styles.workerEditInput}
                 value={workerEditRadius}
                 onChangeText={setWorkerEditRadius}
-                placeholder={t("workerDashboard.radiusPlaceholder")}
+                placeholder="e.g. 10"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="decimal-pad"
               />
 
-              <Text style={styles.workerEditSectionTitle}>{t("workerDashboard.availability")}</Text>
+              <Text style={styles.workerEditSectionTitle}>Availability</Text>
 
-              <Text style={styles.workerEditLabel}>{t("workerDashboard.workingDays")}</Text>
+              <Text style={styles.workerEditLabel}>Working Days</Text>
               <TextInput
                 style={styles.workerEditInput}
                 value={workerEditDays}
                 onChangeText={setWorkerEditDays}
-                placeholder={t("workerDashboard.workingDaysPlaceholder")}
+                placeholder="Monday, Tuesday, Wednesday"
                 placeholderTextColor="#9CA3AF"
               />
 
-              <Text style={styles.workerEditLabel}>{t("workerDashboard.preferredHours")}</Text>
+              <Text style={styles.workerEditLabel}>Preferred Hours</Text>
               <TextInput
                 style={styles.workerEditInput}
                 value={workerEditHours}
                 onChangeText={setWorkerEditHours}
-                placeholder={t("workerDashboard.preferredHoursPlaceholder")}
+                placeholder="09:00 AM - 01:00 PM, 02:00 PM - 06:00 PM"
                 placeholderTextColor="#9CA3AF"
               />
 
-              <Text style={styles.workerEditSectionTitle}>{t("workerDashboard.serviceAddress")}</Text>
+              <Text style={styles.workerEditSectionTitle}>Service Address</Text>
 
               <Pressable
                 style={[
@@ -2020,41 +2185,41 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.workerLocationTitle}>
                     {workerLocationLoading
-                      ? t("workerDashboard.fetchingLocation")
-                      : t("workerDashboard.useCurrentLocation")}
+                      ? "Fetching Location..."
+                      : "Use Current Location"}
                   </Text>
                   <Text style={styles.workerLocationSubtitle}>
-                    {t("workerDashboard.autoFillAddress")}
+                    Automatically fill your service address and coordinates
                   </Text>
                 </View>
               </Pressable>
 
               {[
                 [
-                  t("common.houseLabel"),
+                  "House / Flat / Building",
                   workerEditHouse,
                   setWorkerEditHouse,
-                  t("common.housePlaceholder"),
+                  "House no., flat no., building",
                 ],
                 [
-                  t("common.streetLabel"),
+                  "Street / Locality",
                   workerEditLocality,
                   setWorkerEditLocality,
-                  t("common.streetPlaceholder"),
+                  "Street, colony, locality",
                 ],
-                [t("common.city"), workerEditCity, setWorkerEditCity, t("common.enterCity")],
-                [t("common.state"), workerEditState, setWorkerEditState, t("common.enterState")],
+                ["City", workerEditCity, setWorkerEditCity, "Enter city"],
+                ["State", workerEditState, setWorkerEditState, "Enter state"],
                 [
-                  t("common.pinCode"),
+                  "PIN Code",
                   workerEditPincode,
                   setWorkerEditPincode,
-                  t("common.pinPlaceholder"),
+                  "6-digit PIN code",
                 ],
                 [
-                  t("common.landmarkOptional"),
+                  "Landmark (optional)",
                   workerEditLandmark,
                   setWorkerEditLandmark,
-                  t("common.landmarkPlaceholder"),
+                  "Nearby landmark",
                 ],
               ].map(([label, value, setter, placeholder]) => (
                 <View key={label as string}>
@@ -2066,9 +2231,9 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                     placeholder={placeholder as string}
                     placeholderTextColor="#9CA3AF"
                     keyboardType={
-                      label === t("common.pinCode") ? "number-pad" : "default"
+                      label === "PIN Code" ? "number-pad" : "default"
                     }
-                    maxLength={label === t("common.pinCode") ? 6 : undefined}
+                    maxLength={label === "PIN Code" ? 6 : undefined}
                   />
                 </View>
               ))}
@@ -2091,7 +2256,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                       color="#FFFFFF"
                     />
                     <Text style={styles.workerSaveButtonText}>
-                      {t("common.saveChanges")}
+                      Save Changes
                     </Text>
                   </>
                 )}
@@ -2134,10 +2299,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
 
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>{t("workerDashboard.bookingDetails")}</Text>
+                <Text style={styles.modalTitle}>Booking Details</Text>
 
                 <Text style={styles.modalSubtitle}>
-                  {t("workerDashboard.bookingId")}: {booking.id}
+                  Booking ID: {booking.id}
                 </Text>
               </View>
 
@@ -2175,7 +2340,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                 onPress={() => handleCallCustomer(booking)}
               >
                 <Ionicons name="call-outline" size={18} color="#2563EB" />
-                <Text style={styles.modalContactText}>{t("workerDashboard.callCustomer")}</Text>
+                <Text style={styles.modalContactText}>Call Customer</Text>
               </Pressable>
 
               <Pressable
@@ -2183,16 +2348,16 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                 onPress={() => handleOpenCustomerLocation(booking)}
               >
                 <Ionicons name="map-outline" size={18} color="#2563EB" />
-                <Text style={styles.modalContactText}>{t("workerDashboard.openMaps")}</Text>
+                <Text style={styles.modalContactText}>Open Maps</Text>
               </Pressable>
             </View>
 
             {/* SERVICE */}
 
             <View style={styles.modalDetailSection}>
-              <Text style={styles.modalDetailLabel}>{t("workerDashboard.service")}</Text>
+              <Text style={styles.modalDetailLabel}>Service</Text>
 
-              <Text style={styles.modalDetailValue}>{translateSkillName(booking.service)}</Text>
+              <Text style={styles.modalDetailValue}>{booking.service}</Text>
 
               <Text style={styles.modalDetailSubvalue}>
                 {booking.serviceDescription}
@@ -2204,10 +2369,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                 <Ionicons name="flash" size={20} color="#DC2626" />
                 <View style={styles.modalEmergencyContent}>
                   <Text style={styles.modalEmergencyTitle}>
-                    {t("workerDashboard.emergencyService")}
+                    Emergency Service
                   </Text>
                   <Text style={styles.modalEmergencyText}>
-                    {t("workerDashboard.customerImmediate")}
+                    Customer requested immediate service.
                   </Text>
                 </View>
               </View>
@@ -2219,8 +2384,8 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               <View style={styles.modalImmediateRow}>
                 <Ionicons name="flash-outline" size={19} color="#DC2626" />
                 <View>
-                  <Text style={styles.detailSmallLabel}>{t("workerDashboard.response")}</Text>
-                  <Text style={styles.detailSmallValue}>{t("workerDashboard.immediate")}</Text>
+                  <Text style={styles.detailSmallLabel}>Response</Text>
+                  <Text style={styles.detailSmallValue}>Immediate</Text>
                 </View>
               </View>
             ) : (
@@ -2234,7 +2399,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                     />
                   </View>
 
-                  <Text style={styles.detailSmallLabel}>{t("workerDashboard.date")}</Text>
+                  <Text style={styles.detailSmallLabel}>Date</Text>
 
                   <Text style={styles.detailSmallValue}>{booking.date}</Text>
                 </View>
@@ -2244,7 +2409,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                     <Ionicons name="time-outline" size={19} color="#2563EB" />
                   </View>
 
-                  <Text style={styles.detailSmallLabel}>{t("workerDashboard.time")}</Text>
+                  <Text style={styles.detailSmallLabel}>Time</Text>
 
                   <Text style={styles.detailSmallValue}>{booking.time}</Text>
                 </View>
@@ -2254,7 +2419,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
             {/* ADDRESS */}
 
             <View style={styles.modalDetailSection}>
-              <Text style={styles.modalDetailLabel}>{t("workerDashboard.serviceAddress")}</Text>
+              <Text style={styles.modalDetailLabel}>Service Address</Text>
 
               <View style={styles.addressRow}>
                 <Ionicons name="location-outline" size={19} color="#2563EB" />
@@ -2263,7 +2428,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                   {booking.address}
                   {typeof booking.latitude === "number" &&
                   typeof booking.longitude === "number"
-                    ? `\n\n${t("workerDashboard.mapLocationAvailable")}`
+                    ? `\n\nMap location available`
                     : ""}
                 </Text>
               </View>
@@ -2272,10 +2437,10 @@ export default function WorkerDashboard({ navigation, route }: Props) {
             {/* PAYMENT */}
 
             <View style={styles.paymentBreakdown}>
-              <Text style={styles.paymentBreakdownTitle}>{t("workerDashboard.paymentSummary")}</Text>
+              <Text style={styles.paymentBreakdownTitle}>Payment Summary</Text>
 
               <View style={styles.paymentLine}>
-                <Text style={styles.paymentLineLabel}>{t("workerDashboard.customerPayment")}</Text>
+                <Text style={styles.paymentLineLabel}>Customer payment</Text>
 
                 <Text style={styles.paymentLineValue}>
                   ₹{formatMoney(booking.amount)}
@@ -2283,7 +2448,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               </View>
 
               <View style={styles.paymentLine}>
-                <Text style={styles.paymentLineLabel}>{t("workerDashboard.platformCommission")}</Text>
+                <Text style={styles.paymentLineLabel}>Platform commission</Text>
 
                 <Text style={styles.commissionValue}>
                   - ₹{formatMoney(booking.commission)}
@@ -2293,7 +2458,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               <View style={styles.paymentSeparator} />
 
               <View style={styles.paymentLine}>
-                <Text style={styles.finalEarningLabel}>{t("workerDashboard.yourEarning")}</Text>
+                <Text style={styles.finalEarningLabel}>Your earning</Text>
 
                 <Text style={styles.finalEarningValue}>
                   ₹{formatMoney(booking.workerEarning)}
@@ -2309,7 +2474,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
 
                 <View style={styles.modalPaymentContent}>
                   <Text style={styles.modalPaymentTitle}>
-                    {t("workerDashboard.waitingCustomerPaymentTitle")}
+                    Waiting for customer payment
                   </Text>
 
                   <Text style={styles.modalPaymentText}>
@@ -2325,7 +2490,8 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                 <Ionicons name="checkmark-circle" size={19} color="#16A34A" />
 
                 <Text style={styles.modalPaymentReceivedText}>
-                  {t("workerDashboard.paymentReceived", { amount: formatMoney(booking.workerEarning) })}
+                  Payment received. ₹{formatMoney(booking.workerEarning)} is now
+                  available as your earning.
                 </Text>
               </View>
             )}
@@ -2338,7 +2504,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                   style={styles.modalRejectButton}
                   onPress={() => handleRejectBooking(booking)}
                 >
-                  <Text style={styles.modalRejectText}>{t("workerDashboard.decline")}</Text>
+                  <Text style={styles.modalRejectText}>Decline</Text>
                 </Pressable>
 
                 <Pressable
@@ -2349,7 +2515,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                     setDetailsVisible(false);
                   }}
                 >
-                  <Text style={styles.modalAcceptText}>{t("workerDashboard.acceptRequest")}</Text>
+                  <Text style={styles.modalAcceptText}>Accept Request</Text>
                 </Pressable>
               </View>
             )}
@@ -2363,7 +2529,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               >
                 <Ionicons name="play" size={18} color="#FFFFFF" />
 
-                <Text style={styles.modalStartText}>{t("workerDashboard.startJob")}</Text>
+                <Text style={styles.modalStartText}>Start Job</Text>
               </Pressable>
             )}
 
@@ -2379,7 +2545,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                 />
 
                 <Text style={styles.modalCompleteText}>
-                  {t("workerDashboard.markWorkCompleted")}
+                  Mark Work Completed
                 </Text>
               </Pressable>
             )}
@@ -2388,7 +2554,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
               style={styles.modalCancelButton}
               onPress={() => setDetailsVisible(false)}
             >
-              <Text style={styles.modalCancelText}>{t("common.close")}</Text>
+              <Text style={styles.modalCancelText}>Close</Text>
             </Pressable>
           </View>
         </View>
@@ -2484,7 +2650,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                 activeTab === "requests" && styles.navTextActive,
               ]}
             >
-              {t("workerDashboard.requests")}
+              Requests
             </Text>
           </Pressable>
 
@@ -2513,7 +2679,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                 activeTab === "earnings" && styles.navTextActive,
               ]}
             >
-              {t("workerDashboard.earnings")}
+              Earnings
             </Text>
           </Pressable>
 
@@ -2542,7 +2708,7 @@ export default function WorkerDashboard({ navigation, route }: Props) {
                 activeTab === "profile" && styles.navTextActive,
               ]}
             >
-              {t("navigation.profile")}
+              Profile
             </Text>
           </Pressable>
         </View>
@@ -3603,6 +3769,42 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "700",
+  },
+
+  workerEditAvatarSection: {
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  workerEditAvatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "#EFF6FF",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  workerEditAvatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  workerChangePhotoButton: {
+    marginTop: 9,
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    backgroundColor: "#EFF6FF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  workerChangePhotoText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#2563EB",
   },
 
   workerEditScreen: {

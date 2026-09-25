@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import * as Location from "expo-location";
+import * as ImagePicker from "expo-image-picker";
 import LanguageButton from "../../components/LanguageButton";
 import { useTranslation } from "react-i18next";
 
@@ -32,6 +33,7 @@ import {
   getCustomerBookings,
   getCustomerProfile,
   updateCustomerProfile,
+  uploadCustomerAvatar,
   createBooking as createBackendBooking,
   createCustomerPayment,
   verifyCustomerPayment,
@@ -273,6 +275,7 @@ export default function UserDashboard({ route, navigation }: Props) {
   const [customerEditSaving, setCustomerEditSaving] = useState(false);
   const [customerEditName, setCustomerEditName] = useState("");
   const [customerEditPhone, setCustomerEditPhone] = useState("");
+  const [customerEditAvatarUri, setCustomerEditAvatarUri] = useState<string | null>(null);
 
   const [bookingsVisible, setBookingsVisible] = useState(false);
 
@@ -867,7 +870,38 @@ export default function UserDashboard({ route, navigation }: Props) {
   const openCustomerEdit = () => {
     setCustomerEditName(user.name || "");
     setCustomerEditPhone(user.phone || "");
+    setCustomerEditAvatarUri(user.avatarUrl || null);
     setCustomerEditVisible(true);
+  };
+
+  const handlePickCustomerProfilePicture = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please allow photo library access to change your profile picture.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setCustomerEditAvatarUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Customer profile picture picker error:", error);
+      Alert.alert(
+        "Unable to Select Photo",
+        "Please try again.",
+      );
+    }
   };
 
   const handleSaveCustomerProfile = async () => {
@@ -886,8 +920,47 @@ export default function UserDashboard({ route, navigation }: Props) {
 
     try {
       setCustomerEditSaving(true);
-      await updateCustomerProfile({ full_name: name, phone });
-      setUser((current) => ({ ...current, name, phone }));
+
+      let avatarUrl: string | null = null;
+
+      if (
+        customerEditAvatarUri &&
+        customerEditAvatarUri !== user.avatarUrl &&
+        !customerEditAvatarUri.startsWith("http://") &&
+        !customerEditAvatarUri.startsWith("https://")
+      ) {
+        const avatarResult = await uploadCustomerAvatar(
+          customerEditAvatarUri,
+          "customer-profile.jpg",
+          "image/jpeg",
+        );
+
+        avatarUrl =
+          avatarResult?.avatar?.avatar_url ||
+          avatarResult?.avatar_url ||
+          avatarResult?.public_url ||
+          avatarResult?.url ||
+          null;
+
+        if (!avatarUrl) {
+          throw new Error(
+            "Profile photo was uploaded, but the server did not return a photo URL.",
+          );
+        }
+      }
+
+      await updateCustomerProfile({
+        full_name: name,
+        phone,
+        ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
+      });
+
+      setUser((current) => ({
+        ...current,
+        name,
+        phone,
+        ...(avatarUrl ? { avatarUrl } : {}),
+      }));
       await loadDashboardData();
       setCustomerEditVisible(false);
       Alert.alert(t("userDashboard.alerts.profileUpdatedTitle"), t("userDashboard.alerts.profileUpdatedMessage"));
@@ -3136,6 +3209,27 @@ export default function UserDashboard({ route, navigation }: Props) {
                 </Pressable>
               </View>
 
+              <View style={styles.customerEditAvatarSection}>
+                <View style={styles.customerEditAvatar}>
+                  {customerEditAvatarUri ? (
+                    <Image
+                      source={{ uri: customerEditAvatarUri }}
+                      style={styles.customerEditAvatarImage}
+                    />
+                  ) : (
+                    <Ionicons name="person" size={38} color="#7047E8" />
+                  )}
+                </View>
+                <Pressable
+                  style={styles.customerChangePhotoButton}
+                  onPress={handlePickCustomerProfilePicture}
+                  disabled={customerEditSaving}
+                >
+                  <Ionicons name="camera-outline" size={17} color="#7047E8" />
+                  <Text style={styles.customerChangePhotoText}>Change Photo</Text>
+                </Pressable>
+              </View>
+
               <Text style={styles.customerEditLabel}>{t("common.fullName")}</Text>
               <View style={styles.customerEditInputContainer}>
                 <Ionicons name="person-outline" size={19} color="#9CA3AF" />
@@ -4988,6 +5082,42 @@ const styles = StyleSheet.create({
   },
 
   /* CUSTOMER PROFILE EDIT */
+
+  customerEditAvatarSection: {
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  customerEditAvatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "#EEE8FF",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  customerEditAvatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  customerChangePhotoButton: {
+    marginTop: 9,
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#D8CCFF",
+    backgroundColor: "#F8F5FF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  customerChangePhotoText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#7047E8",
+  },
 
   customerEditModal: {
     backgroundColor: "#FFFFFF",
